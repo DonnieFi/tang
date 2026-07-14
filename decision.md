@@ -72,3 +72,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) leave composition to each index/link caller; (b) validate caller-supplied identities; (c) make candidate construction resolve the source hint internally, provide one active-project discovery helper with path-safe warnings, and isolate the Git subprocess environment.
 - Decision: (c) — all production candidate discovery crosses the same native-hint-to-project-identity seam, ignores ambient Git repository overrides, and refuses unavailable resolution rather than guessing. Serves: Technological Implementation, Design, Potential Impact.
 - By: agent, resolving manual gate findings before Epic 3 consumes project identity
+
+## 2026-07-14T23:58:02Z · tang-oda.6 · Promote the reviewed Epic 2 milestone
+- Context: Human review approved the renewed Epic 2 adapter milestone after project-resolution integration and environment-isolation findings were resolved with 102 passing tests on both supported Python baselines.
+- Options: (a) fast-forward the reviewed milestone into `main`; (b) create a merge commit; (c) defer promotion.
+- Decision: (a) — fast-forward `epic/02-codex-adapter` milestone `a30866cd03958f395e3537d41dfa1b0d8e73c966` into `main`, producing promotion SHA `a30866cd03958f395e3537d41dfa1b0d8e73c966`. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: human (promotion approval) and agent (verified fast-forward execution)
