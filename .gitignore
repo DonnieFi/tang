@@ -1,0 +1,37 @@
+# Private planning and agent state
+/plan/
+/.agents/
+/.codex/
+/.beads/
+/.tang/
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Packaging and build output
+build/
+dist/
+*.egg-info/
+
+# Local runtime and demo output
+/demo-output/
+*.log
+
+# Editor and OS metadata
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
