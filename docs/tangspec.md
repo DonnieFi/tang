@@ -1,4 +1,4 @@
-# Tang Multiverse Hackathon Specification
+# Tang Multiverse — OpenAI Build Week Specification
 
 Status: Approved for implementation
 
@@ -6,7 +6,7 @@ Status: Approved for implementation
 
 Tang is a local-first Codex skill and installable Python CLI for continuing coding-agent work across sessions and harnesses.
 
-**Promise:** Continue your timeline from anywhere. Find prior sessions across harnesses, load one or several into the current session, and preserve source-cited continuity.
+**Promise:** Continue one coding agent's work inside another, with the original sources cited. The hackathon demonstration makes this concrete: continue a Grok session inside Codex.
 
 **Metaphor:** Keep the blade, switch the handle. The blade is the ongoing work. Codex, Grok, and future supported harnesses are handles. Tang is the fitted continuity layer between them.
 
@@ -14,9 +14,9 @@ Tang is a local-first Codex skill and installable Python CLI for continuing codi
 
 Tang serves a solo developer who uses multiple coding-agent harnesses and needs to recover or reuse work without manually hunting through native history stores.
 
-The motivating incident was a Cursor session using Sol that crashed while producing a specification. The session appeared lost, was difficult to locate and continue, and required another agent to recover it. Tang must make that class of recovery fast and understandable.
+The motivating incident was a Cursor session using Sol that crashed while producing a specification. The session appeared lost, was difficult to locate and continue, and required another agent to recover it. That incident explains Tang's origin, but it is not the opening claim or demonstrated support path for the hackathon release.
 
-The hackathon release proves the workflow with Codex and Grok. Cursor is the first stretch adapter because its local history uses a private content-addressed blob format that is riskier to support reliably within the deadline.
+The hackathon release proves one complete Grok-to-Codex workflow. Cursor remains a post-release adapter because its private content-addressed history format is too risky to promise without repeatable recovery from real data.
 
 ## Domain Language
 
@@ -33,20 +33,22 @@ The hackathon release proves the workflow with Codex and Grok. Cursor is the fir
 
 ### Release Blocking
 
-- Codex and Grok session adapters.
-- Current-project indexing, browsing, filtering, and FTS5 search.
-- Explicit opt-in to global cross-project discovery.
-- Multi-select of any prior sessions into the current open session.
-- Compact and full Context Packs with deterministic offline output.
-- GPT-5.6 Continuation Brief synthesis through the Codex skill.
-- Explicit, cycle-free continuation links and Multiverse Map rendering.
-- Host-native skill selection plus a simple Rich line-mode browser implemented over the same CLI modules.
-- Isolated synthetic demo, package installation, Linux verification, macOS CI, and core tests.
-- Versioned release wheel, checksum, installer, public README, and submission assets.
+- Reliable Codex and Grok read-only session adapters, with support claims distinguishing live verification from fixtures.
+- Current-project indexing, browsing, and FTS5 search.
+- Selection of one or more prior sessions into the current open Codex session.
+- One deterministic, source-cited compact Context Pack.
+- One GPT-5.6 Continuation Brief whose headline identifies the resume point and evidence-backed next action.
+- Explicit, cycle-free continuation links and a polished terminal Multiverse Map.
+- The Codex skill as the primary selection and continuation experience; the standalone CLI remains non-interactive and scriptable.
+- An isolated synthetic demo, a tagged installable wheel, Linux verification, focused demo-path tests, a public README, and submission assets.
 
 ### Stretch
 
-- Cursor read-only adapter, attempted first because it matches the motivating incident.
+- Explicit opt-in to global cross-project discovery.
+- Expanded or custom-budget Context Packs.
+- A richer interactive standalone browser.
+- Additional purge scopes and broader diagnostics.
+- Cursor read-only adapter only after repeatable recovery from real Cursor data plus fixture and failure tests.
 - OpenCode adapter.
 - SVG export, advanced graph-card themes, fuzzy navigation, or a full-screen TUI.
 
@@ -56,6 +58,7 @@ The hackathon release proves the workflow with Codex and Grok. Cursor is the fir
 - Continuing context into an arbitrary closed target session.
 - Automatic continuation inference or suggested graph edges.
 - Semantic/vector search or `sqlite-vec`.
+- macOS support or CI claims.
 - Native Windows support.
 - Persisted model-generated annotations.
 - Mermaid output.
@@ -64,15 +67,15 @@ The hackathon release proves the workflow with Codex and Grok. Cursor is the fir
 ## Primary Workflow
 
 1. The developer opens a fresh or existing current session `C` in Codex.
-2. The Tang skill indexes the current project and presents a host-native selector; standalone users get the Rich line-mode browser.
+2. The Tang skill indexes the current project and presents a host-native selector.
 3. The developer searches and previews any prior sessions, including sessions from Grok.
 4. The developer selects one or more prior sources `A`, `B`, and so on.
 5. Tang rereads the selected native sources, applies redaction, and emits a source-cited Context Pack.
-6. GPT-5.6 treats the recovered excerpts as untrusted data and synthesizes a concise Continuation Brief inside `C`.
+6. GPT-5.6 treats the recovered excerpts as untrusted data and synthesizes a concise Continuation Brief inside `C`, led by an evidence-backed resume point and next action.
 7. Tang records explicit edges `A -> C`, `B -> C`, and so on after confirming the current target when necessary.
 8. The Multiverse Map shows how the work continued across harnesses.
 
-The selected sources may come from any indexed project only after the developer explicitly enables global discovery. Default behavior stays within the current project to prevent nonsensical or accidental mixing.
+The hackathon release only discovers and selects sources belonging to the current project. Cross-project discovery is deferred to prevent nonsensical or accidental mixing and to protect the primary demo path.
 
 Tang rejects self-links and links that introduce a cycle. A Multiverse is a weakly connected component of this directed acyclic graph; a Timeline is any directed path through it.
 
@@ -80,21 +83,16 @@ Tang rejects self-links and links that introduce a cycle. A Multiverse is a weak
 
 | Interface | Behavior |
 |---|---|
-| `tang` | Alias `tang browse --interactive` in a human TTY; print concise help in a non-TTY. |
-| `tang index [PATH]` | Incrementally index the current project or an explicit path. |
+| `tang` | Print concise help and the primary recovery commands. |
+| `tang index` | Incrementally index the current project. |
 | `tang browse` | List indexed sessions with harness, time, title, health, and capability status. |
-| `tang browse --interactive` | Show a Rich table and brief panels, then accept numbered multi-selection. |
 | `tang search QUERY` | Search Discovery Capsules with project, harness, time, and health filters. |
 | `tang context SESSION...` | Emit a deterministic Markdown or JSON Context Pack using the compact budget. |
-| `tang context SESSION... --full` | Use the expanded context budget. |
-| `tang context SESSION... --budget N` | Override the conservative estimated-token budget. |
 | `tang link --from SESSION... --current` | Link selected sources into the current session after target confirmation. |
 | `tang link --from SESSION... --to SESSION` | Explicit scripting and ambiguity-resolution path. |
 | `tang graph [SESSION]` | Render the containing Multiverse Map in the terminal. |
-| `tang purge SESSION...` | Remove selected derived records and search capsules. |
-| `tang purge --project PATH` | Remove all derived records for a project. |
 | `tang purge --all` | Remove all Tang-derived data after confirmation. |
-| `tang doctor` | Report database, FTS5, adapter, source, permission, and installation health. |
+| `tang doctor` | Run a minimal installation, database, FTS5, and adapter readiness check. |
 | `tang demo` | Launch the isolated branch-and-continuation demonstration without touching user data. |
 | `tang skill install codex` | Install the bundled skill into the active Codex skill directory. |
 
@@ -120,7 +118,7 @@ Adapters return partial results with warnings for malformed or truncated data. A
 ### Supported Adapters
 
 - **Codex:** Read local JSONL session logs, visible user/agent turns, timestamps, project metadata, and terminal event signals.
-- **Grok:** Use documented session/export behavior and fixture-tested local session data where required for global discovery.
+- **Grok:** Read documented local session or export data. The release claim requires an end-to-end read from representative real data and a fixture derived from the verified shape.
 - **Cursor stretch:** Read only through a separately isolated adapter. Do not claim support until live recovery, fixture, and failure tests pass.
 
 Release documentation names the adapter versions used for fixtures and distinguishes live-verified from fixture-verified behavior.
@@ -133,15 +131,16 @@ Health is a badge and filter, not a release blocker or automatic prompt. Tang ne
 
 ### Implementation Order
 
-Build vertical slices rather than completing speculative layers in isolation:
+Build the differentiating path first:
 
-1. Implement the Codex adapter through scan, Discovery Capsule creation, SQLite/FTS storage, browse/search, and deterministic Context Pack output.
-2. Implement the Grok adapter through the already-proven adapter seam and the same end-to-end tests.
-3. Implement the Codex skill, host-native selection, and GPT-5.6 Continuation Brief synthesis.
-4. Add explicit continuation links and the terminal Multiverse Map.
-5. Finish packaging, the versioned installer, isolated demo, README, CI, and submission assets.
+1. Time-box a Grok feasibility gate: locate representative real data, recover stable identity and visible turns, generate a cited Context Pack, and repeat the read through a fixture. Adjust the supported source path or demo narrative immediately if this fails.
+2. Implement the Codex adapter and current-session resolution through the same adapter seam.
+3. Add current-project Discovery Capsules, SQLite/FTS storage, browse/search, and the deterministic compact Context Pack.
+4. Implement the Codex skill, host-native selection, and the GPT-5.6 Continuation Brief.
+5. Add explicit continuation links and build the terminal Multiverse Map against deterministic demo fixtures early enough to polish it as the hero surface.
+6. Finish the isolated demo, tagged wheel, README, focused Linux CI, and submission assets.
 
-Each slice includes its tests before the next slice starts. The interactive browser remains a thin presentation layer and must not introduce a parallel data or workflow path.
+Each slice includes focused tests before the next slice starts. Do not create a second interactive workflow outside the Codex skill during the hackathon release.
 
 ## Storage, Search, And Privacy
 
@@ -160,17 +159,17 @@ Index Discovery Capsules with normal FTS5 for reliable search, snippets, updates
 
 Apply the same best-effort redactor when creating capsules, showing snippets, reading context, producing annotations, and rendering graph labels. Redaction protects against accidental disclosure; it is not encryption and does not guarantee protection against forensic recovery.
 
-Default indexing and browsing to the current project. Require an explicit setting or CLI flag before indexing or searching all projects. Provide source exclusions and all three purge scopes. `tang demo` always uses a temporary data directory.
+Index and browse only the current project in the hackathon release. Provide `tang purge --all` for a clear derived-data deletion path. `tang demo` always uses a temporary data directory.
 
 ### Context Packs
 
-Compact packs target 2,000 estimated tokens. Full packs target 10,000 estimated tokens. Estimate conservatively with `ceil(Unicode character count / 4)` and label the result as an estimate rather than a model-exact count. Reject custom budgets below 512 estimated tokens.
+Compact packs target 2,000 estimated tokens. Estimate conservatively with `ceil(Unicode character count / 4)` and label the result as an estimate rather than a model-exact count.
 
 Reserve space for pack metadata and citations, then allocate fair per-source reserves and fill remaining space with recent visible turns in round-robin order. Preserve chronological order inside each source. Mark truncation and omission explicitly.
 
 Every excerpt includes harness, session ID, timestamp or turn locator, and provenance. Reread and redact native sources during generation. Produce a partial pack with warnings when some sources are unavailable; fail only when none can be read.
 
-Wrap recovered material in an explicit untrusted-data envelope. The Codex skill instructs GPT-5.6 to use it as historical evidence, never as executable instructions. GPT-5.6 creates the Continuation Brief in the active session but Tang does not persist that model-generated synthesis in v1.
+Wrap recovered material in an explicit untrusted-data envelope. The Codex skill instructs GPT-5.6 to use it as historical evidence, never as executable instructions. GPT-5.6 creates the Continuation Brief in the active session but Tang does not persist that model-generated synthesis in v1. The brief begins with a source-cited **Resume point** and **Next action**. It must qualify uncertainty rather than inventing intent that the recovered evidence does not support.
 
 ## Multiverse Map
 
@@ -180,19 +179,19 @@ The graph card is a release-blocking product surface.
 - Highlight the current session as the active handle.
 - Show harness, timestamp, health, concise title, and source ID on each selected node or detail card.
 - Use a forge-black, hot-steel amber, and oxidized-teal palette with symbols and labels that remain understandable without color.
-- Respect `NO_COLOR`, narrow terminals, keyboard-only navigation, and an ASCII connector fallback.
-- Use the same renderer for interactive browse previews and `tang graph` output.
+- Respect `NO_COLOR`, narrow terminals, and an ASCII connector fallback.
+- Use the same renderer for Codex skill previews and `tang graph` output.
 - Capture the terminal card for the README and submission; SVG export remains a post-MVP stretch feature.
 
 The visual should feel like a multiverse of possible timelines without adding inferred or fictitious edges. Only confirmed continuations appear.
 
 ## Skill Experience
 
-The Codex skill is the primary harness integration. It uses `tang browse --json` and host-native questions when available. The standalone `tang` command aliases the lightweight `tang browse --interactive` Rich flow and does not launch a nested full-screen TUI.
+The Codex skill is the primary harness integration. It uses `tang browse --json` and host-native questions when available. Standalone commands provide scriptable line and JSON output; an interactive Rich selector is not part of the hackathon release.
 
 The skill workflow:
 
-1. Run `tang doctor` when installation or adapter health is unknown.
+1. Run the minimal `tang doctor` check when installation or adapter readiness is unknown.
 2. Index the current project.
 3. Present search results and brief redacted previews.
 4. Collect one or more source selections.
@@ -205,34 +204,22 @@ Scaffold `skills/tang` with the official skill initializer. `SKILL.md` contains 
 
 ## Installation And Distribution
 
-The distribution name is `tang-multiverse`; the installed command is `tang`. Support Python 3.11+ on Linux and macOS. Linux is live-tested. macOS is covered by CI and fixture tests until physical live-adapter testing is available.
+The distribution name is `tang-multiverse`; the installed command is `tang`. The hackathon release supports Linux only and requires Python 3.11 or later. Linux is live-tested. macOS and Windows are unsupported and receive no compatibility or CI claim for this release.
 
-### Complete Installer
+### Judge Installation
 
-The README leads with a version-pinned one-line installer after the public repository owner is known:
+Publish a tagged wheel so judges can install Tang without rebuilding it from source. The README leads with a version-pinned command after the public repository owner is known:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<owner>/tang/v0.1.0/install.sh | sh
+uv tool install https://github.com/<owner>/tang/releases/download/v0.1.0/tang_multiverse-0.1.0-py3-none-any.whl
+tang skill install codex
 ```
 
-`install.sh` must:
-
-- Require a supported Python and fail with actionable guidance when prerequisites are missing.
-- Download the tagged wheel and checksum from the GitHub release.
-- Verify SHA-256 before installation.
-- Install the CLI into an isolated environment without silently changing shell startup files.
-- Run `tang skill install codex`.
-- Run `tang doctor` and print the next command.
-- Be idempotent and support reinstalling the same or a newer tagged version.
-
-Document an inspect-before-running form alongside the curl pipe command.
+The release does not include a custom shell installer. `uv` supplies the isolated environment; Tang supplies the explicit skill installation and a minimal `tang doctor` readiness check.
 
 ### Standard Alternatives
 
-```bash
-uv tool install tang-multiverse
-tang skill install codex
-```
+If the package is also published to PyPI, document `uv tool install tang-multiverse==0.1.0` as a convenience rather than making PyPI publication part of the critical path.
 
 Keep the repository compatible with the Agent Skills installer for users who only want the skill package:
 
@@ -246,12 +233,12 @@ The skill-only path clearly reports that the `tang` CLI must also be installed. 
 
 Treat the README as a judged product surface, not auxiliary documentation.
 
-1. Hero capture of the terminal Multiverse Map and the line "Keep the blade, switch the handle."
-2. One-sentence promise and 30-second version-pinned installation.
-3. The Cursor/Sol crash story that motivated Tang.
+1. Hero capture of the terminal Multiverse Map, the line "Keep the blade, switch the handle," and the literal promise "Continue one coding agent's work inside another, with the original sources cited."
+2. The concrete Grok-to-Codex demonstration claim and 30-second version-pinned Linux installation.
+3. The Cursor/Sol crash as a clearly separated origin story, without implying Cursor support.
 4. A short recorded recovery-to-continuation workflow.
 5. Three-step explanation: find, continue here, see the timeline.
-6. Codex/Grok support matrix with Cursor clearly marked as the first stretch adapter.
+6. Codex/Grok support matrix with Linux as the only supported platform and Cursor marked post-hackathon.
 7. Discovery Capsule, local data lifecycle, redaction limits, and purge instructions.
 8. Architecture diagram and concise CLI reference.
 9. Reproducible `tang demo` and judge-testing instructions.
@@ -274,22 +261,21 @@ Do not use third-party logos in the demo or README without permission. Plain-tex
 
 ### Automated Tests
 
-- Adapter fixtures: normal, incomplete, aborted, malformed, truncated, schema drift, missing source, and duplicate native IDs.
-- Storage: migrations, owner permissions, WAL behavior, concurrency, capsule cap, FTS ranking, update, purge, and idempotency.
-- Privacy: repeated redaction at every output seam, excluded content, path handling, and untrusted-data envelopes.
-- Context: compact/full/custom budgets, minimum budget, multi-source fairness, chronology, citations, truncation markers, and partial-source warnings.
+- Adapters: representative Codex and Grok reads, malformed or truncated input, schema drift, missing sources, and stable identities.
+- Storage and search: migrations, owner permissions, capsule cap, FTS discovery, update, purge-all, and idempotent indexing.
+- Privacy: redaction at persisted and displayed seams, excluded content, path handling, and the untrusted-data envelope.
+- Context: compact budget, multi-source fairness, chronology, citations, truncation markers, and partial-source warnings.
 - Graph: branch/merge traversal, cycle rejection, current-node highlighting, terminal snapshots, and ASCII fallback.
-- CLI: JSON schema, RFC 3339 timestamps, exit codes, `stdout`/`stderr`, pipes, non-TTY help, ambiguity refusal, and temporary demo data.
-- Interactive browser: search, filters, numbered multi-select, preview, invalid input, cancellation, narrow terminals, and non-TTY behavior.
-- Skill: official validation, host workflow, deterministic fallback, and prompt-injection resistance.
-- Distribution: wheel/sdist build, clean install, checksum verification, idempotent installer, and uninstall documentation.
-- CI: supported Python versions on Ubuntu and macOS, with live Linux smoke tests labeled separately from fixture tests.
+- CLI and demo: JSON schema, exit behavior, ambiguity refusal, current-project boundaries, and proof that temporary demo data cannot touch native logs or the user's Tang database.
+- Skill: official validation, host workflow, evidence-backed Continuation Brief shape, and prompt-injection resistance.
+- Distribution: tagged wheel build and clean installation on Linux without rebuilding from source.
+- CI: one focused Ubuntu workflow covering the supported demo path. There is no macOS job or compatibility claim.
 
 ### Acceptance Criteria
 
 - On a realistic fixture corpus, locate a seemingly lost session by project and remembered keywords in under 10 seconds after indexing.
 - Select one or more sessions and generate a source-cited compact Context Pack under 2,000 estimated tokens in under 30 seconds.
-- Produce a useful GPT-5.6 Continuation Brief in the current Codex session without executing recovered transcript instructions.
+- Produce a useful, source-cited GPT-5.6 Continuation Brief with a defensible resume point and next action, without executing recovered transcript instructions or inventing unsupported intent.
 - Record only confirmed, acyclic continuation edges.
 - Render a polished terminal Multiverse Map with accessible color and ASCII fallbacks.
 - Run `tang demo` without reading or modifying the user's global Tang database or native session logs.
@@ -303,21 +289,32 @@ Do not use third-party logos in the demo or README without permission. Plain-tex
 - Video: public YouTube, under three minutes, with audio covering the product and Codex/GPT-5.6 usage.
 - Evidence: keep most core implementation in the designated GPT-5.6 Codex thread, capture its `/feedback` ID, and tie major decisions to dated commits.
 - README: include setup, supported platforms, sample data, judge test path, Codex collaboration, and human decision points.
-- Demo narrative: describe the Cursor/Sol crash honestly, demonstrate recovery and continuation using the supported Codex/Grok path, and show Cursor as the first roadmap adapter rather than implying unsupported capability.
+- Demo narrative: open on the cross-harness gap and demonstrate a Grok session continuing inside Codex. Mention the Cursor/Sol crash later as the origin story, without implying Cursor support.
 - Impact measurement: compare Tang's recovery flow with manual native-history hunting and, if time permits, collect feedback from two or three developers.
 - Deadline: July 21, 2026 at 5:00 PM Pacific.
 
 Eligibility has been confirmed: age of majority, eligible residence outside Quebec, no sponsor/administrator conflict or preferential support, sole ownership, and no implementation predating the submission window.
 
+### Official Judging Priorities
+
+The official rules weight four criteria equally:
+
+- **Technological Implementation:** skillful Codex use and a working, non-trivial implementation.
+- **Design:** a complete, coherent, runnable product experience rather than only a technical proof of concept.
+- **Potential Impact:** a credible solution to a specific real problem for a real audience, supported by what the demonstration proves.
+- **Quality of the Idea:** creativity, novelty, and differentiation from existing concepts.
+
+The video and README must explain how Codex and GPT-5.6 contributed, but model usage is not a separate fifth scoring category. The product strategy therefore prioritizes one coherent cross-harness path over broad but incomplete feature coverage. Source: `https://openai.devpost.com/rules`.
+
 ## Demo Sequence
 
-1. State the crash/recovery problem in 15 seconds.
-2. Show a project with several Codex and Grok sessions, including one marked `possibly_interrupted`.
+1. State the cross-harness gap: coding agents can resume their own sessions, but they cannot continue each other's work.
+2. Show a project with several Codex and Grok sessions and identify the Grok work that needs to continue in Codex.
 3. Search by a remembered specification phrase and recognize the session from its Discovery Capsule.
 4. Select that session and optionally one related session.
-5. Continue both into the current Codex session and show the source-cited GPT-5.6 Continuation Brief.
+5. Continue the selected work into the current Codex session and show the GPT-5.6 **Resume point**, **Next action**, and source citations.
 6. Reveal the terminal Multiverse Map card.
-7. Briefly show local-only storage, the capsule limit, and `tang purge`.
+7. Briefly show local-only storage, demo isolation, and `tang purge --all`.
 8. Close with the installation command and "Keep the blade, switch the handle."
 
 The complete video also reserves time for architecture/privacy, Codex/GPT-5.6 build evidence, and the closing callout while remaining strictly under three minutes.
