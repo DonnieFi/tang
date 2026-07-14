@@ -42,3 +42,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) retain the predesignated thread as the majority-core claim; (b) report both without qualification; (c) preserve the earlier thread as baseline/handoff provenance and record the later thread as the actual Epic 1 implementation and review thread.
 - Decision: (c) — use `019f62b2-5a7d-75c3-922d-969b182ec9a2` for Epic 1 implementation/review evidence and retain `019f6149-7a69-7351-8c02-101b4288b429` only as the predesignated baseline/handoff thread. Serves: Technological Implementation, Design.
 - By: agent, correcting evidence against the observed execution history
+
+## 2026-07-14T23:09:28Z · tang-xqa.6 · Promote the reviewed Epic 1 milestone
+- Context: Human review approved the hardened Epic 1 branch milestone for promotion after all privacy and resilience findings were resolved and the renewed gate evidence passed.
+- Options: (a) fast-forward the reviewed milestone into `main`; (b) create a merge commit; (c) defer promotion.
+- Decision: (a) — fast-forward `epic/01-grok-feasibility` milestone `ef574770b24f417a92976b83ed9d17ad4b735e8a` into `main`, producing promotion SHA `ef574770b24f417a92976b83ed9d17ad4b735e8a`. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: human (promotion approval) and agent (verified fast-forward execution)
