@@ -48,3 +48,21 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) fast-forward the reviewed milestone into `main`; (b) create a merge commit; (c) defer promotion.
 - Decision: (a) — fast-forward `epic/01-grok-feasibility` milestone `ef574770b24f417a92976b83ed9d17ad4b735e8a` into `main`, producing promotion SHA `ef574770b24f417a92976b83ed9d17ad4b735e8a`. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
 - By: human (promotion approval) and agent (verified fast-forward execution)
+
+## 2026-07-14T23:16:58Z · tang-oda.2 · Keep Codex native-log identity distinct from thread linkage
+- Context: Across 23 live Codex 0.144.4 logs, each metadata `id` matched the UUID in its native filename, while nine valid logs carried a different `session_id` used for thread or parent linkage. Treating `session_id` as the native record identity would collapse or reject independently stored histories.
+- Options: (a) require both fields to equal the filename UUID; (b) key records by `session_id`; (c) key records by the filename and matching metadata `id`, retaining `session_id` as non-identity native linkage.
+- Decision: (c) — use the one-file/one-`id` UUID as the stable Codex adapter identity and do not reinterpret native `session_id` linkage as record identity. Serves: Technological Implementation, Design, Potential Impact.
+- By: agent, based on privacy-safe structural inspection of representative live data
+
+## 2026-07-14T23:19:26Z · tang-oda.5 · Treat recency as ranking, not target proof
+- Context: Several Codex sessions can be active or recently updated in one project, including delegated and remote work. Modification recency produces a useful deterministic order but does not prove which session the user intends as the continuation target.
+- Options: (a) automatically choose the most recent eligible session; (b) resolve only a host-supplied native ID or the sole eligible session and otherwise require an explicit choice; (c) refuse all automatic resolution.
+- Decision: (b) — use recency only to rank confirmation candidates; resolve automatically only from unique native evidence or a single eligible current-project session. Serves: Technological Implementation, Design, Potential Impact.
+- By: agent, applying the approved ambiguity-refusal requirement
+
+## 2026-07-14T23:22:54Z · tang-oda.6 · Bound the Codex adapter support claim
+- Context: Epic 2 verified the adapter end to end against 23 local Codex CLI 0.144.4 logs on Linux and repeated the representative shape through a fully synthetic fixture. No live evidence was collected for other Codex versions or operating systems.
+- Options: (a) claim generic Codex compatibility; (b) claim live verification only for Codex CLI 0.144.4 on Linux and describe the fixture provenance precisely; (c) avoid a Codex support claim.
+- Decision: (b) — live-claim Codex CLI 0.144.4 on Linux, use the synthetic corpus as repeatable shape evidence, and require separate live verification before extending the version claim. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: agent, under the approved evidence-based adapter support policy

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -8,6 +9,8 @@ from tang.adapters import (
     AdapterCheckpoint,
     AdapterWarning,
     BatchStatus,
+    CodexAdapter,
+    GrokAdapter,
     OpaqueSourceLocator,
     ScanBatch,
     SessionAdapter,
@@ -202,3 +205,46 @@ def test_adapter_protocol_has_only_scan_and_read_behavior() -> None:
             )
 
     assert isinstance(FakeAdapter(), SessionAdapter)
+
+
+@pytest.mark.parametrize(
+    ("adapter", "expected_key"),
+    [
+        (
+            GrokAdapter(
+                Path(__file__).parent / "fixtures" / "grok",
+                source_namespace="shared-contract-grok",
+            ),
+            "grok",
+        ),
+        (
+            CodexAdapter(
+                Path(__file__).parent / "fixtures" / "codex",
+                source_namespace="shared-contract-codex",
+            ),
+            "codex",
+        ),
+    ],
+)
+def test_real_adapters_share_checkpoint_and_read_contract(
+    adapter: SessionAdapter, expected_key: str
+) -> None:
+    assert isinstance(adapter, SessionAdapter)
+
+    first = adapter.scan(None)
+    assert first.status is BatchStatus.COMPLETE
+    assert len(first.records) == 1
+    assert first.records[0].identity.adapter == expected_key
+    assert first.next_checkpoint is not None
+
+    unchanged = adapter.scan(first.next_checkpoint)
+    assert unchanged.status is BatchStatus.COMPLETE
+    assert unchanged.records == ()
+    assert unchanged.next_checkpoint == first.next_checkpoint
+
+    read = adapter.read(first.records[0], TurnSelection())
+    assert read.status is BatchStatus.COMPLETE
+    assert read.turns
+    assert [item.ordinal for item in read.turns] == sorted(
+        item.ordinal for item in read.turns
+    )

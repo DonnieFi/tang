@@ -16,12 +16,14 @@ from tang.adapters.base import (
     TurnSelection,
     VisibleTurn,
 )
+from tang.adapters.codex import CodexAdapter
 from tang.adapters.grok import GrokAdapter
 
 __all__ = [
     "AdapterCheckpoint",
     "AdapterWarning",
     "BatchStatus",
+    "CodexAdapter",
     "GrokAdapter",
     "OpaqueSourceLocator",
     "ScanBatch",
