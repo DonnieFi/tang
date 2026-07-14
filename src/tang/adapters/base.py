@@ -12,11 +12,19 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Protocol, runtime_checkable
+from unicodedata import category
 
 
 def _identity_segment(value: str, name: str) -> str:
-    if not value or value.strip() != value or ":" in value:
-        raise ValueError(f"{name} must be non-empty, trimmed, and contain no colon")
+    if (
+        not value
+        or value.strip() != value
+        or ":" in value
+        or any(category(character).startswith("C") for character in value)
+    ):
+        raise ValueError(
+            f"{name} must be non-empty, trimmed, contain no colon, and contain no controls"
+        )
     return value
 
 

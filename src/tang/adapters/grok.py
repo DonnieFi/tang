@@ -28,6 +28,10 @@ from tang.adapters.base import (
 )
 
 
+class _UnsafeSourceError(OSError):
+    """A native source escaped or weakened the configured containment seam."""
+
+
 class GrokAdapter:
     """Scan and reread Grok sessions without modifying their native store."""
 
@@ -70,11 +74,13 @@ class GrokAdapter:
 
         warnings: list[AdapterWarning] = []
         previous = self._decode_checkpoint(checkpoint, warnings)
-        current: dict[str, str] = {}
+        # Carry unseen entries forward. Epic 3 will add explicit deletion
+        # handling; Epic 1 must never let partial scans erase known-good state.
+        current: dict[str, str] = dict(previous)
         records: list[SourceRecord] = []
 
         try:
-            session_dirs = self._session_dirs()
+            session_dirs, discovery_warnings = self._session_dirs()
         except OSError:
             return ScanBatch(
                 status=BatchStatus.UNAVAILABLE,
@@ -85,6 +91,7 @@ class GrokAdapter:
                     ),
                 ),
             )
+        warnings.extend(discovery_warnings)
 
         for session_dir in session_dirs:
             native_id = session_dir.name
@@ -92,7 +99,18 @@ class GrokAdapter:
                 self.adapter_key, self.source_namespace, native_id
             )
             try:
-                record, record_warnings = self._source_record(session_dir, identity)
+                record, record_warnings, summary_valid = self._source_record(
+                    session_dir, identity
+                )
+            except _UnsafeSourceError:
+                warnings.append(
+                    AdapterWarning(
+                        "unsafe-session-source",
+                        "A Grok session used a symlink or escaped the configured store and was skipped.",
+                        identity,
+                    )
+                )
+                continue
             except OSError:
                 warnings.append(
                     AdapterWarning(
@@ -104,6 +122,15 @@ class GrokAdapter:
                 continue
 
             warnings.extend(record_warnings)
+            if not summary_valid and identity.canonical in previous:
+                warnings.append(
+                    AdapterWarning(
+                        "last-known-good-retained",
+                        "Invalid current metadata was ignored so the prior record remains authoritative.",
+                        identity,
+                    )
+                )
+                continue
             current[identity.canonical] = record.fingerprint.value
             if previous.get(identity.canonical) != record.fingerprint.value:
                 records.append(record)
@@ -141,8 +168,7 @@ class GrokAdapter:
 
         session_dir = Path(session_ref.locator.value)
         try:
-            resolved_session = session_dir.resolve(strict=True)
-            resolved_session.relative_to(self._sessions_root.resolve(strict=True))
+            resolved_session = self._validated_session_dir(session_dir)
         except (OSError, ValueError):
             return self._unavailable(
                 identity,
@@ -156,8 +182,15 @@ class GrokAdapter:
                 "The source locator does not match the selected session identity.",
             )
 
-        updates_path = resolved_session / "updates.jsonl"
-        if not updates_path.is_file():
+        try:
+            updates_path = self._native_file(resolved_session, "updates.jsonl")
+        except _UnsafeSourceError:
+            return self._unavailable(
+                identity,
+                "unsafe-source",
+                "The selected update stream is not a contained regular file.",
+            )
+        if updates_path is None:
             return self._unavailable(
                 identity,
                 "missing-updates",
@@ -233,6 +266,26 @@ class GrokAdapter:
                 )
             )
 
+        try:
+            fingerprint_after_read = self._fingerprint(resolved_session)
+        except OSError:
+            warnings.append(
+                AdapterWarning(
+                    "source-changed-during-read",
+                    "The native source could not be re-fingerprinted after reading.",
+                    identity,
+                )
+            )
+        else:
+            if fingerprint_after_read.value != fingerprint.value:
+                warnings.append(
+                    AdapterWarning(
+                        "source-changed-during-read",
+                        "The native source changed while visible turns were being read.",
+                        identity,
+                    )
+                )
+
         return TurnBatch(
             identity=identity,
             status=BatchStatus.PARTIAL if warnings else BatchStatus.COMPLETE,
@@ -240,15 +293,78 @@ class GrokAdapter:
             warnings=tuple(warnings),
         )
 
-    def _session_dirs(self) -> tuple[Path, ...]:
+    @staticmethod
+    def _children(directory: Path) -> tuple[Path, ...]:
+        return tuple(sorted(directory.iterdir(), key=lambda path: path.name))
+
+    def _session_dirs(
+        self,
+    ) -> tuple[tuple[Path, ...], tuple[AdapterWarning, ...]]:
         sessions: list[Path] = []
-        for group in sorted(self._sessions_root.iterdir(), key=lambda path: path.name):
-            if not group.is_dir():
+        warnings: list[AdapterWarning] = []
+        root = self._sessions_root.resolve(strict=True)
+        for group in self._children(self._sessions_root):
+            try:
+                if group.is_symlink():
+                    warnings.append(
+                        AdapterWarning(
+                            "unsafe-session-group",
+                            "A symlinked Grok session group was skipped.",
+                        )
+                    )
+                    continue
+                if not group.is_dir():
+                    continue
+                group.resolve(strict=True).relative_to(root)
+                candidates = self._children(group)
+            except ValueError:
+                warnings.append(
+                    AdapterWarning(
+                        "unsafe-session-group",
+                        "A Grok session group outside the configured store was skipped.",
+                    )
+                )
                 continue
-            for candidate in sorted(group.iterdir(), key=lambda path: path.name):
-                if candidate.is_dir() and self._is_uuid(candidate.name):
-                    sessions.append(candidate)
-        return tuple(sessions)
+            except OSError:
+                warnings.append(
+                    AdapterWarning(
+                        "unreadable-session-group",
+                        "One Grok session group could not be read and was skipped.",
+                    )
+                )
+                continue
+            for candidate in candidates:
+                try:
+                    if candidate.is_symlink():
+                        warnings.append(
+                            AdapterWarning(
+                                "unsafe-session-source",
+                                "A symlinked Grok session directory was skipped.",
+                            )
+                        )
+                        continue
+                    if not candidate.is_dir() or not self._is_uuid(candidate.name):
+                        continue
+                    resolved = candidate.resolve(strict=True)
+                    resolved.relative_to(root)
+                except ValueError:
+                    warnings.append(
+                        AdapterWarning(
+                            "unsafe-session-source",
+                            "A Grok session outside the configured store was skipped.",
+                        )
+                    )
+                    continue
+                except OSError:
+                    warnings.append(
+                        AdapterWarning(
+                            "unreadable-session",
+                            "A Grok session could not be inspected and was skipped.",
+                        )
+                    )
+                    continue
+                sessions.append(resolved)
+        return tuple(sessions), tuple(warnings)
 
     @staticmethod
     def _is_uuid(value: str) -> bool:
@@ -259,16 +375,13 @@ class GrokAdapter:
 
     def _source_record(
         self, session_dir: Path, identity: SessionIdentity
-    ) -> tuple[SourceRecord, tuple[AdapterWarning, ...]]:
+    ) -> tuple[SourceRecord, tuple[AdapterWarning, ...], bool]:
         warnings: list[AdapterWarning] = []
-        summary_path = session_dir / "summary.json"
+        session_dir = self._validated_session_dir(session_dir)
+        summary_path = self._native_file(session_dir, "summary.json")
         summary: dict[str, Any] = {}
-        try:
-            loaded = json.loads(summary_path.read_text(encoding="utf-8"))
-            if not isinstance(loaded, dict):
-                raise ValueError("summary is not an object")
-            summary = loaded
-        except FileNotFoundError:
+        summary_valid = False
+        if summary_path is None:
             warnings.append(
                 AdapterWarning(
                     "missing-summary",
@@ -276,22 +389,39 @@ class GrokAdapter:
                     identity,
                 )
             )
-        except (json.JSONDecodeError, UnicodeError, ValueError):
+        else:
+            try:
+                loaded = json.loads(summary_path.read_text(encoding="utf-8"))
+                if not isinstance(loaded, dict):
+                    raise ValueError("summary is not an object")
+                summary = loaded
+                summary_valid = True
+            except (json.JSONDecodeError, UnicodeError, ValueError):
+                warnings.append(
+                    AdapterWarning(
+                        "malformed-summary",
+                        "A Grok session has malformed summary metadata; filesystem times were used.",
+                        identity,
+                    )
+                )
+
+        if self._native_file(session_dir, "updates.jsonl") is None:
             warnings.append(
                 AdapterWarning(
-                    "malformed-summary",
-                    "A Grok session has malformed summary metadata; filesystem times were used.",
+                    "missing-updates",
+                    "A Grok session is missing its authoritative update stream.",
                     identity,
                 )
             )
 
         fallback = datetime.fromtimestamp(session_dir.stat().st_mtime, timezone.utc)
-        started_at = self._summary_time(
+        started_at, started_at_valid = self._summary_time(
             summary.get("created_at"), fallback, "created-at-drift", identity, warnings
         )
-        updated_at = self._summary_time(
+        updated_at, updated_at_valid = self._summary_time(
             summary.get("updated_at"), fallback, "updated-at-drift", identity, warnings
         )
+        summary_valid = summary_valid and started_at_valid and updated_at_valid
         if updated_at < started_at:
             warnings.append(
                 AdapterWarning(
@@ -304,9 +434,28 @@ class GrokAdapter:
 
         project_hint = summary.get("git_root_dir")
         if not isinstance(project_hint, str) or not project_hint:
+            if project_hint is not None:
+                summary_valid = False
+                warnings.append(
+                    AdapterWarning(
+                        "project-hint-drift",
+                        "A Grok summary project hint had an unsupported shape.",
+                        identity,
+                    )
+                )
             project_hint = self._group_cwd(session_dir.parent, identity, warnings)
         title = summary.get("generated_title")
-        if not isinstance(title, str) or not title:
+        if title is not None and not isinstance(title, str):
+            summary_valid = False
+            warnings.append(
+                AdapterWarning(
+                    "title-drift",
+                    "A Grok summary title had an unsupported shape.",
+                    identity,
+                )
+            )
+            title = None
+        elif not title:
             title = None
 
         return (
@@ -321,7 +470,35 @@ class GrokAdapter:
                 health=SessionHealth.UNKNOWN,
             ),
             tuple(warnings),
+            summary_valid,
         )
+
+    def _validated_session_dir(self, session_dir: Path) -> Path:
+        if session_dir.is_symlink():
+            raise _UnsafeSourceError("symlinked session directory")
+        root = self._sessions_root.resolve(strict=True)
+        resolved = session_dir.resolve(strict=True)
+        try:
+            resolved.relative_to(root)
+        except ValueError as error:
+            raise _UnsafeSourceError("session escaped configured store") from error
+        return resolved
+
+    @staticmethod
+    def _native_file(session_dir: Path, name: str) -> Path | None:
+        path = session_dir / name
+        try:
+            path.lstat()
+        except FileNotFoundError:
+            return None
+        if path.is_symlink() or not path.is_file():
+            raise _UnsafeSourceError("native source is not a regular contained file")
+        resolved = path.resolve(strict=True)
+        try:
+            resolved.relative_to(session_dir)
+        except ValueError as error:
+            raise _UnsafeSourceError("native source escaped session directory") from error
+        return resolved
 
     @staticmethod
     def _summary_time(
@@ -330,12 +507,12 @@ class GrokAdapter:
         warning_code: str,
         identity: SessionIdentity,
         warnings: list[AdapterWarning],
-    ) -> datetime:
+    ) -> tuple[datetime, bool]:
         if isinstance(value, str):
             try:
                 parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
                 if parsed.tzinfo is not None and parsed.utcoffset() is not None:
-                    return parsed.astimezone(timezone.utc)
+                    return parsed.astimezone(timezone.utc), True
             except ValueError:
                 pass
         warnings.append(
@@ -345,7 +522,7 @@ class GrokAdapter:
                 identity,
             )
         )
-        return fallback
+        return fallback, False
 
     @staticmethod
     def _group_cwd(
@@ -353,8 +530,18 @@ class GrokAdapter:
         identity: SessionIdentity,
         warnings: list[AdapterWarning],
     ) -> str:
-        cwd_file = group_dir / ".cwd"
-        if cwd_file.is_file():
+        try:
+            cwd_file = GrokAdapter._native_file(group_dir.resolve(), ".cwd")
+        except _UnsafeSourceError:
+            cwd_file = None
+            warnings.append(
+                AdapterWarning(
+                    "unsafe-project-hint",
+                    "A symlinked Grok project hint was ignored.",
+                    identity,
+                )
+            )
+        if cwd_file is not None:
             try:
                 cwd = cwd_file.read_text(encoding="utf-8").strip()
                 if cwd:
@@ -375,8 +562,8 @@ class GrokAdapter:
         digest = hashlib.sha256()
         for name in ("summary.json", "updates.jsonl"):
             digest.update(name.encode("ascii"))
-            path = session_dir / name
-            if not path.is_file():
+            path = GrokAdapter._native_file(session_dir, name)
+            if path is None:
                 digest.update(b"\0missing\0")
                 continue
             with path.open("rb") as source:
@@ -444,6 +631,13 @@ class GrokAdapter:
             return None
         params = update.get("params")
         if not isinstance(params, dict):
+            warnings.append(
+                AdapterWarning(
+                    "update-schema-drift",
+                    f"Skipped recognized update with invalid params at line {line_number}.",
+                    identity,
+                )
+            )
             return None
         native_id = params.get("sessionId")
         if native_id != identity.native_id:
@@ -457,8 +651,24 @@ class GrokAdapter:
             return None
         body = params.get("update")
         if not isinstance(body, dict):
+            warnings.append(
+                AdapterWarning(
+                    "update-schema-drift",
+                    f"Skipped recognized update with an invalid body at line {line_number}.",
+                    identity,
+                )
+            )
             return None
         update_kind = body.get("sessionUpdate")
+        if not isinstance(update_kind, str):
+            warnings.append(
+                AdapterWarning(
+                    "update-schema-drift",
+                    f"Skipped recognized update without a kind at line {line_number}.",
+                    identity,
+                )
+            )
+            return None
         roles = {
             "user_message_chunk": TurnRole.USER,
             "agent_message_chunk": TurnRole.AGENT,

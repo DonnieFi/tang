@@ -63,7 +63,7 @@ DEFAULT_RULES = (
             r"(?i)\b(?P<name>(?:API_KEY|ACCESS_KEY|SECRET_KEY|CLIENT_SECRET|"
             r"AUTH_TOKEN|TOKEN|PASSWORD|PASSWD|[A-Z][A-Z0-9_]+_"
             r"(?:KEY|TOKEN|SECRET|PASSWORD)))\s*[:=]\s*"
-            r"(?:['\"])?[^\s,'\"}]+(?:['\"])?"
+            r"(?:\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^\s,;}]+)"
         ),
         _credential_assignment,
     ),

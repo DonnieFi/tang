@@ -59,7 +59,10 @@ def test_identity_is_canonical_and_namespace_prevents_collision() -> None:
     assert len({first, second}) == 2
 
 
-@pytest.mark.parametrize("value", ["", " leading", "trailing ", "has:colon"])
+@pytest.mark.parametrize(
+    "value",
+    ["", " leading", "trailing ", "has:colon", "line\nbreak", "tab\tvalue"],
+)
 def test_identity_rejects_ambiguous_segments(value: str) -> None:
     with pytest.raises(ValueError):
         SessionIdentity("grok", "profile", value)

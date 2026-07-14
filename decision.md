@@ -36,3 +36,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) proceed against the documented local store; (b) narrow the release to explicit Markdown exports; (c) stop the Grok support claim.
 - Decision: (a) — proceed with a read-only adapter for the documented local session store, live-claim Grok Build 0.2.99 on Linux, derive a sanitized fixture from that verified shape, and describe other versions as fixture-verified unless separately live-tested. No private transcript text or source locator is recorded in repository evidence. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
 - By: agent, under the approved time-boxed feasibility gate
+
+## 2026-07-14T23:02:22Z · tang-xqa.7 · Correct the Epic 1 execution-thread evidence
+- Context: The scaffold bead predesignated Codex thread `019f6149-7a69-7351-8c02-101b4288b429` as the intended majority-core thread, but the implementation and gate review actually continued in thread `019f62b2-5a7d-75c3-922d-969b182ec9a2`. Release evidence must distinguish intent and provenance from the thread that performed the recorded work.
+- Options: (a) retain the predesignated thread as the majority-core claim; (b) report both without qualification; (c) preserve the earlier thread as baseline/handoff provenance and record the later thread as the actual Epic 1 implementation and review thread.
+- Decision: (c) — use `019f62b2-5a7d-75c3-922d-969b182ec9a2` for Epic 1 implementation/review evidence and retain `019f6149-7a69-7351-8c02-101b4288b429` only as the predesignated baseline/handoff thread. Serves: Technological Implementation, Design.
+- By: agent, correcting evidence against the observed execution history

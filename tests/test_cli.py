@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
 
 import tang
 from tang.cli import main
@@ -37,6 +38,22 @@ def test_help_flag_exits_successfully(capsys) -> None:
 def test_python_module_entry_point() -> None:
     result = subprocess.run(
         [sys.executable, "-m", "tang"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    assert result.stdout.startswith("usage: tang")
+
+
+def test_installed_console_script_entry_point() -> None:
+    executable = Path(sys.executable).with_name("tang")
+    assert executable.is_file(), f"console script is not installed: {executable}"
+
+    result = subprocess.run(
+        [str(executable)],
         check=False,
         capture_output=True,
         text=True,

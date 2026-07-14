@@ -36,7 +36,8 @@ def test_fixture_build_has_citations_envelope_and_deterministic_rendering() -> N
     assert first.to_markdown() == second.to_markdown()
     assert first.to_json() == second.to_json()
     assert first.estimated_tokens <= 2_000
-    assert first.estimated_tokens == (len(first.to_markdown()) + 3) // 4
+    assert first.markdown_estimated_tokens == (len(first.to_markdown()) + 3) // 4
+    assert first.json_estimated_tokens == (len(first.to_json()) + 3) // 4
     assert first.schema_version == 1
     assert UNTRUSTED_NOTICE in first.to_markdown()
     assert len(first.excerpts) == 2
@@ -48,6 +49,7 @@ def test_fixture_build_has_citations_envelope_and_deterministic_rendering() -> N
 
     document = json.loads(first.to_json())
     assert document["schema_version"] == 1
+    assert document["estimated_tokens"] == first.json_estimated_tokens
     assert document["untrusted_data_envelope"]["excerpts"][0]["citation"][
         "timestamp"
     ].endswith("Z")
@@ -188,6 +190,80 @@ def test_turn_title_and_warning_secrets_are_redacted_at_render_seam() -> None:
 
     assert secret not in rendered
     assert pack.redaction_count == 3
+
+
+def test_untrusted_metadata_is_redacted_bounded_and_cannot_inject_markdown() -> None:
+    source, read = fixture_source_and_read()
+    secret = "correct horse battery staple"
+    unsafe_source = source.__class__(
+        identity=source.identity,
+        locator=source.locator,
+        fingerprint=source.fingerprint,
+        project_hint=source.project_hint,
+        started_at=source.started_at,
+        updated_at=source.updated_at,
+        title="T" * 10_000,
+        health=source.health,
+    )
+    unsafe_turn = VisibleTurn(
+        ordinal=0,
+        role=TurnRole.USER,
+        text="readable recent turn",
+        citation_locator=f'/home/alice/private\n## injected PASSWORD="{secret}"',
+        timestamp=datetime(2026, 7, 14, 20, 0, tzinfo=timezone.utc),
+    )
+    warnings = tuple(
+        AdapterWarning(
+            f"warning-{index}",
+            f"{'W' * 1_000}\n## warning injection PASSWORD=\"{secret}\"",
+            read.identity,
+        )
+        for index in range(20)
+    )
+    unsafe_read = TurnBatch(
+        identity=read.identity,
+        status=BatchStatus.PARTIAL,
+        turns=(unsafe_turn,),
+        warnings=warnings,
+    )
+
+    pack = ContextPackBuilder(token_budget=512).build(unsafe_source, unsafe_read)
+    markdown = pack.to_markdown()
+    document = json.loads(pack.to_json())
+
+    assert len(pack.excerpts) == 1
+    assert pack.estimated_tokens <= 512
+    assert len(pack.source_title or "") <= 192
+    assert len(pack.warnings) <= 3
+    assert secret not in markdown + pack.to_json()
+    assert "/home/alice" not in markdown + pack.to_json()
+    assert "\n## injected" not in markdown
+    assert "\n## warning injection" not in markdown
+    assert "warnings" not in document
+    assert document["untrusted_data_envelope"]["warnings"] == list(pack.warnings)
+
+
+def test_each_render_has_an_exact_estimate_and_fits_the_shared_budget() -> None:
+    source, read = fixture_source_and_read()
+    json_heavy_turn = VisibleTurn(
+        ordinal=0,
+        role=TurnRole.AGENT,
+        text=('"\\雪' * 1_000),
+        citation_locator='updates.jsonl:1\\"quoted',
+        timestamp=datetime(2026, 7, 14, 20, 0, tzinfo=timezone.utc),
+    )
+    json_heavy_read = TurnBatch(
+        identity=read.identity,
+        status=BatchStatus.COMPLETE,
+        turns=(json_heavy_turn,),
+    )
+
+    pack = ContextPackBuilder(token_budget=512).build(source, json_heavy_read)
+
+    assert pack.markdown_estimated_tokens == (len(pack.to_markdown()) + 3) // 4
+    assert pack.json_estimated_tokens == (len(pack.to_json()) + 3) // 4
+    assert pack.markdown_estimated_tokens <= 512
+    assert pack.json_estimated_tokens <= 512
 
 
 def test_native_title_is_inside_the_untrusted_envelope() -> None:

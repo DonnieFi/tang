@@ -9,6 +9,16 @@ from tang.redaction import DEFAULT_REDACTOR
     ("text", "secret", "label"),
     [
         ("API_KEY=supersecretvalue", "supersecretvalue", "credential"),
+        (
+            'PASSWORD="correct horse battery staple"',
+            "correct horse battery staple",
+            "credential",
+        ),
+        (
+            "CLIENT_SECRET='space separated secret'",
+            "space separated secret",
+            "credential",
+        ),
         ("Authorization: Bearer abcdefghijklmnop", "abcdefghijklmnop", "token"),
         ("token ghp_abcdefghijklmnopqrstuvwxyz", "ghp_abcdefghijklmnopqrstuvwxyz", "token"),
         ("key sk-abcdefghijklmnop1234", "sk-abcdefghijklmnop1234", "token"),
