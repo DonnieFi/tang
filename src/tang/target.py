@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 
 from tang.adapters import SessionHealth, SessionIdentity, SourceRecord
-from tang.project import ProjectIdentity
+from tang.project import ProjectIdentity, ProjectResolutionError, resolve_project
 
 
 class TargetResolutionKind(StrEnum):
@@ -26,15 +26,55 @@ class TargetCandidate:
     health: SessionHealth
 
     @classmethod
-    def from_source(
-        cls, source: SourceRecord, project: ProjectIdentity
-    ) -> TargetCandidate:
+    def from_source(cls, source: SourceRecord) -> TargetCandidate:
+        project = resolve_project(source.project_hint)
         return cls(
             identity=source.identity,
             project_key=project.key,
             updated_at=source.updated_at,
             health=source.health,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class CandidateWarning:
+    """Path-safe evidence that one native project hint was unusable."""
+
+    code: str
+    identity: SessionIdentity
+    message: str = field(repr=False)
+
+
+@dataclass(frozen=True, slots=True)
+class CandidateDiscovery:
+    candidates: tuple[TargetCandidate, ...]
+    warnings: tuple[CandidateWarning, ...]
+
+
+def candidates_for_project(
+    records: tuple[SourceRecord, ...], active_project: ProjectIdentity
+) -> CandidateDiscovery:
+    """Resolve native project hints and retain only active-project Codex records."""
+
+    candidates: list[TargetCandidate] = []
+    warnings: list[CandidateWarning] = []
+    for source in sorted(records, key=lambda item: item.identity.canonical):
+        if source.identity.adapter != "codex":
+            continue
+        try:
+            candidate = TargetCandidate.from_source(source)
+        except (OSError, ValueError, ProjectResolutionError):
+            warnings.append(
+                CandidateWarning(
+                    "project-hint-unavailable",
+                    source.identity,
+                    "A Codex session project hint could not be resolved and was skipped.",
+                )
+            )
+            continue
+        if candidate.project_key == active_project.key:
+            candidates.append(candidate)
+    return CandidateDiscovery(tuple(candidates), tuple(warnings))
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +168,8 @@ def confirm_target(
 ) -> TargetResolution:
     """Apply an explicit user choice without expanding the offered candidate set."""
 
+    if resolution.kind is not TargetResolutionKind.CONFIRMATION_REQUIRED:
+        raise ValueError("only a confirmation-required result can be confirmed")
     matches = tuple(
         candidate for candidate in resolution.candidates if candidate.identity == chosen
     )

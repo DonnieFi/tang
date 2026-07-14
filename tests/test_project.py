@@ -3,7 +3,9 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from tang.project import ProjectKind, resolve_project
+import pytest
+
+from tang.project import ProjectKind, ProjectResolutionError, resolve_project
 
 
 def git(*args: str, cwd: Path | None = None) -> None:
@@ -85,3 +87,34 @@ def test_display_and_repr_do_not_expose_absolute_path(tmp_path: Path) -> None:
     assert identity.display_name == "display-project"
     assert str(private_parent) not in identity.display_name
     assert str(private_parent) not in repr(identity)
+
+
+def test_ambient_git_repository_variables_are_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository = initialized_repository(tmp_path / "ambient-repository")
+    ordinary = tmp_path / "ordinary-directory"
+    ordinary.mkdir()
+    monkeypatch.setenv("GIT_DIR", str(repository / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(repository))
+    monkeypatch.setenv("GIT_COMMON_DIR", str(repository / ".git"))
+
+    identity = resolve_project(ordinary)
+
+    assert identity.kind is ProjectKind.DIRECTORY
+    assert identity.identity_path == ordinary.resolve()
+
+
+def test_git_timeout_fails_without_guessing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    directory = tmp_path / "possible-project"
+    directory.mkdir()
+
+    def timeout(*args: object, **kwargs: object) -> None:
+        raise subprocess.TimeoutExpired("git", 5)
+
+    monkeypatch.setattr("tang.project.subprocess.run", timeout)
+
+    with pytest.raises(ProjectResolutionError, match="timed out"):
+        resolve_project(directory)

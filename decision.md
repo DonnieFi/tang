@@ -66,3 +66,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) claim generic Codex compatibility; (b) claim live verification only for Codex CLI 0.144.4 on Linux and describe the fixture provenance precisely; (c) avoid a Codex support claim.
 - Decision: (b) — live-claim Codex CLI 0.144.4 on Linux, use the synthetic corpus as repeatable shape evidence, and require separate live verification before extending the version claim. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
 - By: agent, under the approved evidence-based adapter support policy
+
+## 2026-07-14T23:54:46Z · tang-oda.7 · Make native project hints cross one trusted resolution seam
+- Context: The adapter correctly exposed native `cwd` hints and target resolution correctly consumed project keys, but a caller could previously attach an unrelated caller-supplied `ProjectIdentity` to a source. Ambient `GIT_*` variables could also redirect Git discovery away from the hinted directory.
+- Options: (a) leave composition to each index/link caller; (b) validate caller-supplied identities; (c) make candidate construction resolve the source hint internally, provide one active-project discovery helper with path-safe warnings, and isolate the Git subprocess environment.
+- Decision: (c) — all production candidate discovery crosses the same native-hint-to-project-identity seam, ignores ambient Git repository overrides, and refuses unavailable resolution rather than guessing. Serves: Technological Implementation, Design, Potential Impact.
+- By: agent, resolving manual gate findings before Epic 3 consumes project identity

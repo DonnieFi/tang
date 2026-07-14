@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import subprocess
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -13,6 +14,10 @@ from unicodedata import category
 class ProjectKind(StrEnum):
     GIT = "git"
     DIRECTORY = "directory"
+
+
+class ProjectResolutionError(RuntimeError):
+    """Project identity could not be determined without unsafe guessing."""
 
 
 def _safe_display_name(value: str) -> str:
@@ -43,19 +48,31 @@ def _key(kind: ProjectKind, identity_path: Path) -> str:
 
 
 def _git_common_dir(directory: Path) -> Path | None:
-    result = subprocess.run(
-        [
-            "git",
-            "-C",
-            str(directory),
-            "rev-parse",
-            "--path-format=absolute",
-            "--git-common-dir",
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    clean_environment = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.upper().startswith("GIT_")
+    }
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(directory),
+                "rev-parse",
+                "--path-format=absolute",
+                "--git-common-dir",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=clean_environment,
+            timeout=5,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise ProjectResolutionError("Git project resolution timed out") from error
+    except OSError as error:
+        raise ProjectResolutionError("Git project resolution is unavailable") from error
     if result.returncode != 0:
         return None
     value = result.stdout.strip()

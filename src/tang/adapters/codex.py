@@ -71,6 +71,8 @@ class CodexAdapter:
 
         warnings: list[AdapterWarning] = []
         previous = self._decode_checkpoint(checkpoint, warnings)
+        # Carry unseen entries forward. Epic 3 owns explicit deletion handling;
+        # a partial scan must not erase the last known-good indexed record.
         current = dict(previous)
         records: list[SourceRecord] = []
         seen: set[SessionIdentity] = set()
