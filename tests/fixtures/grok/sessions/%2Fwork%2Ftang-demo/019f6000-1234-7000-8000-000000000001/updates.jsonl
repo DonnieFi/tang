@@ -1,0 +1,6 @@
+{"method":"session/update","params":{"sessionId":"019f6000-1234-7000-8000-000000000001","update":{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"Design a deterministic cache boundary."}}},"timestamp":1784059200}
+{"method":"session/update","params":{"sessionId":"019f6000-1234-7000-8000-000000000001","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"HIDDEN_THOUGHT_CANARY"}}},"timestamp":1784059210}
+{"method":"session/update","params":{"sessionId":"019f6000-1234-7000-8000-000000000001","update":{"sessionUpdate":"tool_call","rawInput":{"secret":"TOOL_INPUT_CANARY"},"title":"Read a file"}},"timestamp":1784059220}
+{"method":"session/update","params":{"sessionId":"019f6000-1234-7000-8000-000000000001","update":{"sessionUpdate":"tool_call_update","rawOutput":{"file_body":"FILE_BODY_CANARY"},"status":"completed"}},"timestamp":1784059230}
+{"method":"future/private-extension","params":{"sessionId":"019f6000-1234-7000-8000-000000000001","update":{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"UNKNOWN_METHOD_CANARY"}}},"timestamp":1784059235}
+{"method":"session/update","params":{"sessionId":"019f6000-1234-7000-8000-000000000001","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Use a content fingerprint and an opaque checkpoint."}}},"timestamp":1784059240}

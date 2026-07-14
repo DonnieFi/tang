@@ -1,0 +1,13 @@
+{
+  "agent_name": "Grok",
+  "chat_format_version": 1,
+  "created_at": "2026-07-14T20:00:00Z",
+  "current_model_id": "fixture-model",
+  "generated_title": "Design the cache boundary",
+  "git_root_dir": "/work/tang-demo",
+  "last_active_at": "2026-07-14T20:02:00Z",
+  "num_chat_messages": 4,
+  "num_messages": 7,
+  "session_summary": "Synthetic fixture summary.",
+  "updated_at": "2026-07-14T20:02:00Z"
+}
