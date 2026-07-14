@@ -5,15 +5,30 @@
 /.beads/
 /.tang/
 
+# Local credentials and machine-specific configuration
+.env
+.env.*
+!.env.example
+*.local
+/secrets/
+*.pem
+*.key
+
 # Python environments and caches
 .venv/
 venv/
+.direnv/
+.tox/
+.nox/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.hypothesis/
 .mypy_cache/
 .ruff_cache/
 .coverage
+.coverage.*
+coverage.xml
 htmlcov/
 
 # Packaging and build output
@@ -24,11 +39,20 @@ dist/
 # Local runtime and demo output
 /demo-output/
 *.log
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
 
 # Editor and OS metadata
+.idea/
+.vscode/
+*.code-workspace
 .DS_Store
 Thumbs.db
 *.swp
+*.swo
+*.orig
 *~
 
 # Beads / Dolt files (added by bd init)
