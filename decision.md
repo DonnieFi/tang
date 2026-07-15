@@ -108,3 +108,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) promote stale milestone `9afb4b0`; (b) fast-forward the renewed milestone; (c) create an unnecessary merge commit.
 - Decision: (b) — fast-forward `epic/03-discovery-context` milestone `8b265b8814ff522e8967e4866f88a7891655d2de` into `main`, producing promotion SHA `8b265b8814ff522e8967e4866f88a7891655d2de`. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
 - By: human (promotion approval) and agent (renewed verification and fast-forward execution)
+
+## 2026-07-15T00:58:41Z · tang-7lx.6 · Package one canonical skill tree as wheel data
+- Context: Epic 4 gate review proved the source-tree installer but found that a clean wheel omitted `skills/tang`, making the documented installed `tang skill install codex` command fail. The repository-level skill path must also remain directly compatible with skill-only installers.
+- Options: (a) defer bundled installation to the release epic; (b) duplicate the skill under the Python package; (c) keep `skills/tang` canonical and install those files into a stable wheel data path resolved by the CLI.
+- Decision: (c) — ship one source of truth through setuptools data files and resolve it from the active Python environment, preserving both CLI-installed and skill-only distribution paths without content drift. Serves: Technological Implementation, Design, Potential Impact.
+- By: agent, resolving an Epic 4 close-gate clean-wheel finding

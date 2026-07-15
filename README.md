@@ -179,7 +179,8 @@ The Codex skill is the primary interactive experience. The CLI stays scriptable 
 | `tang link --from SESSION... --current` | Confirm links into the current Codex session |
 | `tang graph [SESSION]` | Render the containing Multiverse Map |
 | `tang purge --all` | Remove Tang-derived data after confirmation |
-| `tang doctor` *(planned in the skill/doctor milestone)* | Check installation, database, FTS5, and adapter readiness |
+| `tang doctor` | Check installation, database, FTS5, and adapter readiness |
+| `tang skill install codex` | Install or update the bundled Codex skill without silently overwriting changes |
 | `tang demo` | Run the isolated synthetic judge demonstration |
 
 Human-readable output goes to `stdout`; diagnostics go to `stderr`. JSON output uses deterministic ordering, RFC 3339 UTC timestamps, and `schema_version: 1`.

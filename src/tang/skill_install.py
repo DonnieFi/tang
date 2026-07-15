@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
+import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,6 +25,9 @@ def bundled_skill_path() -> Path:
     packaged = module.parent / "skills" / "tang"
     if packaged.is_dir():
         return packaged
+    installed_data = Path(sys.prefix) / "share" / "tang" / "skills" / "tang"
+    if installed_data.is_dir():
+        return installed_data
     return module.parents[2] / "skills" / "tang"
 
 

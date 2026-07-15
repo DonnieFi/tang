@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from tang.cli import main
-from tang.skill_install import install_codex_skill
+from tang.skill_install import bundled_skill_path, install_codex_skill
 
 
 def _bundle(root: Path, content: str = "workflow") -> Path:
@@ -62,3 +62,16 @@ def test_skill_install_cli_uses_the_bundled_skill(tmp_path: Path, capsys) -> Non
     assert main(["skill", "install", "codex", "--codex-home", str(codex_home)]) == 0
     second = capsys.readouterr()
     assert second.out == "Tang Codex skill is already current.\n"
+
+
+def test_bundled_skill_resolves_installed_wheel_data(tmp_path: Path, monkeypatch) -> None:
+    installed = tmp_path / "share" / "tang" / "skills" / "tang"
+    installed.mkdir(parents=True)
+    (installed / "SKILL.md").write_text("installed bundle")
+    monkeypatch.setattr("tang.skill_install.sys.prefix", str(tmp_path))
+    monkeypatch.setattr(
+        "tang.skill_install.__file__",
+        str(tmp_path / "site-packages" / "tang" / "skill_install.py"),
+    )
+
+    assert bundled_skill_path() == installed

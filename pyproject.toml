@@ -33,3 +33,7 @@ testpaths = ["tests"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.data-files]
+"share/tang/skills/tang" = ["skills/tang/SKILL.md"]
+"share/tang/skills/tang/agents" = ["skills/tang/agents/openai.yaml"]
