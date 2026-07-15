@@ -8,7 +8,12 @@ from tang.multicontext import (
     MultiSourceContextPack,
     ValidatedSourceRead,
 )
-from tang.redaction import ContentKind, DEFAULT_REDACTOR, RedactionSeam
+from tang.redaction import (
+    ContentKind,
+    DEFAULT_REDACTOR,
+    RedactionSeam,
+    required_redaction,
+)
 from tang.repository import TangRepository
 
 
@@ -54,6 +59,12 @@ class ContextPackService:
         warnings: list[str] = []
         for session in authorized:
             source = session.source
+            if not session.native_available:
+                warnings.append(
+                    f"source-unavailable: {source.identity.canonical} "
+                    "native history is no longer available"
+                )
+                continue
             adapter = self._adapters.get(
                 (source.identity.adapter, source.identity.source_namespace)
             )
@@ -65,12 +76,21 @@ class ContextPackService:
             read = adapter.read(source, TurnSelection())
             if read.status is BatchStatus.UNAVAILABLE or not read.turns:
                 warnings.append(
-                    f"source-unavailable: {source.identity.canonical} has no readable visible turns"
+                    f"source-unavailable: {source.identity.canonical} "
+                    "has no readable visible turns"
                 )
                 continue
             readable.append(ValidatedSourceRead(source, read, project_key))
 
         if not readable:
+            unavailable_count = sum(
+                not session.native_available for session in authorized
+            )
+            if unavailable_count:
+                raise ContextGenerationError(
+                    "none of the selected sources could be read; "
+                    f"{unavailable_count} selected native source(s) are no longer available"
+                )
             raise ContextGenerationError("none of the selected sources could be read")
         return self._allocator.allocate(
             tuple(readable), project_key, warnings=self._bounded_warnings(warnings)
@@ -86,10 +106,10 @@ class ContextPackService:
             )
         bounded: list[str] = []
         for warning in selected:
-            result = DEFAULT_REDACTOR.redact_content(
+            result = required_redaction(
+                DEFAULT_REDACTOR,
                 RedactionSeam.CONTEXT_REREAD, ContentKind.WARNING, warning
             )
-            assert result is not None
             text = result.text
             bounded.append(text if len(text) <= 240 else text[:227] + "…[Truncated]")
         return tuple(bounded)

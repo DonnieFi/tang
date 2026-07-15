@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 
 from tang.adapters import SourceRecord, TurnBatch, TurnRole, VisibleTurn
 from tang.redaction import (
@@ -11,8 +10,10 @@ from tang.redaction import (
     ContentKind,
     RedactionSeam,
     Redactor,
+    required_redaction,
 )
 from tang.repository import StoredCapsule
+from tang.timeutil import optional_rfc3339
 
 
 CAPSULE_BYTE_LIMIT = 8_192
@@ -20,14 +21,6 @@ _MAX_TITLE_CHARACTERS = 256
 _MAX_EXCERPT_CHARACTERS = 2_048
 _MAX_RECENT_EXCERPTS = 4
 _TRUNCATED = "…[Truncated]"
-
-
-def _rfc3339(value: datetime | None) -> str | None:
-    if value is None:
-        return None
-    utc = value.astimezone(timezone.utc)
-    timespec = "microseconds" if utc.microsecond else "seconds"
-    return utc.isoformat(timespec=timespec).replace("+00:00", "Z")
 
 
 def _canonical(content: dict[str, object]) -> bytes:
@@ -57,12 +50,12 @@ class DiscoveryCapsuleBuilder:
         if not read.turns:
             raise ValueError("cannot build a capsule without visible turns")
 
-        title_result = self._redactor.redact_content(
+        title_result = required_redaction(
+            self._redactor,
             RedactionSeam.CAPSULE_PERSISTENCE,
             ContentKind.TITLE,
             source.title or "",
         )
-        assert title_result is not None
         title, title_truncated = _bounded(
             title_result.text, _MAX_TITLE_CHARACTERS
         )
@@ -90,7 +83,7 @@ class DiscoveryCapsuleBuilder:
             "source_id": source.identity.canonical,
             "source_title": title or None,
             "source_title_truncated": title_truncated,
-            "updated_at": _rfc3339(source.updated_at),
+            "updated_at": optional_rfc3339(source.updated_at),
         }
         self._fit(content)
         encoded = _canonical(content)
@@ -116,23 +109,24 @@ class DiscoveryCapsuleBuilder:
         return frozenset(recent)
 
     def _excerpt(self, turn: VisibleTurn) -> tuple[dict[str, object], int]:
-        text_result = self._redactor.redact_content(
+        text_result = required_redaction(
+            self._redactor,
             RedactionSeam.CAPSULE_PERSISTENCE,
             ContentKind.VISIBLE_TEXT,
             turn.text,
         )
-        citation_result = self._redactor.redact_content(
+        citation_result = required_redaction(
+            self._redactor,
             RedactionSeam.CAPSULE_PERSISTENCE,
             ContentKind.CITATION,
             turn.citation_locator,
         )
-        assert text_result is not None and citation_result is not None
         text, truncated = _bounded(text_result.text, _MAX_EXCERPT_CHARACTERS)
         citation, citation_truncated = _bounded(citation_result.text, 256)
         return (
             {
                 "citation": {
-                    "timestamp": _rfc3339(turn.timestamp),
+                    "timestamp": optional_rfc3339(turn.timestamp),
                     "turn_locator": citation,
                     "turn_locator_truncated": citation_truncated,
                 },
@@ -147,7 +141,8 @@ class DiscoveryCapsuleBuilder:
     @staticmethod
     def _fit(content: dict[str, object]) -> None:
         excerpts = content["excerpts"]
-        assert isinstance(excerpts, list)
+        if not isinstance(excerpts, list):
+            raise TypeError("capsule excerpts must be a list")
         while len(_canonical(content)) > CAPSULE_BYTE_LIMIT and len(excerpts) > 2:
             excerpts.pop(1 if excerpts[0]["role"] == TurnRole.USER.value else 0)
             content["omitted_visible_turns"] = int(

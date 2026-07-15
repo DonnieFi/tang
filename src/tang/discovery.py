@@ -3,17 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 
 from tang.adapters import SessionHealth
-from tang.redaction import ContentKind, DEFAULT_REDACTOR, RedactionSeam, Redactor
+from tang.redaction import (
+    ContentKind,
+    DEFAULT_REDACTOR,
+    RedactionSeam,
+    Redactor,
+    required_redaction,
+)
 from tang.repository import DiscoveryRow, TangRepository
-
-
-def rfc3339(value: datetime) -> str:
-    utc = value.astimezone(timezone.utc)
-    timespec = "microseconds" if utc.microsecond else "seconds"
-    return utc.isoformat(timespec=timespec).replace("+00:00", "Z")
+from tang.timeutil import rfc3339
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,8 +92,8 @@ class DiscoveryService:
     def _redact(self, value: str | None, kind: ContentKind) -> str | None:
         if value is None:
             return None
-        result = self._redactor.redact_content(
+        result = required_redaction(
+            self._redactor,
             RedactionSeam.SNIPPET_DISPLAY, kind, value
         )
-        assert result is not None
         return " ".join(result.text.split())

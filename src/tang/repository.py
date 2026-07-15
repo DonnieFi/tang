@@ -17,14 +17,7 @@ from tang.adapters import (
     SourceFingerprint,
     SourceRecord,
 )
-
-
-def _rfc3339(value: datetime) -> str:
-    if value.tzinfo is None or value.utcoffset() is None:
-        raise ValueError("repository timestamps must be timezone-aware")
-    utc = value.astimezone(timezone.utc)
-    timespec = "microseconds" if utc.microsecond else "seconds"
-    return utc.isoformat(timespec=timespec).replace("+00:00", "Z")
+from tang.timeutil import rfc3339
 
 
 def _datetime(value: str) -> datetime:
@@ -160,10 +153,10 @@ class TangRepository:
                 source.fingerprint.algorithm,
                 source.fingerprint.value,
                 source.project_hint,
-                _rfc3339(source.started_at),
-                _rfc3339(source.updated_at),
+                rfc3339(source.started_at),
+                rfc3339(source.updated_at),
                 source.health.value,
-                _rfc3339(indexed_at),
+                rfc3339(indexed_at),
             ),
         )
 
@@ -242,7 +235,7 @@ class TangRepository:
                 continuation.target_id,
                 continuation.project_key,
                 continuation.confirmation_mode,
-                _rfc3339(continuation.confirmed_at),
+                rfc3339(continuation.confirmed_at),
                 continuation.schema_version,
             ),
         )
@@ -330,7 +323,7 @@ class TangRepository:
                 checkpoint.source_namespace,
                 project_key,
                 checkpoint.cursor,
-                _rfc3339(updated_at),
+                rfc3339(updated_at),
             ),
         )
 
@@ -383,7 +376,7 @@ class TangRepository:
                 content_json,
                 capsule.search_text,
                 capsule.byte_count,
-                _rfc3339(capsule.updated_at),
+                rfc3339(capsule.updated_at),
             ),
         )
         self._connection.execute(
@@ -500,10 +493,10 @@ class TangRepository:
             parameters.append(health.value)
         if since is not None:
             conditions.append("s.updated_at >= ?")
-            parameters.append(_rfc3339(since))
+            parameters.append(rfc3339(since))
         if until is not None:
             conditions.append("s.updated_at <= ?")
-            parameters.append(_rfc3339(until))
+            parameters.append(rfc3339(until))
         return conditions, parameters
 
     @staticmethod

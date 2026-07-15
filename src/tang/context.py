@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import datetime
 
 from tang.adapters import SourceRecord, TurnBatch, VisibleTurn
 from tang.redaction import DEFAULT_REDACTOR, RedactionSeam, Redactor
+from tang.timeutil import optional_rfc3339
 
 
 UNTRUSTED_NOTICE = (
@@ -21,14 +22,6 @@ _MAX_TITLE_CHARACTERS = 192
 _MAX_WARNING_CHARACTERS = 120
 _MAX_WARNING_COUNT = 3
 _MAX_LOCATOR_CHARACTERS = 192
-
-
-def _rfc3339(value: datetime | None) -> str | None:
-    if value is None:
-        return None
-    utc = value.astimezone(timezone.utc)
-    timespec = "microseconds" if utc.microsecond else "seconds"
-    return utc.isoformat(timespec=timespec).replace("+00:00", "Z")
 
 
 def _indent_data(text: str) -> str:
@@ -52,7 +45,7 @@ class Citation:
         return {
             "harness": self.harness,
             "session_id": self.session_id,
-            "timestamp": _rfc3339(self.timestamp),
+            "timestamp": optional_rfc3339(self.timestamp),
             "turn_locator": self.turn_locator,
         }
 
@@ -158,7 +151,7 @@ class ContextPack:
             )
         for position, excerpt in enumerate(self.excerpts, start=1):
             citation = excerpt.citation
-            timestamp = _rfc3339(citation.timestamp) or "unavailable"
+            timestamp = optional_rfc3339(citation.timestamp) or "unavailable"
             lines.extend(
                 [
                     f"### Excerpt {position} · {excerpt.role}",

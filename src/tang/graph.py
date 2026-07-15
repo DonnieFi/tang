@@ -11,6 +11,7 @@ from tang.redaction import (
     ContentKind,
     RedactionSeam,
     Redactor,
+    required_redaction,
 )
 from tang.repository import StoredContinuation, TangRepository
 
@@ -98,12 +99,12 @@ class GraphService:
         title = capsule.content.get("source_title")
         if not title:
             return None
-        result = self._redactor.redact_content(
+        result = required_redaction(
+            self._redactor,
             RedactionSeam.GRAPH_LABEL,
             ContentKind.TITLE,
             str(title),
         )
-        assert result is not None
         return result.text
 
     @staticmethod

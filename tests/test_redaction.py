@@ -6,6 +6,7 @@ from tang.redaction import (
     DEFAULT_REDACTOR,
     ContentKind,
     RedactionSeam,
+    required_redaction,
 )
 
 
@@ -110,3 +111,13 @@ def test_allowed_content_is_redacted_consistently(kind: ContentKind) -> None:
 
     assert result is not None
     assert "abcdefghijklmnop" not in result.text
+
+
+def test_required_redaction_fails_explicitly_for_excluded_content() -> None:
+    with pytest.raises(RuntimeError, match="unexpectedly excluded"):
+        required_redaction(
+            DEFAULT_REDACTOR,
+            RedactionSeam.CONTEXT_REREAD,
+            ContentKind.TOOL_PAYLOAD,
+            "must never become visible",
+        )

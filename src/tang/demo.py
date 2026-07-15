@@ -84,7 +84,7 @@ def _seed_graph(database: Path, project: Path) -> tuple[str, str]:
     try:
         with repository.transaction():
             for node in document["nodes"]:
-                identity = SessionIdentity(*node["source_id"].split(":", 2))
+                identity = SessionIdentity.from_canonical(node["source_id"])
                 timestamp = datetime.fromisoformat(
                     node["timestamp"].replace("Z", "+00:00")
                 )

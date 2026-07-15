@@ -150,3 +150,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) promote stale milestone `f695b5e`; (b) fast-forward the renewed milestone; (c) create an unnecessary merge commit.
 - Decision: (b) — push `epic/05-multiverse-map` milestone `cba690190ab428ab209acd6facd3636746d17d20` and fast-forward it into `main`, producing promotion SHA `cba690190ab428ab209acd6facd3636746d17d20`. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
 - By: human (promotion approval) and agent (renewed verification and fast-forward execution)
+
+## 2026-07-15T11:27:45Z · tang-2be.12 · Freeze structure and fix release footguns only
+- Context: Pre-release review identified optimization-sensitive asserts, duplicated canonical identity and RFC 3339 logic, and several broad module refactors while the readiness review made clean install, demo, README, and submission evidence the deadline-critical path.
+- Options: (a) restructure the CLI, adapters, and indexer before release; (b) defer every quality finding; (c) fix bounded correctness seams now and defer structural refactors until after v0.1.0.
+- Decision: (c) — replace production asserts with explicit invariant failures, centralize identity parsing and timestamp formatting, reject tombstoned context reads early, and leave CLI/adapter decomposition, static-tooling expansion, and graph scaling for post-release work. Serves: Technological Implementation, Design, Quality of Idea.
+- By: agent, applying human-requested review feedback under the approved readiness priorities

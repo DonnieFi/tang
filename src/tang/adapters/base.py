@@ -84,6 +84,17 @@ class SessionIdentity:
     def canonical(self) -> str:
         return f"{self.adapter}:{self.source_namespace}:{self.native_id}"
 
+    @classmethod
+    def from_canonical(cls, value: str) -> SessionIdentity:
+        """Parse and validate ``adapter:namespace:native-id``."""
+
+        segments = value.split(":")
+        if len(segments) != 3:
+            raise ValueError(
+                "canonical session identity must be adapter:namespace:native-id"
+            )
+        return cls(*segments)
+
     def __str__(self) -> str:
         return self.canonical
 

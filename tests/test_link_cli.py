@@ -153,6 +153,29 @@ def test_link_errors_stay_on_stderr(tmp_path: Path, capsys) -> None:
     assert "error[self-link]" in captured.err
 
 
+def test_link_rejects_malformed_canonical_ids(tmp_path: Path, capsys) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    database = tmp_path / "tang.db"
+
+    assert main(
+        [
+            "link",
+            "--from",
+            "not-a-canonical-id",
+            "--to",
+            "codex:cli:target",
+            "--database",
+            str(database),
+            "--cwd",
+            str(project),
+        ]
+    ) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "error[invalid-session-id]" in captured.err
+
+
 def test_link_reports_an_unavailable_target_without_mutating_edges(
     tmp_path: Path, capsys
 ) -> None:

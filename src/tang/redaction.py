@@ -161,4 +161,20 @@ class Redactor:
         return self.redact_at(seam, text)
 
 
+def required_redaction(
+    redactor: Redactor,
+    seam: RedactionSeam,
+    kind: ContentKind,
+    text: str,
+) -> RedactionResult:
+    """Redact content that its declared kind requires to remain visible."""
+
+    result = redactor.redact_content(seam, kind, text)
+    if result is None:
+        raise RuntimeError(
+            f"{kind.value} content was unexpectedly excluded at {seam.value}"
+        )
+    return result
+
+
 DEFAULT_REDACTOR = Redactor()

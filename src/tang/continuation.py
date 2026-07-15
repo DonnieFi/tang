@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from tang.adapters import SessionIdentity
 from tang.repository import StoredContinuation, TangRepository
 from tang.target import TargetResolution, TargetResolutionKind
 
@@ -61,6 +62,16 @@ class ContinuationService:
     ) -> LinkResult:
         if not source_ids:
             raise ContinuationError("no-sources", "Select at least one source session.")
+        try:
+            tuple(
+                SessionIdentity.from_canonical(source_id)
+                for source_id in (*source_ids, target_id)
+            )
+        except ValueError as error:
+            raise ContinuationError(
+                "invalid-session-id",
+                "Session IDs must use adapter:namespace:native-id.",
+            ) from error
         ordered = tuple(dict.fromkeys(source_ids))
         if len(ordered) != len(source_ids):
             raise ContinuationError("duplicate-source", "A source was selected more than once.")

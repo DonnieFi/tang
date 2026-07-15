@@ -62,6 +62,15 @@ def test_identity_is_canonical_and_namespace_prevents_collision() -> None:
     assert len({first, second}) == 2
 
 
+def test_identity_parses_and_validates_canonical_form() -> None:
+    identity = SessionIdentity.from_canonical("grok:profile-a:native-1")
+
+    assert identity == SessionIdentity("grok", "profile-a", "native-1")
+    for malformed in ("grok", "grok:profile", "grok:profile:native:extra"):
+        with pytest.raises(ValueError, match="adapter:namespace:native-id"):
+            SessionIdentity.from_canonical(malformed)
+
+
 @pytest.mark.parametrize(
     "value",
     ["", " leading", "trailing ", "has:colon", "line\nbreak", "tab\tvalue"],

@@ -19,7 +19,12 @@ from tang.doctor import doctor_exit_code, run_doctor
 from tang.graph import GraphService
 from tang.indexing import IndexResult, ProjectIndexer
 from tang.project import resolve_project
-from tang.redaction import ContentKind, DEFAULT_REDACTOR, RedactionSeam
+from tang.redaction import (
+    ContentKind,
+    DEFAULT_REDACTOR,
+    RedactionSeam,
+    required_redaction,
+)
 from tang.render import render_multiverse
 from tang.repository import TangRepository
 from tang.skill_install import install_codex_skill
@@ -135,12 +140,12 @@ def _index_document(result: IndexResult) -> dict[str, object]:
 
 def _show_warnings(result: IndexResult) -> None:
     for warning in result.warnings:
-        redacted = DEFAULT_REDACTOR.redact_content(
+        redacted = required_redaction(
+            DEFAULT_REDACTOR,
             RedactionSeam.SNIPPET_DISPLAY,
             ContentKind.WARNING,
             f"{warning.code}: {warning.message}",
         )
-        assert redacted is not None
         print(f"warning: {redacted.text}", file=sys.stderr)
 
 
@@ -339,7 +344,7 @@ def _run_link(args: argparse.Namespace) -> int:
                 for warning in discovery.warnings:
                     print(f"warning: {warning.code}: {warning.message}", file=sys.stderr)
                 excluded = frozenset(
-                    SessionIdentity(*source_id.split(":", 2))
+                    SessionIdentity.from_canonical(source_id)
                     for source_id in args.source_ids
                 )
                 resolution = resolve_current_target(
@@ -390,7 +395,8 @@ def _run_graph(args: argparse.Namespace) -> int:
             current_native_id=args.current_native_id,
         )
     if args.session is None:
-        assert resolution is not None
+        if resolution is None:
+            raise RuntimeError("graph target resolution was not attempted")
         if resolution.kind is not TargetResolutionKind.RESOLVED or resolution.target is None:
             print(
                 "error[target-unconfirmed]: Choose an explicit graph session or confirm the current target.",

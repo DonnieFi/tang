@@ -24,7 +24,7 @@ from tang.cli import main
 from tang.context import UNTRUSTED_NOTICE
 from tang.context_service import ContextGenerationError, ContextPackService
 from tang.project import resolve_project
-from tang.repository import TangRepository
+from tang.repository import StoredContinuation, TangRepository
 from tang.storage import open_database
 
 
@@ -142,6 +142,42 @@ def test_context_partial_source_warning_and_no_readable_failure(
 
         with pytest.raises(ContextGenerationError, match="none"):
             service.generate((unavailable.identity.canonical,), "project")
+    finally:
+        connection.close()
+
+
+def test_context_fails_before_reread_when_native_source_is_tombstoned(
+    codex_fixture_home: Path, tmp_path: Path
+) -> None:
+    template = CodexAdapter(codex_fixture_home).scan(None).records[0]
+    unavailable = source(template, "unavailable")
+    target = source(template, "target")
+    database = tmp_path / "tang.db"
+    connection = open_database(database)
+    repository = TangRepository(connection)
+    with repository.transaction():
+        repository.upsert_session(unavailable, "project", NOW)
+        repository.upsert_session(target, "project", NOW)
+        repository.put_continuation(
+            StoredContinuation(
+                unavailable.identity.canonical,
+                target.identity.canonical,
+                "project",
+                "explicit",
+                NOW,
+            )
+        )
+        repository.delete_session(unavailable.identity.canonical)
+    adapter = RecordingAdapter(
+        {unavailable.identity.canonical: readable(unavailable, "must not read")}
+    )
+
+    try:
+        with pytest.raises(ContextGenerationError, match="no longer available"):
+            ContextPackService(repository, (adapter,)).generate(
+                (unavailable.identity.canonical,), "project"
+            )
+        assert adapter.called == []
     finally:
         connection.close()
 

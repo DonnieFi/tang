@@ -151,7 +151,10 @@ class ProjectIndexer:
                     for identity in removable:
                         self._repository.delete_session(identity.canonical)
                     if checkpoint_changed:
-                        assert scan.next_checkpoint is not None
+                        if scan.next_checkpoint is None:
+                            raise RuntimeError(
+                                "checkpoint change requires a next checkpoint"
+                            )
                         self._repository.put_checkpoint(
                             scan.next_checkpoint, active_project.key, timestamp
                         )

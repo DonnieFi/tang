@@ -12,6 +12,7 @@ from rich.table import Table
 from rich.text import Text
 
 from tang.graph import GraphEdge, GraphNode, MultiverseGraph
+from tang.timeutil import rfc3339
 
 
 STEEL = "#ff9d3d"
@@ -162,7 +163,7 @@ def render_multiverse(
                 style=f"bold {TEAL}",
             )
             item.append(
-                f" | UTC {node.updated_at.isoformat().replace('+00:00', 'Z')}"
+                f" | UTC {rfc3339(node.updated_at)}"
                 f" | HEALTH {node.health.value}\n"
                 f"TITLE {_safe(node.title or '(untitled)', ascii_only=ascii_only)}\n"
                 f"SOURCE ID {_safe(node.source_id, ascii_only=ascii_only)}"
@@ -183,7 +184,7 @@ def render_multiverse(
         for node in graph.nodes:
             details.add_row(
                 f"{'ACTIVE ' if node.current else ''}{node.harness}",
-                node.updated_at.isoformat().replace("+00:00", "Z"),
+                rfc3339(node.updated_at),
                 node.health.value,
                 _safe(node.title or "(untitled)", ascii_only=ascii_only),
                 _safe(node.source_id, ascii_only=ascii_only),

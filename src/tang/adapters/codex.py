@@ -153,7 +153,7 @@ class CodexAdapter:
         removed: tuple[SessionIdentity, ...] = ()
         if not warnings:
             removed = tuple(
-                SessionIdentity(*canonical.split(":", 2))
+                SessionIdentity.from_canonical(canonical)
                 for canonical in previous.keys() - {
                     identity.canonical for identity in seen
                 }
