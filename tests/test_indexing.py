@@ -141,7 +141,7 @@ def test_index_json_and_human_output_are_deterministic(
         str(discovery_corpus.grok_home),
     ]
 
-    assert main([*arguments, "--json"]) == 0
+    assert main([*arguments, "--json"]) == 1
     first = capsys.readouterr()
     document = json.loads(first.out)
     assert document == {
@@ -157,13 +157,108 @@ def test_index_json_and_human_output_are_deterministic(
     assert "warning:" in first.err
     assert str(tmp_path) not in first.out + first.err
 
-    assert main(arguments) == 0
+    assert main(arguments) == 1
     second = capsys.readouterr()
     assert second.out == (
         "Indexed 0; deleted 0; unchanged 0; excluded 0; status partial.\n"
     )
     assert "warning:" in second.err
     assert str(tmp_path) not in second.out + second.err
+
+
+def test_index_advances_past_unreadable_eligible_session_and_retries_on_change(
+    copied_codex_home: Path, tmp_path: Path
+) -> None:
+    current = tmp_path / "current"
+    current.mkdir()
+    good_log = next((copied_codex_home / "sessions").rglob("*.jsonl"))
+    good_rows = [json.loads(line) for line in good_log.read_text().splitlines()]
+    good_rows[0]["payload"]["cwd"] = str(current)
+    good_log.write_text("\n".join(json.dumps(row) for row in good_rows) + "\n")
+
+    poison_id = "019f6000-5678-7000-8000-000000000099"
+    poison_log = good_log.with_name(
+        f"rollout-2026-07-14T21-00-00-{poison_id}.jsonl"
+    )
+    metadata = good_rows[0]
+    metadata["timestamp"] = "2026-07-14T21:00:00Z"
+    metadata["payload"]["id"] = poison_id
+    metadata["payload"]["session_id"] = poison_id
+    metadata["payload"]["timestamp"] = "2026-07-14T21:00:00Z"
+    poison_log.write_text(json.dumps(metadata) + "\n")
+
+    connection = open_database(tmp_path / "tang.db")
+    repository = TangRepository(connection)
+    adapter = CodexAdapter(copied_codex_home, source_namespace="poison")
+    project = resolve_project(current)
+    indexer = ProjectIndexer(repository)
+    try:
+        first = indexer.index((adapter,), project, now=NOW)
+        checkpoint = repository.get_checkpoint("codex", "poison", project.key)
+        second = indexer.index((adapter,), project, now=NOW)
+
+        assert first.indexed == 1
+        assert first.status == "partial"
+        assert checkpoint is not None
+        assert second.indexed == 0
+        assert second.status == "complete"
+        assert repository.get_checkpoint("codex", "poison", project.key) == checkpoint
+
+        with poison_log.open("a", encoding="utf-8") as destination:
+            destination.write(
+                json.dumps(
+                    {
+                        "timestamp": "2026-07-14T21:00:01Z",
+                        "type": "response_item",
+                        "payload": {
+                            "type": "message",
+                            "role": "user",
+                            "content": [
+                                {"type": "input_text", "text": "Recovered after change."}
+                            ],
+                        },
+                    }
+                )
+                + "\n"
+            )
+        recovered = indexer.index((adapter,), project, now=NOW)
+
+        assert recovered.indexed == 1
+        assert len(repository.sessions_for_project(project.key)) == 2
+    finally:
+        connection.close()
+
+
+def test_index_cli_returns_zero_for_complete_scan(
+    copied_codex_home: Path, tmp_path: Path, capsys
+) -> None:
+    current = tmp_path / "current"
+    current.mkdir()
+    log = next((copied_codex_home / "sessions").rglob("*.jsonl"))
+    rows = [json.loads(line) for line in log.read_text().splitlines()]
+    rows[0]["payload"]["cwd"] = str(current)
+    log.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+    grok_home = tmp_path / "grok"
+    (grok_home / "sessions").mkdir(parents=True)
+
+    result = main(
+        [
+            "index",
+            "--database",
+            str(tmp_path / "tang.db"),
+            "--cwd",
+            str(current),
+            "--codex-home",
+            str(copied_codex_home),
+            "--grok-home",
+            str(grok_home),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "status complete" in captured.out
+    assert captured.err == ""
 
 
 def test_index_refreshes_capsule_fts_and_removes_deleted_native_session(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -15,6 +16,7 @@ from tang.adapters import (
     TurnRole,
     VisibleTurn,
 )
+from tang.context import Citation, ContextExcerpt
 from tang.multicontext import MultiSourceAllocator, ValidatedSourceRead
 
 
@@ -93,3 +95,39 @@ def test_allocator_rejects_unvalidated_project_mix_and_duplicates() -> None:
         MultiSourceAllocator().allocate((first, foreign), "project-a")
     with pytest.raises(ValueError, match="duplicate"):
         MultiSourceAllocator().allocate((first, first), "project-a")
+
+
+def test_oversize_excerpt_does_not_hide_older_smaller_turn() -> None:
+    item = validated(0)
+    excerpts = tuple(
+        ContextExcerpt(
+            ordinal=ordinal,
+            role="user",
+            citation=Citation("codex", "source-0", f"jsonl:{ordinal + 1}", NOW),
+            text=text,
+            truncated=False,
+        )
+        for ordinal, text in (
+            (0, "older useful turn"),
+            (1, "x" * 1_200),
+            (2, "newest reserve"),
+        )
+    )
+    item = ValidatedSourceRead(
+        item.source,
+        TurnBatch(item.source.identity, BatchStatus.COMPLETE, item.read.turns[:3]),
+        item.project_key,
+    )
+    allocator = MultiSourceAllocator(token_budget=512)
+    allocator._single = SimpleNamespace(
+        build=lambda source, read: SimpleNamespace(
+            excerpts=excerpts,
+            source_title=None,
+            warnings=(),
+            redaction_count=0,
+        )
+    )
+
+    pack = allocator.allocate((item,), "project-a")
+
+    assert [excerpt.ordinal for excerpt in pack.sections[0].excerpts] == [0, 2]

@@ -134,7 +134,8 @@ Native harness logs remain the source of truth. Tang stores only derived continu
 - System prompts, hidden reasoning, tool payloads, tool results, file bodies, and full transcripts are excluded.
 - Selected native sources are reread and redacted when a Context Pack is created.
 - Recovered content is wrapped as untrusted historical evidence, never executable instruction.
-- `tang purge --all` removes Tang-derived data.
+- `tang purge --all` removes Tang-derived records, including stored source paths;
+  it never deletes or rewrites the native harness logs that remain the source of truth.
 - `tang demo` uses a temporary data directory and must not touch native logs or the user's Tang database.
 
 Redaction reduces accidental disclosure; it is not encryption and does not promise protection against forensic recovery.
@@ -173,15 +174,17 @@ The Codex skill is the primary interactive experience. The CLI stays scriptable 
 |---|---|
 | `tang index` | Incrementally index sessions for the current project |
 | `tang browse` | List indexed sessions and capability status |
-| `tang search QUERY` | Search redacted Discovery Capsules |
+| `tang search QUERY` | Search redacted Discovery Capsules; simple keywords or quoted phrases are recommended |
 | `tang context SESSION...` | Produce a compact Markdown or JSON Context Pack |
 | `tang link --from SESSION... --current` | Confirm links into the current Codex session |
 | `tang graph [SESSION]` | Render the containing Multiverse Map |
 | `tang purge --all` | Remove Tang-derived data after confirmation |
-| `tang doctor` | Check installation, database, FTS5, and adapter readiness |
+| `tang doctor` *(planned in the skill/doctor milestone)* | Check installation, database, FTS5, and adapter readiness |
 | `tang demo` | Run the isolated synthetic judge demonstration |
 
 Human-readable output goes to `stdout`; diagnostics go to `stderr`. JSON output uses deterministic ordering, RFC 3339 UTC timestamps, and `schema_version: 1`.
+`tang index` exits with status 1 when indexing is partial so automation can detect
+degraded results without parsing its output.
 
 ## Judge path
 

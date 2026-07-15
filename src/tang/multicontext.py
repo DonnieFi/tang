@@ -205,7 +205,6 @@ class MultiSourceAllocator:
 
         queues = [list(reversed(single.excerpts[:-1])) for single in prepared]
         while any(queues):
-            progress = False
             for index, queue in enumerate(queues):
                 if not queue:
                     continue
@@ -213,13 +212,8 @@ class MultiSourceAllocator:
                 selected[index].append(excerpt)
                 selected[index].sort(key=lambda item: item.ordinal)
                 candidate = self._pack(ordered, prepared, selected, project_key, warnings)
-                if candidate.estimated_tokens <= self._token_budget:
-                    progress = True
-                else:
+                if candidate.estimated_tokens > self._token_budget:
                     selected[index].remove(excerpt)
-                    queue.clear()
-            if not progress:
-                break
         return self._pack(ordered, prepared, selected, project_key, warnings)
 
     def _fit_reserves(

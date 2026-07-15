@@ -38,7 +38,10 @@ def build_parser() -> argparse.ArgumentParser:
     browse = subparsers.add_parser("browse", help="list current-project sessions")
     _add_discovery_arguments(browse)
     search = subparsers.add_parser("search", help="search current-project capsules")
-    search.add_argument("query")
+    search.add_argument(
+        "query",
+        help="FTS5 query; simple keywords or quoted phrases are recommended",
+    )
     _add_discovery_arguments(search)
     context = subparsers.add_parser("context", help="build a cited Context Pack")
     context.add_argument("sessions", nargs="+")
@@ -119,7 +122,7 @@ def _run_index(args: argparse.Namespace) -> int:
             f"excluded {result.excluded}; status {result.status}."
         )
     _show_warnings(result)
-    return 0
+    return 1 if result.status == "partial" else 0
 
 
 def _discovery_document(item: DiscoveryItem) -> dict[str, object]:
@@ -227,7 +230,7 @@ def _run_purge(args: argparse.Namespace) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Print concise help until the vertical-slice commands are implemented."""
+    """Dispatch Tang's scriptable commands, or show top-level help."""
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command == "index":

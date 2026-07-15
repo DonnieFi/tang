@@ -105,7 +105,10 @@ class ProjectIndexer:
                             source.identity.canonical,
                         )
                     )
-                    checkpoint_safe = False
+                    # This source was positively resolved to the active project.
+                    # Advancing the fingerprint cursor prevents one poison record
+                    # from forcing full rescans forever; any native content change
+                    # changes the fingerprint and makes it eligible for retry.
                     continue
                 try:
                     capsule = self._capsules.build(
@@ -119,7 +122,8 @@ class ProjectIndexer:
                             source.identity.canonical,
                         )
                     )
-                    checkpoint_safe = False
+                    # As above, retain the warning for this attempt but allow the
+                    # adapter cursor to advance until the native source changes.
                     continue
                 pending.append((source, capsule))
 

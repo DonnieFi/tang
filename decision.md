@@ -90,3 +90,15 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) retain one checkpoint per native store; (b) force every index operation to rescan without checkpoints; (c) key checkpoint persistence by adapter, store namespace, and resolved project while keeping the adapter cursor opaque.
 - Decision: (c) — preserve incremental scans within each project without allowing one project's indexing history to hide another project's eligible sessions; discard pre-release unscoped cursors during migration so the first scoped run performs a safe full scan. Serves: Technological Implementation, Design, Potential Impact.
 - By: agent, resolving an Epic 3 close-gate integration finding
+
+## 2026-07-15T00:34:36Z · tang-d6f.7 · Advance past attempted eligible sources
+- Context: A current-project source with a valid identity and project hint but no readable visible turns prevented its adapter checkpoint from advancing, forcing every later index run to rescan and reprocess the entire native store. The adapter fingerprint already changes when native content changes.
+- Options: (a) block the whole checkpoint until every eligible source indexes; (b) add a persistent retry queue and backoff schema; (c) warn and advance after a positively project-resolved attempt, retrying automatically when the native fingerprint changes.
+- Decision: (c) — contain one poison record without adding premature retry infrastructure, while preserving automatic recovery on native change and continuing to block advancement when project identity itself is unresolved. Serves: Technological Implementation, Design, Potential Impact.
+- By: agent, resolving manual Epic 3 review warning 1
+
+## 2026-07-15T00:34:36Z · tang-d6f.7 · Make degraded indexing observable by exit status
+- Context: `tang index` exposed partial status in text and JSON but always exited successfully, forcing automation to parse output to distinguish a complete scan from degraded evidence.
+- Options: (a) always exit 0; (b) exit 1 for partial results and 0 for complete results; (c) make every warning a fatal exit 2 error.
+- Decision: (b) — preserve useful partial output while giving scripts a standard, low-cost degraded-state signal; usage and hard failures retain distinct error behavior. Serves: Technological Implementation, Design.
+- By: agent, applying manual Epic 3 review warning 5 as release polish
