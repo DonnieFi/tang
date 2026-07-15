@@ -77,6 +77,8 @@ def test_scripted_skill_discovery_and_explicit_multi_select(
     pack = json.loads(context_output.out)
     packed_sources = pack["untrusted_data_envelope"]["sources"]
     assert {section["source_id"] for section in packed_sources} == set(selected)
+    assert "target" not in pack
+    assert "continuations" not in pack
     assert "preview-secret" not in context_output.out
     assert "foreign-quasar-secret" not in context_output.out
 
@@ -89,6 +91,7 @@ def test_skill_instructions_require_host_selection_without_invented_ids() -> Non
         "Accept only exact IDs from the current result set",
         "never infer selection",
         "ask for a different phrase instead of inventing a candidate",
+        "Stop before recording continuation links",
         "Do not build a second interactive terminal browser",
     )
     assert all(phrase in text for phrase in required)
