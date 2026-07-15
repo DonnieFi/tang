@@ -25,6 +25,7 @@ MIGRATIONS: tuple[Migration, ...] = (
                 locator TEXT NOT NULL,
                 fingerprint_algorithm TEXT NOT NULL,
                 fingerprint_value TEXT NOT NULL,
+                project_hint TEXT NOT NULL,
                 started_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 health TEXT NOT NULL,
