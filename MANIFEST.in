@@ -1,2 +1,13 @@
 recursive-include tests/fixtures *.json *.jsonl *.md *.partial
 include tests/conftest.py
+include LICENSE
+include README.md
+include skills/tang/SKILL.md
+include skills/tang/agents/openai.yaml
+recursive-include scripts *.py
+exclude tang_mascot.png
+prune plan
+prune .agents
+prune .codex
+prune .beads
+prune .tang
