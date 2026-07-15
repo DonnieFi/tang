@@ -102,3 +102,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) always exit 0; (b) exit 1 for partial results and 0 for complete results; (c) make every warning a fatal exit 2 error.
 - Decision: (b) — preserve useful partial output while giving scripts a standard, low-cost degraded-state signal; usage and hard failures retain distinct error behavior. Serves: Technological Implementation, Design.
 - By: agent, applying manual Epic 3 review warning 5 as release polish
+
+## 2026-07-15T00:47:37Z · tang-d6f.7 · Promote the renewed Epic 3 milestone
+- Context: Human review approved Epic 3 promotion after checkpoint-liveness, allocation-fairness, index-exit, and documentation remediation; milestone `9afb4b0` predated those fixes, so the renewed tested branch tip was the only valid promotion candidate.
+- Options: (a) promote stale milestone `9afb4b0`; (b) fast-forward the renewed milestone; (c) create an unnecessary merge commit.
+- Decision: (b) — fast-forward `epic/03-discovery-context` milestone `8b265b8814ff522e8967e4866f88a7891655d2de` into `main`, producing promotion SHA `8b265b8814ff522e8967e4866f88a7891655d2de`. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: human (promotion approval) and agent (renewed verification and fast-forward execution)
