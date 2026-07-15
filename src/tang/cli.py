@@ -12,11 +12,13 @@ from pathlib import Path
 from tang.adapters import CodexAdapter, GrokAdapter, SessionHealth
 from tang.context_service import ContextGenerationError, ContextPackService
 from tang.discovery import DiscoveryFilter, DiscoveryItem, DiscoveryService, rfc3339
+from tang.doctor import doctor_exit_code, run_doctor
 from tang.indexing import IndexResult, ProjectIndexer
 from tang.project import resolve_project
 from tang.redaction import ContentKind, DEFAULT_REDACTOR, RedactionSeam
 from tang.repository import TangRepository
 from tang.storage import open_database
+from tang.skill_install import install_codex_skill
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -54,6 +56,17 @@ def build_parser() -> argparse.ArgumentParser:
     purge.add_argument("--all", action="store_true", dest="purge_all")
     purge.add_argument("--yes", action="store_true", help="confirm without a prompt")
     purge.add_argument("--database", type=Path)
+    doctor = subparsers.add_parser("doctor", help="check Tang readiness")
+    doctor.add_argument("--json", action="store_true", dest="as_json")
+    doctor.add_argument("--database", type=Path)
+    doctor.add_argument("--codex-home", type=Path)
+    doctor.add_argument("--grok-home", type=Path)
+    skill = subparsers.add_parser("skill", help="manage harness skills")
+    skill_subparsers = skill.add_subparsers(dest="skill_command")
+    install = skill_subparsers.add_parser("install", help="install a harness skill")
+    install.add_argument("harness", choices=("codex",))
+    install.add_argument("--codex-home", type=Path)
+    install.add_argument("--force", action="store_true")
     return parser
 
 
@@ -229,6 +242,48 @@ def _run_purge(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_doctor(args: argparse.Namespace) -> int:
+    checks = run_doctor(
+        args.database, codex_home=args.codex_home, grok_home=args.grok_home
+    )
+    if args.as_json:
+        print(
+            json.dumps(
+                {
+                    "checks": [
+                        {
+                            "component": check.component,
+                            "message": check.message,
+                            "status": check.status,
+                        }
+                        for check in checks
+                    ],
+                    "schema_version": 1,
+                    "status": "ready" if doctor_exit_code(checks) == 0 else "degraded",
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
+    else:
+        for check in checks:
+            print(f"{check.component}: {check.status} — {check.message}")
+    return doctor_exit_code(checks)
+
+
+def _run_skill(args: argparse.Namespace) -> int:
+    if args.skill_command != "install":
+        print("error: skill requires the install subcommand", file=sys.stderr)
+        return 2
+    try:
+        result = install_codex_skill(args.codex_home, force=args.force)
+    except (FileExistsError, FileNotFoundError, OSError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    print(result.message)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Dispatch Tang's scriptable commands, or show top-level help."""
     parser = build_parser()
@@ -241,5 +296,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_context(args)
     if args.command == "purge":
         return _run_purge(args)
+    if args.command == "doctor":
+        return _run_doctor(args)
+    if args.command == "skill":
+        return _run_skill(args)
     parser.print_help()
     return 0
