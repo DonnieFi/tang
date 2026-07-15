@@ -293,6 +293,23 @@ def test_corrupt_update_retains_prior_checkpoint_record(
     }
 
 
+def test_healthy_scan_reports_native_deletion(fixture_home: Path) -> None:
+    adapter = GrokAdapter(fixture_home, source_namespace="fixture")
+    first = adapter.scan(None)
+    identity = first.records[0].identity
+    session_dir = next((fixture_home / "sessions").glob("*/*"))
+    for child in session_dir.iterdir():
+        child.unlink()
+    session_dir.rmdir()
+
+    second = adapter.scan(first.next_checkpoint)
+
+    assert second.status is BatchStatus.COMPLETE
+    assert second.records == ()
+    assert second.removed == (identity,)
+    assert json.loads(second.next_checkpoint.cursor)["fingerprints"] == {}
+
+
 def test_missing_updates_is_partial_during_scan(fixture_home: Path) -> None:
     updates = next((fixture_home / "sessions").rglob("updates.jsonl"))
     updates.unlink()

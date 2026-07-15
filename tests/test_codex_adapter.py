@@ -102,6 +102,34 @@ def test_truncated_later_scan_retains_last_known_good(copied_codex_home: Path) -
     payload = json.loads(second.next_checkpoint.cursor)
     assert next(iter(payload["fingerprints"].values())) == original_fingerprint
 
+    log.write_text(log.read_text().rsplit('{"timestamp"', 1)[0])
+    with log.open("a", encoding="utf-8") as destination:
+        destination.write(
+            '{"timestamp":"2026-07-14T20:03:00Z","type":"response_item",'
+            '"payload":{"type":"message","role":"assistant",'
+            '"content":[{"type":"output_text","text":"Recovered cleanly."}]}}\n'
+        )
+
+    recovered = adapter.scan(second.next_checkpoint)
+
+    assert recovered.status is BatchStatus.COMPLETE
+    assert len(recovered.records) == 1
+    assert recovered.next_checkpoint != second.next_checkpoint
+
+
+def test_healthy_scan_reports_native_deletion(copied_codex_home: Path) -> None:
+    adapter = fixture_adapter(copied_codex_home)
+    first = adapter.scan(None)
+    identity = first.records[0].identity
+    only_log(copied_codex_home).unlink()
+
+    second = adapter.scan(first.next_checkpoint)
+
+    assert second.status is BatchStatus.COMPLETE
+    assert second.records == ()
+    assert second.removed == (identity,)
+    assert json.loads(second.next_checkpoint.cursor)["fingerprints"] == {}
+
 
 def test_truncated_read_returns_visible_partial_data(copied_codex_home: Path) -> None:
     adapter = fixture_adapter(copied_codex_home)

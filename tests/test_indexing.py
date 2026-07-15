@@ -104,6 +104,7 @@ def test_index_json_and_human_output_are_deterministic(
     first = capsys.readouterr()
     document = json.loads(first.out)
     assert document == {
+        "deleted": 0,
         "excluded": 1,
         "indexed": 4,
         "schema_version": 1,
@@ -117,6 +118,68 @@ def test_index_json_and_human_output_are_deterministic(
 
     assert main(arguments) == 0
     second = capsys.readouterr()
-    assert second.out == "Indexed 0; unchanged 0; excluded 0; status partial.\n"
+    assert second.out == (
+        "Indexed 0; deleted 0; unchanged 0; excluded 0; status partial.\n"
+    )
     assert "warning:" in second.err
     assert str(tmp_path) not in second.out + second.err
+
+
+def test_index_refreshes_capsule_fts_and_removes_deleted_native_session(
+    copied_codex_home: Path, tmp_path: Path
+) -> None:
+    current = tmp_path / "current"
+    current.mkdir()
+    log = next((copied_codex_home / "sessions").rglob("*.jsonl"))
+    rows = [json.loads(line) for line in log.read_text().splitlines()]
+    rows[0]["payload"]["cwd"] = str(current)
+    log.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+    connection = open_database(tmp_path / "tang.db")
+    repository = TangRepository(connection)
+    adapter = CodexAdapter(copied_codex_home, source_namespace="updates")
+    project = resolve_project(current)
+    indexer = ProjectIndexer(repository)
+    try:
+        first = indexer.index((adapter,), project, now=NOW)
+        source_id = (
+            repository.sessions_for_project(project.key)[0].source.identity.canonical
+        )
+        first_checkpoint = repository.get_checkpoint("codex", "updates")
+        assert first.indexed == 1
+
+        with log.open("a", encoding="utf-8") as destination:
+            destination.write(
+                json.dumps(
+                    {
+                        "timestamp": "2026-07-14T20:03:00Z",
+                        "type": "response_item",
+                        "payload": {
+                            "type": "message",
+                            "role": "assistant",
+                            "content": [
+                                {"type": "output_text", "text": "Quasarrefresh token."}
+                            ],
+                        },
+                    }
+                )
+                + "\n"
+            )
+
+        refreshed = indexer.index((adapter,), project, now=NOW)
+        second_checkpoint = repository.get_checkpoint("codex", "updates")
+        assert refreshed.indexed == 1
+        assert second_checkpoint != first_checkpoint
+        assert repository.search_capsule_ids(project.key, "Quasarrefresh") == (
+            source_id,
+        )
+
+        log.unlink()
+        removed = indexer.index((adapter,), project, now=NOW)
+
+        assert removed.deleted == 1
+        assert repository.get_session(source_id) is None
+        assert repository.get_capsule(source_id) is None
+        assert repository.search_capsule_ids(project.key, "Quasarrefresh") == ()
+        assert repository.get_checkpoint("codex", "updates") != second_checkpoint
+    finally:
+        connection.close()

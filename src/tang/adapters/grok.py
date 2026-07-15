@@ -78,6 +78,7 @@ class GrokAdapter:
         # handling; Epic 1 must never let partial scans erase known-good state.
         current: dict[str, str] = dict(previous)
         records: list[SourceRecord] = []
+        seen: set[SessionIdentity] = set()
 
         try:
             session_dirs, discovery_warnings = self._session_dirs()
@@ -98,6 +99,7 @@ class GrokAdapter:
             identity = SessionIdentity(
                 self.adapter_key, self.source_namespace, native_id
             )
+            seen.add(identity)
             try:
                 record, record_warnings, summary_valid = self._source_record(
                     session_dir, identity
@@ -135,6 +137,17 @@ class GrokAdapter:
             if previous.get(identity.canonical) != record.fingerprint.value:
                 records.append(record)
 
+        removed: tuple[SessionIdentity, ...] = ()
+        if not warnings:
+            removed = tuple(
+                SessionIdentity(*canonical.split(":", 2))
+                for canonical in previous.keys() - {
+                    identity.canonical for identity in seen
+                }
+            )
+            for identity in removed:
+                current.pop(identity.canonical, None)
+
         next_checkpoint = AdapterCheckpoint(
             self.adapter_key,
             self.source_namespace,
@@ -147,6 +160,7 @@ class GrokAdapter:
         return ScanBatch(
             status=BatchStatus.PARTIAL if warnings else BatchStatus.COMPLETE,
             records=tuple(records),
+            removed=removed,
             next_checkpoint=next_checkpoint,
             warnings=tuple(warnings),
         )

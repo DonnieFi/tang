@@ -22,6 +22,7 @@ class IndexWarning:
 @dataclass(frozen=True, slots=True)
 class IndexResult:
     indexed: int
+    deleted: int
     unchanged: int
     excluded: int
     warnings: tuple[IndexWarning, ...]
@@ -48,7 +49,7 @@ class ProjectIndexer:
         *,
         now: datetime | None = None,
     ) -> IndexResult:
-        indexed = unchanged = excluded = 0
+        indexed = deleted = unchanged = excluded = 0
         warnings: list[IndexWarning] = []
         timestamp = now or datetime.now(timezone.utc)
 
@@ -127,18 +128,30 @@ class ProjectIndexer:
                 and scan.next_checkpoint != prior_checkpoint
                 and checkpoint_safe
             )
-            if pending or checkpoint_changed:
+            removable = tuple(
+                identity
+                for identity in scan.removed
+                if (
+                    (stored := self._repository.get_session(identity.canonical))
+                    is not None
+                    and stored.project_key == active_project.key
+                )
+            )
+            if pending or removable or checkpoint_changed:
                 with self._repository.transaction():
                     for source, capsule in pending:
                         self._repository.upsert_session(
                             source, active_project.key, timestamp
                         )
                         self._repository.put_capsule(capsule)
+                    for identity in removable:
+                        self._repository.delete_session(identity.canonical)
                     if checkpoint_changed:
                         assert scan.next_checkpoint is not None
                         self._repository.put_checkpoint(
                             scan.next_checkpoint, timestamp
                         )
                 indexed += len(pending)
+                deleted += len(removable)
 
-        return IndexResult(indexed, unchanged, excluded, tuple(warnings))
+        return IndexResult(indexed, deleted, unchanged, excluded, tuple(warnings))

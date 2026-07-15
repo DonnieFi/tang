@@ -37,6 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _index_document(result: IndexResult) -> dict[str, object]:
     return {
+        "deleted": result.deleted,
         "excluded": result.excluded,
         "indexed": result.indexed,
         "schema_version": 1,
@@ -74,7 +75,8 @@ def _run_index(args: argparse.Namespace) -> int:
         print(json.dumps(_index_document(result), sort_keys=True, separators=(",", ":")))
     else:
         print(
-            f"Indexed {result.indexed}; unchanged {result.unchanged}; "
+            f"Indexed {result.indexed}; deleted {result.deleted}; "
+            f"unchanged {result.unchanged}; "
             f"excluded {result.excluded}; status {result.status}."
         )
     _show_warnings(result)

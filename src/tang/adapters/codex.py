@@ -150,6 +150,17 @@ class CodexAdapter:
             if previous.get(identity.canonical) != record.fingerprint.value:
                 records.append(record)
 
+        removed: tuple[SessionIdentity, ...] = ()
+        if not warnings:
+            removed = tuple(
+                SessionIdentity(*canonical.split(":", 2))
+                for canonical in previous.keys() - {
+                    identity.canonical for identity in seen
+                }
+            )
+            for identity in removed:
+                current.pop(identity.canonical, None)
+
         next_checkpoint = AdapterCheckpoint(
             self.adapter_key,
             self.source_namespace,
@@ -162,6 +173,7 @@ class CodexAdapter:
         return ScanBatch(
             status=BatchStatus.PARTIAL if warnings else BatchStatus.COMPLETE,
             records=tuple(records),
+            removed=removed,
             next_checkpoint=next_checkpoint,
             warnings=tuple(warnings),
         )

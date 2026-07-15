@@ -246,6 +246,7 @@ class ScanBatch:
 
     status: BatchStatus
     records: tuple[SourceRecord, ...] = ()
+    removed: tuple[SessionIdentity, ...] = ()
     next_checkpoint: AdapterCheckpoint | None = None
     warnings: tuple[AdapterWarning, ...] = ()
 
@@ -254,9 +255,15 @@ class ScanBatch:
         identities = [record.identity for record in records]
         if len(set(identities)) != len(identities):
             raise ValueError("scan results cannot contain duplicate session identities")
+        removed = tuple(
+            sorted(set(self.removed), key=lambda identity: identity.canonical)
+        )
+        if set(identities) & set(removed):
+            raise ValueError("scan results cannot both change and remove a session")
         warnings = _ordered_warnings(self.warnings)
-        _validate_status(self.status, warnings, len(records))
+        _validate_status(self.status, warnings, len(records) + len(removed))
         object.__setattr__(self, "records", records)
+        object.__setattr__(self, "removed", removed)
         object.__setattr__(self, "warnings", warnings)
 
 
