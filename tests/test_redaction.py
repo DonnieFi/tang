@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from tang.redaction import DEFAULT_REDACTOR
+from tang.redaction import (
+    DEFAULT_REDACTOR,
+    ContentKind,
+    RedactionSeam,
+)
 
 
 @pytest.mark.parametrize(
@@ -24,6 +28,8 @@ from tang.redaction import DEFAULT_REDACTOR
         ("key sk-abcdefghijklmnop1234", "sk-abcdefghijklmnop1234", "token"),
         ("https://alice:hunter2@example.test/repo", "hunter2", "password"),
         ("open /home/alice/private/file.txt", "/home/alice", "~"),
+        (r"open C:\Users\Alice\private\file.txt", r"C:\Users\Alice", "~"),
+        ("read /root/.ssh/config", "/root", "~"),
         (
             "-----BEGIN PRIVATE KEY-----\nSECRET\n-----END PRIVATE KEY-----",
             "SECRET",
@@ -50,3 +56,57 @@ def test_redaction_is_deterministic_and_leaves_normal_text_unchanged() -> None:
     assert first == second
     assert first.text == text
     assert first.redaction_count == 0
+
+
+def test_every_declared_seam_uses_the_same_redaction_policy() -> None:
+    secret = 'PASSWORD="adversarial spaced value"'
+
+    results = {
+        seam: DEFAULT_REDACTOR.redact_at(seam, secret) for seam in RedactionSeam
+    }
+
+    assert len(set(results.values())) == 1
+    assert "adversarial spaced value" not in next(iter(results.values())).text
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        ContentKind.SYSTEM_PROMPT,
+        ContentKind.HIDDEN_REASONING,
+        ContentKind.TOOL_PAYLOAD,
+        ContentKind.TOOL_RESULT,
+        ContentKind.FILE_BODY,
+    ],
+)
+def test_forbidden_native_content_is_excluded_before_redaction(
+    kind: ContentKind,
+) -> None:
+    result = DEFAULT_REDACTOR.redact_content(
+        RedactionSeam.CAPSULE_PERSISTENCE,
+        kind,
+        "forbidden payload PASSWORD=should-never-be-considered-visible",
+    )
+
+    assert result is None
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        ContentKind.TITLE,
+        ContentKind.VISIBLE_TEXT,
+        ContentKind.CITATION,
+        ContentKind.WARNING,
+        ContentKind.DISPLAY_METADATA,
+    ],
+)
+def test_allowed_content_is_redacted_consistently(kind: ContentKind) -> None:
+    result = DEFAULT_REDACTOR.redact_content(
+        RedactionSeam.SNIPPET_DISPLAY,
+        kind,
+        "Bearer abcdefghijklmnop",
+    )
+
+    assert result is not None
+    assert "abcdefghijklmnop" not in result.text

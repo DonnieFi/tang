@@ -1,13 +1,51 @@
-"""Deterministic best-effort redaction shared by persistence and display seams."""
+"""Deterministic best-effort redaction shared by every sensitive seam.
+
+Redaction reduces accidental disclosure. It is not encryption, does not erase
+source data, and cannot guarantee detection of novel or intentionally obfuscated
+secrets. Forbidden native content is excluded before this service sees text.
+"""
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Callable, Pattern
 
 
 Replacement = str | Callable[[re.Match[str]], str]
+
+
+class RedactionSeam(StrEnum):
+    CAPSULE_PERSISTENCE = "capsule_persistence"
+    SNIPPET_DISPLAY = "snippet_display"
+    CONTEXT_REREAD = "context_reread"
+    GRAPH_LABEL = "graph_label"
+    SKILL_EVIDENCE = "skill_evidence"
+
+
+class ContentKind(StrEnum):
+    TITLE = "title"
+    VISIBLE_TEXT = "visible_text"
+    CITATION = "citation"
+    WARNING = "warning"
+    DISPLAY_METADATA = "display_metadata"
+    SYSTEM_PROMPT = "system_prompt"
+    HIDDEN_REASONING = "hidden_reasoning"
+    TOOL_PAYLOAD = "tool_payload"
+    TOOL_RESULT = "tool_result"
+    FILE_BODY = "file_body"
+
+
+FORBIDDEN_CONTENT_KINDS = frozenset(
+    {
+        ContentKind.SYSTEM_PROMPT,
+        ContentKind.HIDDEN_REASONING,
+        ContentKind.TOOL_PAYLOAD,
+        ContentKind.TOOL_RESULT,
+        ContentKind.FILE_BODY,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,7 +115,11 @@ DEFAULT_RULES = (
     ),
     _Rule(
         "home-path",
-        re.compile(r"(?<![A-Za-z0-9])/(?:home|Users)/[^/\s]+"),
+        re.compile(
+            r"(?<![A-Za-z0-9])(?:/(?:home|Users)/[^/\s]+|/root\b|"
+            r"[A-Za-z]:[\\/]Users[\\/][^\\/\s]+)",
+            re.IGNORECASE,
+        ),
         "~",
     ),
 )
@@ -99,6 +141,24 @@ class Redactor:
                 total += count
                 labels.append(rule.label)
         return RedactionResult(redacted, total, tuple(labels))
+
+    def redact_at(self, seam: RedactionSeam, text: str) -> RedactionResult:
+        """Apply the one shared policy at a declared persistence/display seam."""
+
+        if not isinstance(seam, RedactionSeam):
+            raise TypeError("seam must be a RedactionSeam")
+        return self.redact(text)
+
+    def redact_content(
+        self, seam: RedactionSeam, kind: ContentKind, text: str
+    ) -> RedactionResult | None:
+        """Exclude forbidden native kinds before applying pattern redaction."""
+
+        if not isinstance(kind, ContentKind):
+            raise TypeError("kind must be a ContentKind")
+        if kind in FORBIDDEN_CONTENT_KINDS:
+            return None
+        return self.redact_at(seam, text)
 
 
 DEFAULT_REDACTOR = Redactor()

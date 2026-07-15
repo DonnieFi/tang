@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 from tang.adapters import SourceRecord, TurnBatch, VisibleTurn
-from tang.redaction import DEFAULT_REDACTOR, Redactor
+from tang.redaction import DEFAULT_REDACTOR, RedactionSeam, Redactor
 
 
 UNTRUSTED_NOTICE = (
@@ -213,10 +213,15 @@ class ContextPackBuilder:
         if not read.turns:
             raise ValueError("cannot build a Context Pack without visible turns")
 
-        raw_title_result = self._redactor.redact(source.title or "")
+        raw_title_result = self._redactor.redact_at(
+            RedactionSeam.CONTEXT_REREAD, source.title or ""
+        )
         title = _bounded(raw_title_result.text, _MAX_TITLE_CHARACTERS)
         all_warning_results = [
-            self._redactor.redact(f"{warning.code}: {warning.message}")
+            self._redactor.redact_at(
+                RedactionSeam.CONTEXT_REREAD,
+                f"{warning.code}: {warning.message}",
+            )
             for warning in read.warnings
         ]
         warning_results = all_warning_results[:_MAX_WARNING_COUNT]
@@ -325,8 +330,10 @@ class ContextPackBuilder:
     def _excerpt(
         self, source: SourceRecord, turn: VisibleTurn
     ) -> tuple[ContextExcerpt, int]:
-        result = self._redactor.redact(turn.text)
-        locator_result = self._redactor.redact(turn.citation_locator)
+        result = self._redactor.redact_at(RedactionSeam.CONTEXT_REREAD, turn.text)
+        locator_result = self._redactor.redact_at(
+            RedactionSeam.CONTEXT_REREAD, turn.citation_locator
+        )
         text = result.text
         truncated = len(text) > self._max_excerpt_characters
         if truncated:
