@@ -1,0 +1,144 @@
+"""Current-project indexing coordinator over adapters and repositories."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+
+from tang.adapters import BatchStatus, SessionAdapter, SourceRecord, TurnSelection
+from tang.capsule import DiscoveryCapsuleBuilder
+from tang.project import ProjectIdentity, ProjectResolutionError
+from tang.repository import StoredCapsule, TangRepository
+from tang.target import TargetCandidate
+
+
+@dataclass(frozen=True, slots=True)
+class IndexWarning:
+    code: str
+    message: str = field(repr=False)
+    source_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class IndexResult:
+    indexed: int
+    unchanged: int
+    excluded: int
+    warnings: tuple[IndexWarning, ...]
+
+    @property
+    def status(self) -> str:
+        return "partial" if self.warnings else "complete"
+
+
+class ProjectIndexer:
+    def __init__(
+        self,
+        repository: TangRepository,
+        *,
+        capsule_builder: DiscoveryCapsuleBuilder | None = None,
+    ) -> None:
+        self._repository = repository
+        self._capsules = capsule_builder or DiscoveryCapsuleBuilder()
+
+    def index(
+        self,
+        adapters: tuple[SessionAdapter, ...],
+        active_project: ProjectIdentity,
+        *,
+        now: datetime | None = None,
+    ) -> IndexResult:
+        indexed = unchanged = excluded = 0
+        warnings: list[IndexWarning] = []
+        timestamp = now or datetime.now(timezone.utc)
+
+        for adapter in adapters:
+            prior_checkpoint = self._repository.get_checkpoint(
+                adapter.adapter_key, adapter.source_namespace
+            )
+            scan = adapter.scan(prior_checkpoint)
+            warnings.extend(
+                IndexWarning(
+                    warning.code,
+                    warning.message,
+                    warning.identity.canonical if warning.identity else None,
+                )
+                for warning in scan.warnings
+            )
+            pending: list[tuple[SourceRecord, StoredCapsule]] = []
+            checkpoint_safe = True
+            for source in scan.records:
+                try:
+                    candidate = TargetCandidate.from_source(source)
+                except (OSError, ValueError, ProjectResolutionError):
+                    warnings.append(
+                        IndexWarning(
+                            "project-hint-unavailable",
+                            "A changed session project hint could not be resolved and was skipped.",
+                            source.identity.canonical,
+                        )
+                    )
+                    checkpoint_safe = False
+                    continue
+                if candidate.project_key != active_project.key:
+                    excluded += 1
+                    continue
+                stored_fingerprint = self._repository.fingerprint_for(
+                    source.identity.canonical
+                )
+                if stored_fingerprint == source.fingerprint:
+                    unchanged += 1
+                    continue
+                read = adapter.read(source, TurnSelection())
+                warnings.extend(
+                    IndexWarning(
+                        warning.code, warning.message, source.identity.canonical
+                    )
+                    for warning in read.warnings
+                )
+                if read.status is BatchStatus.UNAVAILABLE or not read.turns:
+                    warnings.append(
+                        IndexWarning(
+                            "session-not-indexed",
+                            "A changed session had no readable visible turns and was skipped.",
+                            source.identity.canonical,
+                        )
+                    )
+                    checkpoint_safe = False
+                    continue
+                try:
+                    capsule = self._capsules.build(
+                        source, read, active_project.key
+                    )
+                except ValueError:
+                    warnings.append(
+                        IndexWarning(
+                            "capsule-not-built",
+                            "A changed session could not produce a bounded capsule and was skipped.",
+                            source.identity.canonical,
+                        )
+                    )
+                    checkpoint_safe = False
+                    continue
+                pending.append((source, capsule))
+
+            checkpoint_changed = (
+                scan.next_checkpoint is not None
+                and scan.next_checkpoint != prior_checkpoint
+                and checkpoint_safe
+            )
+            if pending or checkpoint_changed:
+                with self._repository.transaction():
+                    for source, capsule in pending:
+                        self._repository.upsert_session(
+                            source, active_project.key, timestamp
+                        )
+                        self._repository.put_capsule(capsule)
+                    if checkpoint_changed:
+                        assert scan.next_checkpoint is not None
+                        self._repository.put_checkpoint(
+                            scan.next_checkpoint, timestamp
+                        )
+                indexed += len(pending)
+
+        return IndexResult(indexed, unchanged, excluded, tuple(warnings))
