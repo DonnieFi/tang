@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 
 from tang.cli import main
+from tang.project import resolve_project
+from tang.repository import TangRepository
+from tang.storage import open_database
 
 
 def _point_corpus_at_projects(corpus, current: Path, foreign: Path) -> None:
@@ -69,8 +72,10 @@ def test_scripted_skill_discovery_and_explicit_multi_select(
     assert "HIDDEN_THOUGHT_CANARY" not in rendered
     assert "TOOL_INPUT_CANARY" not in rendered
 
-    selected = tuple(result["source_id"] for result in results if result["harness"] in {"codex", "grok"})
-    assert len(selected) >= 2
+    selected = (
+        next(result["source_id"] for result in results if result["harness"] == "grok"),
+        next(result["source_id"] for result in results if result["harness"] == "codex"),
+    )
     assert set(selected) <= {result["source_id"] for result in results}
     assert main(["context", *selected, *common, *adapter_paths, "--json"]) == 0
     context_output = capsys.readouterr()
@@ -82,6 +87,77 @@ def test_scripted_skill_discovery_and_explicit_multi_select(
     assert "preview-secret" not in context_output.out
     assert "foreign-quasar-secret" not in context_output.out
 
+    target_native_id = "019f6000-5678-7000-8000-000000000005"
+    link = [
+        "link",
+        "--from",
+        *selected,
+        "--current",
+        "--current-native-id",
+        target_native_id,
+        *common,
+        "--codex-home",
+        str(discovery_corpus.codex_home),
+        "--json",
+    ]
+    assert main(link) == 0
+    linked = json.loads(capsys.readouterr().out)
+    assert tuple(linked["source_ids"]) == selected
+    assert linked["target_id"].endswith(target_native_id)
+
+    ambiguous = link.copy()
+    native_flag = ambiguous.index("--current-native-id")
+    del ambiguous[native_flag : native_flag + 2]
+    assert main(ambiguous) == 2
+    refused = capsys.readouterr()
+    assert refused.out == ""
+    assert "error[target-unconfirmed]" in refused.err
+
+    assert main(
+        [
+            "link",
+            "--from",
+            linked["target_id"],
+            "--to",
+            selected[1],
+            *common,
+        ]
+    ) == 2
+    invalid = capsys.readouterr()
+    assert invalid.out == ""
+    assert "error[cycle]" in invalid.err
+
+    assert main(
+        [
+            "graph",
+            linked["target_id"],
+            *common,
+            "--codex-home",
+            str(discovery_corpus.codex_home),
+            "--current-native-id",
+            target_native_id,
+            "--width",
+            "100",
+        ]
+    ) == 0
+    graph_output = capsys.readouterr()
+    assert graph_output.err == ""
+    assert "TANG MULTIVERSE MAP" in graph_output.out
+    assert graph_output.out.count("──▶") == len(selected)
+    assert "★ …" + target_native_id[-12:] in graph_output.out
+    assert "ACTIVE codex" in graph_output.out
+
+    connection = open_database(database)
+    try:
+        edges = TangRepository(connection).continuations_for_project(
+            resolve_project(current).key
+        )
+        assert {(edge.source_id, edge.target_id) for edge in edges} == {
+            (source_id, linked["target_id"]) for source_id in selected
+        }
+    finally:
+        connection.close()
+
 
 def test_skill_instructions_require_host_selection_without_invented_ids() -> None:
     text = (Path(__file__).parents[1] / "skills" / "tang" / "SKILL.md").read_text()
@@ -92,6 +168,10 @@ def test_skill_instructions_require_host_selection_without_invented_ids() -> Non
         "never infer selection",
         "ask for a different phrase instead of inventing a candidate",
         "Stop before recording continuation links",
+        "explicit approval",
+        "Never guess among candidates",
+        "source_ids` exactly match the selection",
+        "tang graph <target_id>",
         "Do not build a second interactive terminal browser",
     )
     assert all(phrase in text for phrase in required)

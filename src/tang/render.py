@@ -25,6 +25,13 @@ def _safe(value: str, *, ascii_only: bool) -> str:
     return value.encode("ascii", errors="replace").decode("ascii")
 
 
+def _compact_id(value: str, *, ascii_only: bool) -> str:
+    safe = _safe(value, ascii_only=ascii_only)
+    if len(safe) <= 18:
+        return safe
+    return ("..." if ascii_only else "…") + safe[-12:]
+
+
 def _node_label(node: GraphNode, *, ascii_only: bool) -> Text:
     label = Text()
     active = "* " if ascii_only else "★ "
@@ -32,7 +39,7 @@ def _node_label(node: GraphNode, *, ascii_only: bool) -> Text:
         active if node.current else "  ",
         style=f"bold {STEEL}" if node.current else "",
     )
-    label.append(_safe(node.native_id, ascii_only=ascii_only), style=f"bold {TEAL}")
+    label.append(_compact_id(node.native_id, ascii_only=ascii_only), style=f"bold {TEAL}")
     separator = " | " if ascii_only else " · "
     label.append(
         f"{separator}{_safe(node.harness, ascii_only=ascii_only)}", style="white"
