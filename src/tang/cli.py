@@ -6,9 +6,11 @@ import argparse
 import json
 import sys
 from collections.abc import Sequence
+from datetime import datetime
 from pathlib import Path
 
-from tang.adapters import CodexAdapter, GrokAdapter
+from tang.adapters import CodexAdapter, GrokAdapter, SessionHealth
+from tang.discovery import DiscoveryFilter, DiscoveryItem, DiscoveryService, rfc3339
 from tang.indexing import IndexResult, ProjectIndexer
 from tang.project import resolve_project
 from tang.redaction import ContentKind, DEFAULT_REDACTOR, RedactionSeam
@@ -32,7 +34,32 @@ def build_parser() -> argparse.ArgumentParser:
     index.add_argument("--cwd", type=Path, default=Path.cwd())
     index.add_argument("--codex-home", type=Path)
     index.add_argument("--grok-home", type=Path)
+    browse = subparsers.add_parser("browse", help="list current-project sessions")
+    _add_discovery_arguments(browse)
+    search = subparsers.add_parser("search", help="search current-project capsules")
+    search.add_argument("query")
+    _add_discovery_arguments(search)
     return parser
+
+
+def _add_discovery_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--json", action="store_true", dest="as_json")
+    parser.add_argument("--database", type=Path)
+    parser.add_argument("--cwd", type=Path, default=Path.cwd())
+    parser.add_argument("--harness", choices=("codex", "grok"))
+    parser.add_argument("--health", choices=tuple(health.value for health in SessionHealth))
+    parser.add_argument("--since", type=_timestamp)
+    parser.add_argument("--until", type=_timestamp)
+
+
+def _timestamp(value: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("expected an RFC 3339 timestamp") from error
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise argparse.ArgumentTypeError("timestamp must include a UTC offset")
+    return parsed
 
 
 def _index_document(result: IndexResult) -> dict[str, object]:
@@ -83,11 +110,66 @@ def _run_index(args: argparse.Namespace) -> int:
     return 0
 
 
+def _discovery_document(item: DiscoveryItem) -> dict[str, object]:
+    return {
+        "capabilities": list(item.capabilities),
+        "harness": item.harness,
+        "health": item.health.value,
+        "snippet": item.snippet,
+        "source_id": item.source_id,
+        "title": item.title,
+        "updated_at": rfc3339(item.updated_at),
+    }
+
+
+def _run_discovery(args: argparse.Namespace) -> int:
+    connection = open_database(args.database)
+    try:
+        service = DiscoveryService(TangRepository(connection))
+        filters = DiscoveryFilter(
+            harness=args.harness,
+            health=SessionHealth(args.health) if args.health else None,
+            since=args.since,
+            until=args.until,
+        )
+        project_key = resolve_project(args.cwd).key
+        try:
+            items = (
+                service.search(project_key, args.query, filters)
+                if args.command == "search"
+                else service.browse(project_key, filters)
+            )
+        except ValueError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 2
+    finally:
+        connection.close()
+    if args.as_json:
+        document = {
+            "results": [_discovery_document(item) for item in items],
+            "schema_version": 1,
+        }
+        print(json.dumps(document, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+    else:
+        for item in items:
+            capability = ",".join(item.capabilities) or "none"
+            title = item.title or "(untitled)"
+            snippet = f" | {item.snippet}" if item.snippet else ""
+            print(
+                f"{rfc3339(item.updated_at)} | {item.harness} | "
+                f"{item.health.value} | {capability} | {item.source_id} | "
+                f"{title}{snippet}"
+            )
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Print concise help until the vertical-slice commands are implemented."""
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command == "index":
         return _run_index(args)
+    if args.command in {"browse", "search"}:
+        return _run_discovery(args)
     parser.print_help()
     return 0

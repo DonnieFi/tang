@@ -63,6 +63,17 @@ class StoredCapsule:
             raise ValueError("capsule exceeds 8 KiB")
 
 
+@dataclass(frozen=True, slots=True)
+class DiscoveryRow:
+    source_id: str
+    harness: str
+    updated_at: datetime
+    health: SessionHealth
+    title: str | None
+    capabilities: tuple[str, ...]
+    snippet: str | None = None
+
+
 class TangRepository:
     """Own SQL and transaction mechanics behind typed operations."""
 
@@ -288,3 +299,99 @@ class TangRepository:
             (query, project_key, limit),
         ).fetchall()
         return tuple(row["source_id"] for row in rows)
+
+    def browse_discovery(
+        self,
+        project_key: str,
+        *,
+        harness: str | None = None,
+        health: SessionHealth | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+    ) -> tuple[DiscoveryRow, ...]:
+        conditions, parameters = self._discovery_filters(
+            project_key, harness=harness, health=health, since=since, until=until
+        )
+        rows = self._connection.execute(
+            f"""
+            SELECT s.source_id, s.adapter, s.updated_at, s.health, c.content_json
+            FROM sessions AS s JOIN capsules AS c USING(source_id)
+            WHERE {' AND '.join(conditions)}
+            ORDER BY s.updated_at DESC, s.source_id
+            """,
+            parameters,
+        ).fetchall()
+        return tuple(self._discovery_row(row) for row in rows)
+
+    def search_discovery(
+        self,
+        project_key: str,
+        query: str,
+        *,
+        harness: str | None = None,
+        health: SessionHealth | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        limit: int = 20,
+    ) -> tuple[DiscoveryRow, ...]:
+        if not query.strip():
+            raise ValueError("search query must not be empty")
+        conditions, parameters = self._discovery_filters(
+            project_key, harness=harness, health=health, since=since, until=until
+        )
+        try:
+            rows = self._connection.execute(
+                f"""
+                SELECT s.source_id, s.adapter, s.updated_at, s.health, c.content_json,
+                       snippet(capsules_fts, 2, '[', ']', ' … ', 18) AS snippet
+                FROM capsules_fts
+                JOIN sessions AS s USING(source_id)
+                JOIN capsules AS c USING(source_id)
+                WHERE capsules_fts MATCH ? AND {' AND '.join(conditions)}
+                ORDER BY rank, s.updated_at DESC, s.source_id
+                LIMIT ?
+                """,
+                (query, *parameters, limit),
+            ).fetchall()
+        except sqlite3.OperationalError as error:
+            raise ValueError("malformed FTS query") from error
+        return tuple(self._discovery_row(row, row["snippet"]) for row in rows)
+
+    @staticmethod
+    def _discovery_filters(
+        project_key: str,
+        *,
+        harness: str | None,
+        health: SessionHealth | None,
+        since: datetime | None,
+        until: datetime | None,
+    ) -> tuple[list[str], list[str]]:
+        conditions = ["s.project_key = ?"]
+        parameters = [project_key]
+        if harness is not None:
+            conditions.append("s.adapter = ?")
+            parameters.append(harness)
+        if health is not None:
+            conditions.append("s.health = ?")
+            parameters.append(health.value)
+        if since is not None:
+            conditions.append("s.updated_at >= ?")
+            parameters.append(_rfc3339(since))
+        if until is not None:
+            conditions.append("s.updated_at <= ?")
+            parameters.append(_rfc3339(until))
+        return conditions, parameters
+
+    @staticmethod
+    def _discovery_row(row: sqlite3.Row, snippet: str | None = None) -> DiscoveryRow:
+        content = json.loads(row["content_json"])
+        capabilities = content.get("capabilities", [])
+        return DiscoveryRow(
+            source_id=row["source_id"],
+            harness=row["adapter"],
+            updated_at=_datetime(row["updated_at"]),
+            health=SessionHealth(row["health"]),
+            title=content.get("source_title"),
+            capabilities=tuple(str(value) for value in capabilities),
+            snippet=snippet,
+        )
