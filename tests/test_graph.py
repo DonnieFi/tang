@@ -12,7 +12,7 @@ from tang.adapters import (
     SourceRecord,
 )
 from tang.graph import GraphService
-from tang.repository import StoredContinuation, TangRepository
+from tang.repository import StoredCapsule, StoredContinuation, TangRepository
 from tang.storage import open_database
 
 
@@ -92,5 +92,37 @@ def test_isolated_and_disconnected_components_are_stable(tmp_path: Path) -> None
 
         connected = GraphService(repository).component("codex:multiverse:d")
         assert "h" not in {node.native_id for node in connected.nodes}
+    finally:
+        connection.close()
+
+
+def test_graph_title_is_redacted_again_at_the_display_seam(tmp_path: Path) -> None:
+    connection, repository, document = seeded(tmp_path)
+    source_id = "codex:multiverse:c"
+    content = {
+        "schema_version": 1,
+        "source_title": 'Release PASSWORD="graph-display-secret"',
+    }
+    encoded = json.dumps(
+        content, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode()
+    timestamp = datetime.fromisoformat("2026-07-14T20:10:00+00:00")
+    try:
+        with repository.transaction():
+            repository.put_capsule(
+                StoredCapsule(
+                    source_id,
+                    document["project_key"],
+                    content,
+                    "display seam fixture",
+                    len(encoded),
+                    timestamp,
+                )
+            )
+
+        graph = GraphService(repository).component(source_id)
+        title = next(node.title for node in graph.nodes if node.source_id == source_id)
+        assert title == "Release PASSWORD=[REDACTED:credential]"
+        assert "graph-display-secret" not in str(title)
     finally:
         connection.close()

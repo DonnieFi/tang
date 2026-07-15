@@ -6,6 +6,12 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from tang.adapters import SessionHealth
+from tang.redaction import (
+    DEFAULT_REDACTOR,
+    ContentKind,
+    RedactionSeam,
+    Redactor,
+)
 from tang.repository import StoredContinuation, TangRepository
 
 
@@ -37,8 +43,11 @@ class MultiverseGraph:
 
 
 class GraphService:
-    def __init__(self, repository: TangRepository) -> None:
+    def __init__(
+        self, repository: TangRepository, *, redactor: Redactor = DEFAULT_REDACTOR
+    ) -> None:
         self._repository = repository
+        self._redactor = redactor
 
     def component(
         self, session_id: str, *, current_id: str | None = None
@@ -87,7 +96,15 @@ class GraphService:
         if capsule is None:
             return None
         title = capsule.content.get("source_title")
-        return str(title) if title else None
+        if not title:
+            return None
+        result = self._redactor.redact_content(
+            RedactionSeam.GRAPH_LABEL,
+            ContentKind.TITLE,
+            str(title),
+        )
+        assert result is not None
+        return result.text
 
     @staticmethod
     def _weak_component(
