@@ -47,6 +47,10 @@ def build_parser() -> argparse.ArgumentParser:
     context.add_argument("--cwd", type=Path, default=Path.cwd())
     context.add_argument("--codex-home", type=Path)
     context.add_argument("--grok-home", type=Path)
+    purge = subparsers.add_parser("purge", help="remove Tang-derived data")
+    purge.add_argument("--all", action="store_true", dest="purge_all")
+    purge.add_argument("--yes", action="store_true", help="confirm without a prompt")
+    purge.add_argument("--database", type=Path)
     return parser
 
 
@@ -191,6 +195,37 @@ def _run_context(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_purge(args: argparse.Namespace) -> int:
+    if not args.purge_all:
+        print("error: purge currently requires --all", file=sys.stderr)
+        return 2
+    if not args.yes:
+        if not sys.stdin.isatty():
+            print("error: non-interactive purge requires --yes", file=sys.stderr)
+            return 2
+        confirmation = input(
+            "Delete all Tang-derived sessions, capsules, search rows, and checkpoints? "
+            "Type PURGE to continue: "
+        )
+        if confirmation != "PURGE":
+            print("Purge cancelled; no derived data was changed.")
+            return 0
+
+    connection = open_database(args.database)
+    try:
+        repository = TangRepository(connection)
+        with repository.transaction():
+            result = repository.purge_all()
+    finally:
+        connection.close()
+    print(
+        f"Purged {result.sessions} sessions, {result.capsules} capsules, "
+        f"{result.search_rows} search rows, and {result.checkpoints} checkpoints. "
+        "Native harness logs were not modified."
+    )
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Print concise help until the vertical-slice commands are implemented."""
     parser = build_parser()
@@ -201,5 +236,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_discovery(args)
     if args.command == "context":
         return _run_context(args)
+    if args.command == "purge":
+        return _run_purge(args)
     parser.print_help()
     return 0

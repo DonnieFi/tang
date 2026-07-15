@@ -74,6 +74,14 @@ class DiscoveryRow:
     snippet: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class PurgeResult:
+    sessions: int
+    capsules: int
+    search_rows: int
+    checkpoints: int
+
+
 class TangRepository:
     """Own SQL and transaction mechanics behind typed operations."""
 
@@ -178,6 +186,27 @@ class TangRepository:
         self._require_transaction()
         self._connection.execute("DELETE FROM capsules_fts WHERE source_id = ?", (source_id,))
         self._connection.execute("DELETE FROM sessions WHERE source_id = ?", (source_id,))
+
+    def purge_all(self) -> PurgeResult:
+        """Delete every currently defined Tang-derived row in one transaction."""
+
+        self._require_transaction()
+        result = PurgeResult(
+            sessions=self._count("sessions"),
+            capsules=self._count("capsules"),
+            search_rows=self._count("capsules_fts"),
+            checkpoints=self._count("adapter_checkpoints"),
+        )
+        self._connection.execute("DELETE FROM capsules_fts")
+        self._connection.execute("DELETE FROM capsules")
+        self._connection.execute("DELETE FROM sessions")
+        self._connection.execute("DELETE FROM adapter_checkpoints")
+        return result
+
+    def _count(self, table: str) -> int:
+        if table not in {"sessions", "capsules", "capsules_fts", "adapter_checkpoints"}:
+            raise ValueError("unsupported derived-data table")
+        return int(self._connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
 
     def fingerprint_for(self, source_id: str) -> SourceFingerprint | None:
         row = self._connection.execute(
