@@ -128,8 +128,9 @@ def data_path(environment: Mapping[str, str] | None = None) -> Path:
 
 
 def _secure_parent(path: Path) -> None:
+    parent_existed = path.parent.exists()
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    if os.name == "posix":
+    if os.name == "posix" and not parent_existed:
         path.parent.chmod(0o700)
 
 

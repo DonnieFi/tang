@@ -132,3 +132,15 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) cascade-delete edges with sessions; (b) block native-deletion synchronization; (c) remove capsule/search data but retain the minimal session row with `native_available = 0` while any edge references it.
 - Decision: (c) — preserve honest confirmed topology and stable identities without presenting unavailable native content as discoverable or rereadable. Serves: Technological Implementation, Design, Potential Impact.
 - By: agent, implementing Epic 5 graph persistence
+
+## 2026-07-15T01:42:05Z · tang-0dh.7 · Make wide Multiverse output timeline-first
+- Context: Manual gate review found that a deterministic edge list exposed the correct many-to-many graph but underused the already-computed Timelines and read more like diagnostics than the release-blocking hero map.
+- Options: (a) retain the edge list at every width; (b) add a separate inferred spatial layout; (c) render confirmed root-to-leaf Timeline lanes with merge/branch annotations at wide Unicode widths while retaining the exact edge list for narrow and ASCII output.
+- Decision: (c) — make the judged surface visibly communicate branching and merging without inventing layout edges or weakening accessible fallbacks. Serves: Design, Technological Implementation, Quality of Idea.
+- By: agent, resolving manual Epic 5 review warnings 1 and 2
+
+## 2026-07-15T01:42:05Z · tang-0dh.7 · Preserve tombstones but refuse new dead-session links
+- Context: Minimal unavailable session rows preserve already-confirmed graph history, but accepting new continuation edges from or into those tombstones would imply that missing native evidence can still participate in a fresh handoff.
+- Options: (a) allow new links because the identity remains known; (b) reject only unavailable targets; (c) reject unavailable sources and targets while retaining all previously confirmed edges.
+- Decision: (c) — keep historical topology honest and make every new continuation depend on native sessions that remain available at confirmation time. Serves: Technological Implementation, Design, Potential Impact.
+- By: agent, resolving manual Epic 5 review warning 3

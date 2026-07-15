@@ -62,7 +62,9 @@ def test_graph_accepts_an_explicit_indexed_session(
     seed(database, project, item)
     monkeypatch.setattr(
         "tang.cli.CodexAdapter.scan",
-        lambda adapter, checkpoint: ScanBatch(BatchStatus.COMPLETE, ()),
+        lambda adapter, checkpoint: (_ for _ in ()).throw(
+            AssertionError("explicit graph rendering must not scan native history")
+        ),
     )
 
     result = main(
@@ -140,6 +142,8 @@ def test_graph_respects_no_color_and_explicit_ascii(
             "--cwd",
             str(project),
             "--ascii",
+            "--current-native-id",
+            "current",
             "--width",
             "60",
         ]

@@ -151,3 +151,49 @@ def test_link_errors_stay_on_stderr(tmp_path: Path, capsys) -> None:
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "error[self-link]" in captured.err
+
+
+def test_link_reports_an_unavailable_target_without_mutating_edges(
+    tmp_path: Path, capsys
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    database = tmp_path / "tang.db"
+    first = record("grok", "first", project)
+    second = record("grok", "second", project)
+    target = record("codex", "target", project)
+    seed(database, project, first, second, target)
+    common = ["--database", str(database), "--cwd", str(project)]
+
+    assert main(
+        [
+            "link",
+            "--from",
+            first.identity.canonical,
+            "--to",
+            target.identity.canonical,
+            *common,
+        ]
+    ) == 0
+    capsys.readouterr()
+    connection = open_database(database)
+    try:
+        repository = TangRepository(connection)
+        with repository.transaction():
+            repository.delete_session(target.identity.canonical)
+    finally:
+        connection.close()
+
+    assert main(
+        [
+            "link",
+            "--from",
+            second.identity.canonical,
+            "--to",
+            target.identity.canonical,
+            *common,
+        ]
+    ) == 2
+    refused = capsys.readouterr()
+    assert refused.out == ""
+    assert "error[unavailable-target]" in refused.err

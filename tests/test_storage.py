@@ -57,6 +57,19 @@ def test_fresh_database_is_secure_configured_and_migrated(tmp_path: Path) -> Non
         assert path.parent.stat().st_mode & 0o777 == 0o700
 
 
+def test_existing_parent_permissions_are_not_changed(tmp_path: Path) -> None:
+    if os.name == "posix":
+        tmp_path.chmod(0o755)
+        before = tmp_path.stat().st_mode & 0o777
+
+    connection = open_database(tmp_path / "tang.db")
+    connection.close()
+
+    if os.name == "posix":
+        assert before == 0o755
+        assert tmp_path.stat().st_mode & 0o777 == before
+
+
 def test_existing_database_upgrades_from_first_migration(tmp_path: Path) -> None:
     path = tmp_path / "upgrade" / "tang.db"
     first_only = (MIGRATIONS[0],)

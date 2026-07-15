@@ -31,14 +31,20 @@ def hero() -> MultiverseGraph:
     by_id = {item.native_id: item.source_id for item in nodes}
     pairs = (("a", "c"), ("b", "c"), ("c", "d"), ("c", "e"), ("e", "g"), ("f", "g"))
     edges = tuple(GraphEdge(by_id[source], by_id[target], NOW) for source, target in pairs)
-    return MultiverseGraph("project", nodes, edges, ())
+    timelines = tuple(
+        tuple(by_id[native_id] for native_id in path)
+        for path in ("acd", "aceg", "bcd", "bceg", "fg")
+    )
+    return MultiverseGraph("project", nodes, edges, timelines)
 
 
 def test_hero_renderer_shows_connected_branch_merge_and_active_handle() -> None:
     rendered = render_multiverse(hero(), width=120, color=False)
     assert rendered == render_multiverse(hero(), width=120, color=False)
     assert "TANG MULTIVERSE MAP" in rendered
-    assert rendered.count("──▶") == 6
+    assert "TIMELINE LANES · 5 ROOT-TO-LEAF PATHS" in rendered
+    assert rendered.count("LANE ") == 5
+    assert rendered.count("──▶") == 11
     assert "MERGE" in rendered
     assert "BRANCH" in rendered
     assert "★ g · codex" in rendered
@@ -64,7 +70,7 @@ def test_linear_renderer_keeps_direction_obvious() -> None:
         ((first.source_id, second.source_id),),
     )
 
-    rendered = render_multiverse(linear, width=100, color=False)
+    rendered = render_multiverse(linear, width=90, color=False)
     assert "first · grok" in rendered
     assert "──▶" in rendered
     assert "second · codex" in rendered

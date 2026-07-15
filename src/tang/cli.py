@@ -378,13 +378,16 @@ def _run_link(args: argparse.Namespace) -> int:
 
 def _run_graph(args: argparse.Namespace) -> int:
     project = resolve_project(args.cwd)
-    scan = CodexAdapter(args.codex_home).scan(None)
-    resolution = resolve_current_target(
-        candidates_for_project(scan.records, project).candidates,
-        project,
-        current_native_id=args.current_native_id,
-    )
+    resolution = None
+    if args.session is None or args.current_native_id is not None:
+        scan = CodexAdapter(args.codex_home).scan(None)
+        resolution = resolve_current_target(
+            candidates_for_project(scan.records, project).candidates,
+            project,
+            current_native_id=args.current_native_id,
+        )
     if args.session is None:
+        assert resolution is not None
         if resolution.kind is not TargetResolutionKind.RESOLVED or resolution.target is None:
             print(
                 "error[target-unconfirmed]: Choose an explicit graph session or confirm the current target.",
@@ -396,7 +399,9 @@ def _run_graph(args: argparse.Namespace) -> int:
         anchor = args.session
     current_id = (
         resolution.target.identity.canonical
-        if resolution.kind is TargetResolutionKind.RESOLVED and resolution.target is not None
+        if resolution is not None
+        and resolution.kind is TargetResolutionKind.RESOLVED
+        and resolution.target is not None
         else None
     )
     connection = open_database(args.database)

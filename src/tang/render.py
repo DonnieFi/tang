@@ -61,6 +61,17 @@ def _shape(edge: GraphEdge, incoming: Counter[str], outgoing: Counter[str]) -> s
     return " + ".join(labels) or "CONTINUE"
 
 
+def _node_role(
+    source_id: str, incoming: Counter[str], outgoing: Counter[str]
+) -> str | None:
+    labels = []
+    if incoming[source_id] > 1:
+        labels.append("MERGE")
+    if outgoing[source_id] > 1:
+        labels.append("BRANCH")
+    return "/".join(labels) or None
+
+
 def render_multiverse(
     graph: MultiverseGraph,
     *,
@@ -85,7 +96,23 @@ def render_multiverse(
     panel_box = box.ASCII if ascii_only else box.ROUNDED
     table_box = box.ASCII if ascii_only else box.HEAVY_HEAD
 
-    if width < 64:
+    if width >= 100 and not ascii_only and graph.edges and graph.timelines:
+        network_title = f"TIMELINE LANES · {len(graph.timelines)} ROOT-TO-LEAF PATHS"
+        network = Table.grid(expand=True, padding=(0, 1))
+        network.add_column(style=f"bold {STEEL}", no_wrap=True)
+        network.add_column(overflow="fold")
+        for index, timeline in enumerate(graph.timelines, start=1):
+            lane = Text()
+            for offset, source_id in enumerate(timeline):
+                if offset:
+                    lane.append(f" {connector} ", style=STEEL)
+                lane.append_text(_node_label(nodes[source_id], ascii_only=False))
+                role = _node_role(source_id, incoming, outgoing)
+                if role:
+                    lane.append(f" [{role}]", style="bold")
+            network.add_row(f"LANE {index:02}", lane)
+    elif width < 64:
+        network_title = "CONFIRMED EDGES"
         network = Table.grid(expand=True)
         network.add_column(overflow="fold")
         if graph.edges:
@@ -102,6 +129,7 @@ def render_multiverse(
             line.append(" [ISOLATED]", style="bold")
             network.add_row(line)
     else:
+        network_title = "CONFIRMED EDGES"
         network = Table.grid(padding=(0, 1))
         network.add_column(no_wrap=True)
         network.add_column(style=STEEL, justify="center", no_wrap=True)
@@ -166,7 +194,7 @@ def render_multiverse(
     body.add_row(
         Panel(
             network,
-            title="[bold]CONFIRMED NETWORK[/bold]",
+            title=f"[bold]{network_title}[/bold]",
             border_style=TEAL,
             box=panel_box,
         )

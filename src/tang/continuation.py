@@ -80,6 +80,7 @@ class ContinuationService:
                     "unsupported-target", "The release target must be a Codex session."
                 )
 
+            sources = {}
             for source_id in ordered:
                 source = self._repository.get_session(source_id)
                 if source is None:
@@ -91,8 +92,29 @@ class ContinuationService:
                         "foreign-source",
                         "A selected source does not belong to the current project.",
                     )
+                sources[source_id] = source
 
             existing = self._repository.continuations_for_project(project_key)
+            existing_pairs = {
+                (edge.source_id, edge.target_id) for edge in existing
+            }
+            new_sources = tuple(
+                source_id
+                for source_id in ordered
+                if (source_id, target_id) not in existing_pairs
+            )
+            if new_sources and not target.native_available:
+                raise ContinuationError(
+                    "unavailable-target",
+                    "The target native session is unavailable and cannot receive a new continuation.",
+                )
+            for source_id in new_sources:
+                if not sources[source_id].native_available:
+                    raise ContinuationError(
+                        "unavailable-source",
+                        "A selected native source is unavailable and cannot form a new continuation.",
+                    )
+
             candidates = tuple((source_id, target_id) for source_id in ordered)
             if self._introduces_cycle(existing, candidates):
                 raise ContinuationError(

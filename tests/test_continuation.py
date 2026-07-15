@@ -96,3 +96,30 @@ def test_duplicate_edges_are_idempotent(tmp_path: Path) -> None:
         assert (second.inserted, second.existing) == (0, 1)
     finally:
         connection.close()
+
+
+def test_unavailable_sources_and_targets_cannot_form_new_edges(tmp_path: Path) -> None:
+    connection, repository, ids = seeded(tmp_path)
+    service = ContinuationService(repository)
+    try:
+        service.link((ids["a"],), ids["c"], "project", "explicit", NOW)
+        with repository.transaction():
+            repository.delete_session(ids["a"])
+            repository.delete_session(ids["c"])
+        before = repository.continuations_for_project("project")
+        repeated = service.link(
+            (ids["a"],), ids["c"], "project", "explicit", NOW
+        )
+        assert (repeated.inserted, repeated.existing) == (0, 1)
+
+        cases = (
+            ((ids["b"],), ids["c"], "unavailable-target"),
+            ((ids["a"],), ids["d"], "unavailable-source"),
+        )
+        for sources, target, code in cases:
+            with pytest.raises(ContinuationError) as failure:
+                service.link(sources, target, "project", "explicit", NOW)
+            assert failure.value.code == code
+            assert repository.continuations_for_project("project") == before
+    finally:
+        connection.close()
