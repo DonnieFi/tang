@@ -120,3 +120,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) document doctor as a bootstrap command; (b) report missing storage without creating it, inspect closed databases through an immutable read-only snapshot, and use SQLite's read-only WAL path when an active WAL exists; (c) stop checking database readiness.
 - Decision: (b) — keep first-run diagnostics observational while retaining actionable database, schema, FTS5, and concurrent-WAL readiness signals. Serves: Technological Implementation, Design, Potential Impact.
 - By: agent, resolving manual Epic 4 review warnings 2 and 3
+
+## 2026-07-15T01:13:13Z · tang-7lx.6 · Promote the renewed Epic 4 milestone
+- Context: Human review approved Epic 4 after citation-shape, observational-doctor, and empty-adapter remediation; milestone `c9f3727` predates those fixes.
+- Options: (a) promote stale milestone `c9f3727`; (b) fast-forward the renewed milestone; (c) create an unnecessary merge commit.
+- Decision: (b) — fast-forward `epic/04-codex-skill` milestone `e1f6a1674f24207f076ce0ab6eb2773496654b0a` into `main`, producing promotion SHA `e1f6a1674f24207f076ce0ab6eb2773496654b0a`. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: human (promotion approval) and agent (verified fast-forward execution)
