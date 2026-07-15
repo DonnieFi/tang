@@ -1,2 +1,2 @@
-recursive-include tests/fixtures *.json *.jsonl *.md
+recursive-include tests/fixtures *.json *.jsonl *.md *.partial
 include tests/conftest.py

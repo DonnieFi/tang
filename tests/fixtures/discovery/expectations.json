@@ -1,0 +1,12 @@
+{
+  "current_project": "/work/tang-demo",
+  "foreign_phrase": "foreign-quasar-secret",
+  "foreign_project": "/work/foreign-vault",
+  "long_marker": "[LONG_SYNTHETIC_3000]",
+  "partial_session_id": "019f6000-5678-7000-8000-000000000005",
+  "schema_version": 1,
+  "search_phrases": [
+    "nebula-lantern",
+    "checkpoint recovery"
+  ]
+}
