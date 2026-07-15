@@ -11,9 +11,10 @@ Continue prior project work in the active Codex session. Keep selection interact
 
 1. Run `tang doctor --json` when CLI, database, FTS5, or adapter readiness is unknown. Explain any degraded component and stop if the CLI is unavailable.
 2. Run `tang index --json` from the current project. Treat exit status 1 as a partial result: show the warnings, then let the user decide whether the available evidence is sufficient.
-3. Run `tang browse --json` for an overview or `tang search "<query>" --json` for remembered keywords or a quoted phrase. Do not broaden discovery outside the current project.
-4. Present a short host-native question using the returned source IDs, harness names, timestamps, health badges, titles, and redacted snippets. Let the user select one or more sources explicitly. Never infer selection from recency or health.
-5. Run `tang context <source-id>... --json` with exactly the selected IDs. If every source fails, explain the error and return to selection. If only some fail, disclose the warnings and continue with the cited evidence that remains.
+3. Run `tang browse --json` for an overview or pass the user's remembered keywords or quoted phrase as the single query argument to `tang search <query> --json`. Do not broaden discovery outside the current project. If a search returns no results, ask for a different phrase instead of inventing a candidate.
+4. Build previews only from returned JSON fields. Present at most five results with source ID, harness, RFC 3339 timestamp, health, capability status, title, and a short redacted snippet. Do not reread native sources for preview or expose fields absent from the result.
+5. Ask a host-native multi-select question when available. Otherwise ask the user to reply with one or more displayed source IDs. Accept only exact IDs from the current result set, deduplicate them while preserving display order, and never infer selection from recency, rank, title, or health.
+6. Run `tang context <source-id>... --json` with exactly the selected IDs. If every source fails, explain the error and return to selection. If only some fail, disclose the warnings and continue with the cited evidence that remains.
 
 ## Handle recovered evidence
 
