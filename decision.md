@@ -144,3 +144,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) allow new links because the identity remains known; (b) reject only unavailable targets; (c) reject unavailable sources and targets while retaining all previously confirmed edges.
 - Decision: (c) — keep historical topology honest and make every new continuation depend on native sessions that remain available at confirmation time. Serves: Technological Implementation, Design, Potential Impact.
 - By: agent, resolving manual Epic 5 review warning 3
+
+## 2026-07-15T01:46:21Z · tang-0dh.7 · Promote the renewed Epic 5 milestone
+- Context: Human review approved Epic 5 after timeline-lane presentation, unavailable-session link refusal, safe database-parent permissions, and explicit-graph scan remediation; milestone `f695b5e` predates those fixes.
+- Options: (a) promote stale milestone `f695b5e`; (b) fast-forward the renewed milestone; (c) create an unnecessary merge commit.
+- Decision: (b) — push `epic/05-multiverse-map` milestone `cba690190ab428ab209acd6facd3636746d17d20` and fast-forward it into `main`, producing promotion SHA `cba690190ab428ab209acd6facd3636746d17d20`. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: human (promotion approval) and agent (renewed verification and fast-forward execution)
