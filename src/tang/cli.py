@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import sys
 from collections.abc import Sequence
 from datetime import datetime, timezone
@@ -80,7 +82,8 @@ def build_parser() -> argparse.ArgumentParser:
     graph.add_argument("--cwd", type=Path, default=Path.cwd())
     graph.add_argument("--codex-home", type=Path)
     graph.add_argument("--current-native-id")
-    graph.add_argument("--width", type=int, default=100)
+    graph.add_argument("--width", type=int)
+    graph.add_argument("--ascii", action="store_true", dest="ascii_only")
     doctor = subparsers.add_parser("doctor", help="check Tang readiness")
     doctor.add_argument("--json", action="store_true", dest="as_json")
     doctor.add_argument("--database", type=Path)
@@ -407,8 +410,28 @@ def _run_graph(args: argparse.Namespace) -> int:
             return 2
     finally:
         connection.close()
-    print(render_multiverse(graph, width=args.width, color=sys.stdout.isatty()), end="")
+    width = args.width or shutil.get_terminal_size((100, 24)).columns
+    color = sys.stdout.isatty() and "NO_COLOR" not in os.environ
+    ascii_only = args.ascii_only or not _supports_unicode(sys.stdout)
+    print(
+        render_multiverse(
+            graph,
+            width=max(width, 40),
+            color=color,
+            ascii_only=ascii_only,
+        ),
+        end="",
+    )
     return 0
+
+
+def _supports_unicode(stream: object) -> bool:
+    encoding = getattr(stream, "encoding", None) or "ascii"
+    try:
+        "╭──▶★".encode(encoding)
+    except (LookupError, UnicodeEncodeError):
+        return False
+    return True
 
 
 def main(argv: Sequence[str] | None = None) -> int:

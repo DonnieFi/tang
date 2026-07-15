@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 from collections import Counter
 
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -18,13 +19,29 @@ TEAL = "#2aa198"
 FORGE = "#171717"
 
 
-def _node_label(node: GraphNode) -> Text:
+def _safe(value: str, *, ascii_only: bool) -> str:
+    if not ascii_only:
+        return value
+    return value.encode("ascii", errors="replace").decode("ascii")
+
+
+def _node_label(node: GraphNode, *, ascii_only: bool) -> Text:
     label = Text()
-    label.append("★ " if node.current else "  ", style=f"bold {STEEL}" if node.current else "")
-    label.append(node.native_id, style=f"bold {TEAL}")
-    label.append(f" · {node.harness}", style="white")
+    active = "* " if ascii_only else "★ "
+    label.append(
+        active if node.current else "  ",
+        style=f"bold {STEEL}" if node.current else "",
+    )
+    label.append(_safe(node.native_id, ascii_only=ascii_only), style=f"bold {TEAL}")
+    separator = " | " if ascii_only else " · "
+    label.append(
+        f"{separator}{_safe(node.harness, ascii_only=ascii_only)}", style="white"
+    )
     if not node.native_available:
-        label.append(" · source unavailable", style="bold red")
+        label.append(
+            " | source unavailable" if ascii_only else " · source unavailable",
+            style="bold red",
+        )
     return label
 
 
@@ -42,6 +59,7 @@ def render_multiverse(
     *,
     width: int = 100,
     color: bool = True,
+    ascii_only: bool = False,
 ) -> str:
     """Render one deterministic graph card for CLI and skill use."""
 
@@ -56,48 +74,115 @@ def render_multiverse(
     nodes = {node.source_id: node for node in graph.nodes}
     incoming = Counter(edge.target_id for edge in graph.edges)
     outgoing = Counter(edge.source_id for edge in graph.edges)
+    connector = "-->" if ascii_only else "──▶"
+    panel_box = box.ASCII if ascii_only else box.ROUNDED
+    table_box = box.ASCII if ascii_only else box.HEAVY_HEAD
 
-    network = Table.grid(padding=(0, 1))
-    network.add_column(no_wrap=True)
-    network.add_column(style=STEEL, justify="center", no_wrap=True)
-    network.add_column(no_wrap=True)
-    network.add_column(style="bold", no_wrap=True)
-    if graph.edges:
-        for edge in graph.edges:
-            network.add_row(
-                _node_label(nodes[edge.source_id]),
-                "──▶",
-                _node_label(nodes[edge.target_id]),
-                _shape(edge, incoming, outgoing),
-            )
+    if width < 64:
+        network = Table.grid(expand=True)
+        network.add_column(overflow="fold")
+        if graph.edges:
+            for edge in graph.edges:
+                line = _node_label(nodes[edge.source_id], ascii_only=ascii_only)
+                line.append(f" {connector} ", style=STEEL)
+                line.append_text(
+                    _node_label(nodes[edge.target_id], ascii_only=ascii_only)
+                )
+                line.append(f" [{_shape(edge, incoming, outgoing)}]", style="bold")
+                network.add_row(line)
+        else:
+            line = _node_label(graph.nodes[0], ascii_only=ascii_only)
+            line.append(" [ISOLATED]", style="bold")
+            network.add_row(line)
     else:
-        network.add_row(_node_label(graph.nodes[0]), "", "", "ISOLATED")
+        network = Table.grid(padding=(0, 1))
+        network.add_column(no_wrap=True)
+        network.add_column(style=STEEL, justify="center", no_wrap=True)
+        network.add_column(no_wrap=True)
+        network.add_column(style="bold", no_wrap=True)
+        if graph.edges:
+            for edge in graph.edges:
+                network.add_row(
+                    _node_label(nodes[edge.source_id], ascii_only=ascii_only),
+                    connector,
+                    _node_label(nodes[edge.target_id], ascii_only=ascii_only),
+                    _shape(edge, incoming, outgoing),
+                )
+        else:
+            network.add_row(
+                _node_label(graph.nodes[0], ascii_only=ascii_only),
+                "",
+                "",
+                "ISOLATED",
+            )
 
-    details = Table(show_header=True, header_style=f"bold {STEEL}", expand=True)
-    details.add_column("HANDLE", no_wrap=True)
-    details.add_column("UTC", no_wrap=True)
-    details.add_column("HEALTH", no_wrap=True)
-    details.add_column("TITLE")
-    details.add_column("SOURCE ID")
-    for node in graph.nodes:
-        details.add_row(
-            f"{'ACTIVE ' if node.current else ''}{node.harness}",
-            node.updated_at.isoformat().replace("+00:00", "Z"),
-            node.health.value,
-            node.title or "(untitled)",
-            node.source_id,
-            style=f"bold {TEAL}" if node.current else None,
+    if width < 80:
+        details = Table.grid(expand=True)
+        details.add_column(overflow="fold")
+        for node in graph.nodes:
+            item = Text(overflow="fold")
+            item.append("[ACTIVE] " if node.current else "", style=f"bold {STEEL}")
+            item.append(
+                f"HANDLE {_safe(node.harness, ascii_only=ascii_only)}",
+                style=f"bold {TEAL}",
+            )
+            item.append(
+                f" | UTC {node.updated_at.isoformat().replace('+00:00', 'Z')}"
+                f" | HEALTH {node.health.value}\n"
+                f"TITLE {_safe(node.title or '(untitled)', ascii_only=ascii_only)}\n"
+                f"SOURCE ID {_safe(node.source_id, ascii_only=ascii_only)}"
+            )
+            details.add_row(item)
+    else:
+        details = Table(
+            show_header=True,
+            header_style=f"bold {STEEL}",
+            expand=True,
+            box=table_box,
         )
+        details.add_column("HANDLE", no_wrap=True)
+        details.add_column("UTC", no_wrap=True)
+        details.add_column("HEALTH", no_wrap=True)
+        details.add_column("TITLE", overflow="fold")
+        details.add_column("SOURCE ID", overflow="fold")
+        for node in graph.nodes:
+            details.add_row(
+                f"{'ACTIVE ' if node.current else ''}{node.harness}",
+                node.updated_at.isoformat().replace("+00:00", "Z"),
+                node.health.value,
+                _safe(node.title or "(untitled)", ascii_only=ascii_only),
+                _safe(node.source_id, ascii_only=ascii_only),
+                style=f"bold {TEAL}" if node.current else None,
+            )
 
     body = Table.grid(expand=True)
-    body.add_row(Panel(network, title="[bold]CONFIRMED NETWORK[/bold]", border_style=TEAL))
-    body.add_row(Panel(details, title="[bold]SESSION DETAIL[/bold]", border_style=STEEL))
+    body.add_row(
+        Panel(
+            network,
+            title="[bold]CONFIRMED NETWORK[/bold]",
+            border_style=TEAL,
+            box=panel_box,
+        )
+    )
+    body.add_row(
+        Panel(
+            details,
+            title="[bold]SESSION DETAIL[/bold]",
+            border_style=STEEL,
+            box=panel_box,
+        )
+    )
     card = Panel(
         body,
         title="[bold]TANG MULTIVERSE MAP[/bold]",
-        subtitle="confirmed continuations only · ★ active handle",
+        subtitle=(
+            "confirmed only | [ACTIVE]"
+            if ascii_only
+            else "confirmed only · ★ active"
+        ),
         border_style=STEEL,
         style=f"on {FORGE}" if color else "none",
+        box=panel_box,
     )
     console.print(card)
     return buffer.getvalue()

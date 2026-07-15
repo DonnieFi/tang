@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,6 +20,13 @@ from tang.storage import open_database
 
 
 NOW = datetime(2026, 7, 15, tzinfo=timezone.utc)
+
+
+class TtyBuffer(io.StringIO):
+    encoding = "utf-8"
+
+    def isatty(self) -> bool:
+        return True
 
 
 def record(native_id: str, project: Path) -> SourceRecord:
@@ -105,3 +113,39 @@ def test_graph_infers_only_a_unique_current_target(
     ambiguous = capsys.readouterr()
     assert ambiguous.out == ""
     assert "error[target-unconfirmed]" in ambiguous.err
+
+
+def test_graph_respects_no_color_and_explicit_ascii(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    database = tmp_path / "tang.db"
+    item = record("current", project)
+    seed(database, project, item)
+    monkeypatch.setattr(
+        "tang.cli.CodexAdapter.scan",
+        lambda adapter, checkpoint: ScanBatch(BatchStatus.COMPLETE, (item,)),
+    )
+    output = TtyBuffer()
+    monkeypatch.setattr("tang.cli.sys.stdout", output)
+    monkeypatch.setenv("NO_COLOR", "1")
+
+    result = main(
+        [
+            "graph",
+            item.identity.canonical,
+            "--database",
+            str(database),
+            "--cwd",
+            str(project),
+            "--ascii",
+            "--width",
+            "60",
+        ]
+    )
+
+    assert result == 0
+    assert "\x1b[" not in output.getvalue()
+    assert output.getvalue().isascii()
+    assert "* current | codex" in output.getvalue()

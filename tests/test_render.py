@@ -51,7 +51,7 @@ def test_isolated_renderer_is_truthful() -> None:
     isolated = MultiverseGraph("project", (node("h"),), (), (("codex:map:h",),))
     rendered = render_multiverse(isolated, width=100, color=False)
     assert "ISOLATED" in rendered
-    assert "confirmed continuations only" in rendered
+    assert "confirmed only" in rendered
 
 
 def test_linear_renderer_keeps_direction_obvious() -> None:
@@ -69,3 +69,28 @@ def test_linear_renderer_keeps_direction_obvious() -> None:
     assert "──▶" in rendered
     assert "second · codex" in rendered
     assert "CONTINUE" in rendered
+
+
+def test_color_no_color_narrow_and_ascii_snapshots() -> None:
+    graph = hero()
+    color = render_multiverse(graph, width=100, color=True)
+    no_color = render_multiverse(graph, width=100, color=False)
+    narrow = render_multiverse(graph, width=48, color=False)
+    ascii_rendered = render_multiverse(graph, width=40, color=False, ascii_only=True)
+
+    assert "\x1b[" in color
+    assert "\x1b[" not in no_color
+    assert color == render_multiverse(graph, width=100, color=True)
+    assert no_color == render_multiverse(graph, width=100, color=False)
+    assert narrow == render_multiverse(graph, width=48, color=False)
+    assert all(
+        label in narrow
+        for label in ("HANDLE", "UTC", "HEALTH", "TITLE", "SOURCE ID")
+    )
+    assert "[ACTIVE]" in narrow
+    assert ascii_rendered.isascii()
+    assert "-->" in ascii_rendered
+    assert "[ACTIVE]" in ascii_rendered
+    assert ascii_rendered == render_multiverse(
+        graph, width=40, color=False, ascii_only=True
+    )
