@@ -80,6 +80,9 @@ tang doctor
 
 Requirements: Linux and Python 3.11 or later. The hackathon release makes no macOS or Windows compatibility claim.
 
+For the current local-wheel testing procedure, a plain-English walkthrough,
+and early usage FAQs, see [`docs/getting-started.md`](docs/getting-started.md).
+
 The skill-only installation path will also be available:
 
 ```bash
@@ -199,6 +202,16 @@ tang demo
 ```
 
 The finished demo will provide a safe, synthetic Grok-to-Codex branch-and-merge corpus and complete the core recovery-to-continuation flow in under 75 seconds.
+
+Release-candidate reviewers can run the isolated clean-wheel acceptance script
+from a matching source checkout. It records the wheel hash, environment, exit
+codes, privacy checks, and timings as JSON without reading native user history:
+
+```bash
+python3 scripts/functional_acceptance.py \
+  ./tang_multiverse-0.1.0-py3-none-any.whl \
+  --output tang-functional-evidence.json
+```
 
 ## Built with Codex and GPT-5.6
 

@@ -1,0 +1,263 @@
+# Tang: download, install, test, and use
+
+Tang is a Linux tool for finding earlier Grok or Codex work from the project you
+are currently in and continuing that work inside Codex with citations. Tang
+does not copy whole transcripts into a new tool. It builds a small, redacted,
+source-cited Context Pack and records a continuation only after you confirm it.
+
+Tang v0.1.0 is still a release candidate. The source repository is available,
+but the final tagged wheel download does not exist until the release gate is
+approved and published.
+
+## What you need
+
+- A Linux computer.
+- Python 3.11 or newer.
+- `uv`, which installs Tang into an isolated environment.
+- Codex CLI and/or a supported local Grok session store if you want to use Tang
+  with your own sessions.
+
+Check the basics:
+
+```bash
+python3 --version
+uv --version
+```
+
+If `uv` is missing, install it using the official Astral instructions. Do not
+run an installer copied from this repository; Tang intentionally does not ship
+a custom shell installer.
+
+## Download the release candidate for testing
+
+For pre-release functional testing, use a Tang source checkout and the exact
+wheel produced from the same reviewed commit.
+
+Clone the repository on the test host if that host can reach GitHub:
+
+```bash
+git clone https://github.com/DonnieFi/tang.git
+cd tang
+git checkout <release-candidate-commit>
+```
+
+The wheel is not public yet. Copy
+`tang_multiverse-0.1.0-py3-none-any.whl` from the build host to the repository
+directory on the test host using your normal secure file-transfer method. Also
+record its SHA-256 hash on the build host:
+
+```bash
+sha256sum tang_multiverse-0.1.0-py3-none-any.whl
+```
+
+After copying, run the same command on the test host. The two hashes must match.
+This proves that the host tested the artifact that the build host produced.
+
+## Run isolated functional acceptance
+
+From the source checkout, run:
+
+```bash
+python3 scripts/functional_acceptance.py \
+  ./tang_multiverse-0.1.0-py3-none-any.whl \
+  --output tang-functional-evidence.json
+```
+
+To test a particular supported interpreter:
+
+```bash
+python3 scripts/functional_acceptance.py \
+  ./tang_multiverse-0.1.0-py3-none-any.whl \
+  --python python3.11 \
+  --output tang-functional-evidence-python311.json
+```
+
+The script does all of its product work in a temporary directory. It installs
+the wheel into a fresh virtual environment and uses only Tang's synthetic test
+sessions. It does not read your real Codex or Grok history and does not use your
+normal Tang database.
+
+The run checks:
+
+- clean installation from the wheel without rebuilding Tang;
+- partial and incremental indexing exit behavior;
+- current-project search across Grok and Codex;
+- project isolation and redaction of synthetic secret canaries;
+- fair, cited multi-source context under the token and timing limits;
+- Codex skill installation;
+- explicit many-source continuation links;
+- ambiguity and cycle refusal;
+- wide Unicode and narrow ASCII Multiverse maps;
+- readiness reporting and complete derived-data purge; and
+- byte-for-byte preservation of the synthetic native inputs.
+
+A successful run exits `0`, prints JSON with `"result": "pass"`, and writes the
+same report to the path passed with `--output`. Send that JSON file back for the
+release review. It contains the wheel hash, Linux and Python environment, exit
+codes, and timings; it does not contain private transcripts.
+
+If the run fails, keep the error text and rerun with a persistent empty work
+directory so the temporary database and copied fixtures remain available for
+debugging:
+
+```bash
+mkdir tang-functional-work
+python3 scripts/functional_acceptance.py \
+  ./tang_multiverse-0.1.0-py3-none-any.whl \
+  --work-dir ./tang-functional-work \
+  --output tang-functional-evidence.json
+```
+
+Do not edit the fixture data to make a failure pass. Report the command, error,
+operating-system details, Python version, and wheel hash so the defect can be
+reproduced and fixed.
+
+## Install Tang for normal use
+
+Until the public release exists, install the local wheel:
+
+```bash
+uv tool install ./tang_multiverse-0.1.0-py3-none-any.whl
+tang skill install codex
+```
+
+Once v0.1.0 is approved and published, this section will replace the local path
+with the exact version-pinned GitHub release URL. Do not install an unversioned
+development build when verifying the release.
+
+Check the installation:
+
+```bash
+tang --help
+tang doctor
+```
+
+`tang doctor` is a readiness check. Before your first index it can report that
+the derived database is not initialized. An adapter can also be empty or
+degraded. Read the individual messages; a nonzero result does not necessarily
+mean the CLI installation itself failed.
+
+## The recommended way to use Tang
+
+The Codex skill is Tang's interactive workflow. Open Codex in the project whose
+history you want to recover, then ask in plain English, for example:
+
+> Use Tang to find the earlier session where we discussed checkpoint recovery.
+
+Tang will index only that current project, show a short redacted list, and ask
+you to select one or more exact source sessions. After selection, it creates a
+cited Context Pack. Codex uses that evidence to present:
+
+- the best-supported resume point;
+- one evidence-backed next action; and
+- important uncertainty or missing context.
+
+Recovered transcript text is treated as untrusted historical evidence, not as
+instructions. Tang does not save Codex's synthesized brief. Before writing a
+continuation edge, Codex must show the sources and target and ask for explicit
+confirmation.
+
+## Using the command line directly
+
+Run these commands from the project you care about.
+
+First, index supported local history:
+
+```bash
+tang index
+```
+
+Exit code `0` means indexing completed. Exit code `1` means Tang retained useful
+results but encountered warnings, such as a malformed or unavailable session.
+Read the warnings before deciding whether to continue.
+
+Browse everything indexed for this project, or search using words you remember:
+
+```bash
+tang browse
+tang search "checkpoint recovery"
+```
+
+Copy one or more exact source IDs from those results and build a Context Pack:
+
+```bash
+tang context <source-id> [<another-source-id> ...]
+```
+
+For scripts, add `--json` to `index`, `browse`, `search`, or `context`. Tang JSON
+uses `schema_version: 1` and RFC 3339 timestamps.
+
+Continuation links should normally be confirmed through the Codex skill because
+the skill verifies the active target with you. After a confirmed link, render
+the connected component containing a session:
+
+```bash
+tang graph <source-or-target-id>
+```
+
+Use an accessible fallback when needed:
+
+```bash
+NO_COLOR=1 tang graph <source-or-target-id> --ascii --width 40
+```
+
+To delete everything Tang derived while leaving native harness history alone:
+
+```bash
+tang purge --all
+```
+
+Tang asks for confirmation. In a deliberate non-interactive script, use
+`tang purge --all --yes`.
+
+## Where Tang keeps data
+
+Tang reads supported native session stores but does not rewrite them. Its own
+derived SQLite database is normally under the platform's user data directory:
+
+- `$XDG_DATA_HOME/tang/tang.db` when `XDG_DATA_HOME` is set; otherwise
+- `~/.local/share/tang/tang.db`.
+
+The database contains project-scoped session metadata, small redacted Discovery
+Capsules, adapter checkpoints, search rows, and explicitly confirmed graph
+edges. It does not store Codex's generated Continuation Brief.
+
+## Early FAQ
+
+### Why does search show nothing?
+
+Make sure you ran `tang index` from the same project. Tang v0.1.0 deliberately
+does not search across unrelated projects. Try another memorable keyword or a
+quoted phrase and inspect indexing warnings.
+
+### Does Tang modify my Codex or Grok sessions?
+
+No. Supported adapters are read-only. `tang purge --all` deletes Tang's derived
+database records, not native history.
+
+### Is redaction the same as encryption?
+
+No. Tang excludes hidden/tool content and applies redaction at storage and
+display boundaries to reduce accidental disclosure. That is not encryption or
+a promise of protection against forensic recovery.
+
+### Can Tang continue work into Grok?
+
+Not in v0.1.0. The demonstrated target is Codex. Grok is a supported read-only
+source for the Grok-to-Codex path.
+
+### Are macOS and Windows supported?
+
+No compatibility claim is made for v0.1.0. The release is tested and supported
+on Linux with Python 3.11 or newer.
+
+### Why did `tang index` exit with code 1 even though search works?
+
+Code `1` means the index is partial, not empty. Tang preserves recoverable
+sessions and reports warnings so automation and people can decide whether the
+available evidence is adequate.
+
+### Can Tang automatically decide which session to resume?
+
+No. Tang can rank search results, but you choose exact sources. It also refuses
+to guess an ambiguous continuation target or create a self-link or cycle.

@@ -22,6 +22,7 @@ def test_release_metadata_and_manifest_are_explicit() -> None:
     assert project["urls"]["Repository"] == "https://github.com/DonnieFi/tang.git"
     assert "recursive-include tests/fixtures" in manifest
     assert "include skills/tang/SKILL.md" in manifest
+    assert "exclude docs/assets/tang-mascot-concept.png" in manifest
     assert "prune plan" in manifest
     assert "prune .beads" in manifest
 

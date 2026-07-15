@@ -5,7 +5,7 @@ include README.md
 include skills/tang/SKILL.md
 include skills/tang/agents/openai.yaml
 recursive-include scripts *.py
-exclude tang_mascot.png
+exclude docs/assets/tang-mascot-concept.png
 prune plan
 prune .agents
 prune .codex
