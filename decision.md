@@ -114,3 +114,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) defer bundled installation to the release epic; (b) duplicate the skill under the Python package; (c) keep `skills/tang` canonical and install those files into a stable wheel data path resolved by the CLI.
 - Decision: (c) — ship one source of truth through setuptools data files and resolve it from the active Python environment, preserving both CLI-installed and skill-only distribution paths without content drift. Serves: Technological Implementation, Design, Potential Impact.
 - By: agent, resolving an Epic 4 close-gate clean-wheel finding
+
+## 2026-07-15T01:08:13Z · tang-7lx.6 · Keep doctor observational before first index
+- Context: Manual review found that doctor used the normal database bootstrap, so a readiness check created the default data directory and database before the user indexed anything. Existing databases still need a schema/readability check that cooperates with WAL users.
+- Options: (a) document doctor as a bootstrap command; (b) report missing storage without creating it, inspect closed databases through an immutable read-only snapshot, and use SQLite's read-only WAL path when an active WAL exists; (c) stop checking database readiness.
+- Decision: (b) — keep first-run diagnostics observational while retaining actionable database, schema, FTS5, and concurrent-WAL readiness signals. Serves: Technological Implementation, Design, Potential Impact.
+- By: agent, resolving manual Epic 4 review warnings 2 and 3

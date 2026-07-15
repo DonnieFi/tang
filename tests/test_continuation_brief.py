@@ -26,6 +26,7 @@ def test_skill_declares_the_evidence_bound_brief_contract() -> None:
         "do not compare variable GPT-5.6 wording to a golden response",
     )
     assert all(phrase in text for phrase in required)
+    assert "from each excerpt's `citation` object" in text
     assert "[{harness}:{session_id} {turn_locator} @ {timestamp}]" in text
 
 
