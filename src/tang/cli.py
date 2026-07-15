@@ -14,13 +14,19 @@ from tang.context_service import ContextGenerationError, ContextPackService
 from tang.continuation import ContinuationError, ContinuationService, LinkResult
 from tang.discovery import DiscoveryFilter, DiscoveryItem, DiscoveryService, rfc3339
 from tang.doctor import doctor_exit_code, run_doctor
+from tang.graph import GraphService
 from tang.indexing import IndexResult, ProjectIndexer
 from tang.project import resolve_project
 from tang.redaction import ContentKind, DEFAULT_REDACTOR, RedactionSeam
+from tang.render import render_multiverse
 from tang.repository import TangRepository
-from tang.storage import open_database
 from tang.skill_install import install_codex_skill
-from tang.target import candidates_for_project, resolve_current_target
+from tang.storage import open_database
+from tang.target import (
+    TargetResolutionKind,
+    candidates_for_project,
+    resolve_current_target,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -68,6 +74,13 @@ def build_parser() -> argparse.ArgumentParser:
     link.add_argument("--database", type=Path)
     link.add_argument("--cwd", type=Path, default=Path.cwd())
     link.add_argument("--codex-home", type=Path)
+    graph = subparsers.add_parser("graph", help="render a confirmed Multiverse Map")
+    graph.add_argument("session", nargs="?")
+    graph.add_argument("--database", type=Path)
+    graph.add_argument("--cwd", type=Path, default=Path.cwd())
+    graph.add_argument("--codex-home", type=Path)
+    graph.add_argument("--current-native-id")
+    graph.add_argument("--width", type=int, default=100)
     doctor = subparsers.add_parser("doctor", help="check Tang readiness")
     doctor.add_argument("--json", action="store_true", dest="as_json")
     doctor.add_argument("--database", type=Path)
@@ -360,6 +373,44 @@ def _run_link(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_graph(args: argparse.Namespace) -> int:
+    project = resolve_project(args.cwd)
+    scan = CodexAdapter(args.codex_home).scan(None)
+    resolution = resolve_current_target(
+        candidates_for_project(scan.records, project).candidates,
+        project,
+        current_native_id=args.current_native_id,
+    )
+    if args.session is None:
+        if resolution.kind is not TargetResolutionKind.RESOLVED or resolution.target is None:
+            print(
+                "error[target-unconfirmed]: Choose an explicit graph session or confirm the current target.",
+                file=sys.stderr,
+            )
+            return 2
+        anchor = resolution.target.identity.canonical
+    else:
+        anchor = args.session
+    current_id = (
+        resolution.target.identity.canonical
+        if resolution.kind is TargetResolutionKind.RESOLVED and resolution.target is not None
+        else None
+    )
+    connection = open_database(args.database)
+    try:
+        try:
+            graph = GraphService(TangRepository(connection)).component(
+                anchor, current_id=current_id
+            )
+        except ValueError as error:
+            print(f"error[unknown-session]: {error}", file=sys.stderr)
+            return 2
+    finally:
+        connection.close()
+    print(render_multiverse(graph, width=args.width, color=sys.stdout.isatty()), end="")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Dispatch Tang's scriptable commands, or show top-level help."""
     parser = build_parser()
@@ -378,5 +429,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_skill(args)
     if args.command == "link":
         return _run_link(args)
+    if args.command == "graph":
+        return _run_graph(args)
     parser.print_help()
     return 0
