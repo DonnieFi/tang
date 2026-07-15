@@ -14,7 +14,7 @@ from tang.adapters import (
     SourceFingerprint,
     SourceRecord,
 )
-from tang.repository import StoredCapsule, TangRepository
+from tang.repository import StoredCapsule, StoredContinuation, TangRepository
 from tang.storage import BUSY_TIMEOUT_MS, open_database
 
 
@@ -179,3 +179,69 @@ def test_adapters_do_not_import_repository_or_sql() -> None:
 
     assert "tang.repository" not in combined
     assert "sqlite3" not in combined
+
+
+def test_continuations_are_idempotent_survive_restart_and_native_deletion(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "graph" / "tang.db"
+    first = open_database(path)
+    repository = TangRepository(first)
+    source_record = source("source")
+    target_record = source("target")
+    continuation = StoredContinuation(
+        source_record.identity.canonical,
+        target_record.identity.canonical,
+        "project-a",
+        "current",
+        NOW,
+    )
+    try:
+        with repository.transaction():
+            repository.upsert_session(source_record, "project-a", NOW)
+            repository.upsert_session(target_record, "project-a", NOW)
+            assert repository.put_continuation(continuation)
+            assert not repository.put_continuation(continuation)
+        with repository.transaction():
+            repository.delete_session(source_record.identity.canonical)
+        retained = repository.get_session(source_record.identity.canonical)
+        assert retained is not None
+        assert not retained.native_available
+        assert repository.continuations_for_project("project-a") == (continuation,)
+    finally:
+        first.close()
+
+    reopened = open_database(path)
+    try:
+        assert TangRepository(reopened).continuations_for_project("project-a") == (
+            continuation,
+        )
+    finally:
+        reopened.close()
+
+
+def test_purge_removes_edges_before_sessions(tmp_path: Path) -> None:
+    connection = open_database(tmp_path / "purge-graph" / "tang.db")
+    repository = TangRepository(connection)
+    first = source("first")
+    second = source("second")
+    try:
+        with repository.transaction():
+            repository.upsert_session(first, "project-a", NOW)
+            repository.upsert_session(second, "project-a", NOW)
+            repository.put_continuation(
+                StoredContinuation(
+                    first.identity.canonical,
+                    second.identity.canonical,
+                    "project-a",
+                    "explicit",
+                    NOW,
+                )
+            )
+        with repository.transaction():
+            result = repository.purge_all()
+        assert result.continuations == 1
+        assert repository.continuations_for_project("project-a") == ()
+        assert repository.sessions_for_project("project-a") == ()
+    finally:
+        connection.close()

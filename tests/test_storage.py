@@ -38,7 +38,17 @@ def test_fresh_database_is_secure_configured_and_migrated(tmp_path: Path) -> Non
                 "SELECT name FROM sqlite_master WHERE type IN ('table', 'view')"
             )
         }
-        assert {"sessions", "adapter_checkpoints", "capsules", "capsules_fts"} <= tables
+        assert {
+            "sessions",
+            "adapter_checkpoints",
+            "capsules",
+            "capsules_fts",
+            "continuation_edges",
+        } <= tables
+        session_columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(sessions)")
+        }
+        assert "native_available" in session_columns
     finally:
         connection.close()
 

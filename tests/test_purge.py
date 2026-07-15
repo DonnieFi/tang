@@ -42,7 +42,7 @@ def indexed_database(copied_codex_home: Path, tmp_path: Path) -> tuple[Path, Pat
     return database, current
 
 
-def derived_counts(database: Path) -> tuple[int, int, int, int]:
+def derived_counts(database: Path) -> tuple[int, int, int, int, int]:
     connection = open_database(database)
     try:
         return tuple(
@@ -52,6 +52,7 @@ def derived_counts(database: Path) -> tuple[int, int, int, int]:
                 "capsules",
                 "capsules_fts",
                 "adapter_checkpoints",
+                "continuation_edges",
             )
         )
     finally:
@@ -71,7 +72,7 @@ def test_purge_confirmation_paths_and_native_logs_are_untouched(
         if path.is_file()
     }
     populated = derived_counts(database)
-    assert all(count == 1 for count in populated)
+    assert populated == (1, 1, 1, 1, 0)
 
     monkeypatch.setattr("sys.stdin", io.StringIO())
     assert main(["purge", "--all", "--database", str(database)]) == 2
@@ -90,11 +91,12 @@ def test_purge_confirmation_paths_and_native_logs_are_untouched(
     assert main(["purge", "--all", "--yes", "--database", str(database)]) == 0
     purged = capsys.readouterr()
     assert purged.out == (
-        "Purged 1 sessions, 1 capsules, 1 search rows, and 1 checkpoints. "
+        "Purged 1 sessions, 1 capsules, 1 search rows, 1 checkpoints, "
+        "and 0 continuation edges. "
         "Native harness logs were not modified.\n"
     )
     assert purged.err == ""
-    assert derived_counts(database) == (0, 0, 0, 0)
+    assert derived_counts(database) == (0, 0, 0, 0, 0)
     assert {path: path.read_bytes() for path in native_before} == native_before
 
 
@@ -114,6 +116,6 @@ def test_purge_all_rolls_back_every_table_on_failure(
         with pytest.raises(sqlite3.IntegrityError, match="synthetic failure"):
             with repository.transaction():
                 repository.purge_all()
-        assert derived_counts(database) == (1, 1, 1, 1)
+        assert derived_counts(database) == (1, 1, 1, 1, 0)
     finally:
         connection.close()

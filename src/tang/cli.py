@@ -236,7 +236,8 @@ def _run_purge(args: argparse.Namespace) -> int:
         connection.close()
     print(
         f"Purged {result.sessions} sessions, {result.capsules} capsules, "
-        f"{result.search_rows} search rows, and {result.checkpoints} checkpoints. "
+        f"{result.search_rows} search rows, {result.checkpoints} checkpoints, "
+        f"and {result.continuations} continuation edges. "
         "Native harness logs were not modified."
     )
     return 0

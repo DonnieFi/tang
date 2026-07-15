@@ -89,6 +89,25 @@ MIGRATIONS: tuple[Migration, ...] = (
             "DROP TABLE adapter_checkpoints_v2",
         ),
     ),
+    (
+        4,
+        (
+            "ALTER TABLE sessions ADD COLUMN native_available INTEGER NOT NULL DEFAULT 1 CHECK(native_available IN (0, 1))",
+            """
+            CREATE TABLE continuation_edges (
+                source_id TEXT NOT NULL REFERENCES sessions(source_id) ON DELETE RESTRICT,
+                target_id TEXT NOT NULL REFERENCES sessions(source_id) ON DELETE RESTRICT,
+                project_key TEXT NOT NULL,
+                confirmation_mode TEXT NOT NULL CHECK(confirmation_mode IN ('current', 'explicit')),
+                confirmed_at TEXT NOT NULL,
+                schema_version INTEGER NOT NULL DEFAULT 1 CHECK(schema_version = 1),
+                PRIMARY KEY(source_id, target_id)
+            )
+            """,
+            "CREATE INDEX continuation_edges_target ON continuation_edges(target_id, source_id)",
+            "CREATE INDEX continuation_edges_project ON continuation_edges(project_key, source_id, target_id)",
+        ),
+    ),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 

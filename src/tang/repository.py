@@ -38,6 +38,27 @@ class StoredSession:
     source: SourceRecord
     project_key: str
     indexed_at: datetime
+    native_available: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class StoredContinuation:
+    source_id: str
+    target_id: str
+    project_key: str
+    confirmation_mode: str
+    confirmed_at: datetime
+    schema_version: int = 1
+
+    def __post_init__(self) -> None:
+        if self.source_id == self.target_id:
+            raise ValueError("continuation source and target must differ")
+        if self.confirmation_mode not in {"current", "explicit"}:
+            raise ValueError("unsupported confirmation mode")
+        if self.schema_version != 1:
+            raise ValueError("continuation schema_version must be 1")
+        if self.confirmed_at.tzinfo is None or self.confirmed_at.utcoffset() is None:
+            raise ValueError("continuation timestamp must be timezone-aware")
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +101,7 @@ class PurgeResult:
     capsules: int
     search_rows: int
     checkpoints: int
+    continuations: int = 0
 
 
 class TangRepository:
@@ -125,7 +147,8 @@ class TangRepository:
                 started_at=excluded.started_at,
                 updated_at=excluded.updated_at,
                 health=excluded.health,
-                indexed_at=excluded.indexed_at
+                indexed_at=excluded.indexed_at,
+                native_available=1
             """,
             (
                 source.identity.canonical,
@@ -180,12 +203,72 @@ class TangRepository:
             ),
             project_key=row["project_key"],
             indexed_at=_datetime(row["indexed_at"]),
+            native_available=bool(row["native_available"]),
         )
 
     def delete_session(self, source_id: str) -> None:
         self._require_transaction()
         self._connection.execute("DELETE FROM capsules_fts WHERE source_id = ?", (source_id,))
-        self._connection.execute("DELETE FROM sessions WHERE source_id = ?", (source_id,))
+        self._connection.execute("DELETE FROM capsules WHERE source_id = ?", (source_id,))
+        referenced = self._connection.execute(
+            """
+            SELECT 1 FROM continuation_edges
+            WHERE source_id = ? OR target_id = ? LIMIT 1
+            """,
+            (source_id, source_id),
+        ).fetchone()
+        if referenced is None:
+            self._connection.execute("DELETE FROM sessions WHERE source_id = ?", (source_id,))
+        else:
+            self._connection.execute(
+                "UPDATE sessions SET native_available = 0 WHERE source_id = ?",
+                (source_id,),
+            )
+
+    def put_continuation(self, continuation: StoredContinuation) -> bool:
+        """Insert one confirmed edge; return false when it already exists."""
+
+        self._require_transaction()
+        cursor = self._connection.execute(
+            """
+            INSERT INTO continuation_edges(
+                source_id, target_id, project_key, confirmation_mode,
+                confirmed_at, schema_version
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(source_id, target_id) DO NOTHING
+            """,
+            (
+                continuation.source_id,
+                continuation.target_id,
+                continuation.project_key,
+                continuation.confirmation_mode,
+                _rfc3339(continuation.confirmed_at),
+                continuation.schema_version,
+            ),
+        )
+        return cursor.rowcount == 1
+
+    def continuations_for_project(
+        self, project_key: str
+    ) -> tuple[StoredContinuation, ...]:
+        rows = self._connection.execute(
+            """
+            SELECT * FROM continuation_edges WHERE project_key = ?
+            ORDER BY confirmed_at, source_id, target_id
+            """,
+            (project_key,),
+        ).fetchall()
+        return tuple(
+            StoredContinuation(
+                source_id=row["source_id"],
+                target_id=row["target_id"],
+                project_key=row["project_key"],
+                confirmation_mode=row["confirmation_mode"],
+                confirmed_at=_datetime(row["confirmed_at"]),
+                schema_version=row["schema_version"],
+            )
+            for row in rows
+        )
 
     def purge_all(self) -> PurgeResult:
         """Delete every currently defined Tang-derived row in one transaction."""
@@ -196,7 +279,9 @@ class TangRepository:
             capsules=self._count("capsules"),
             search_rows=self._count("capsules_fts"),
             checkpoints=self._count("adapter_checkpoints"),
+            continuations=self._count("continuation_edges"),
         )
+        self._connection.execute("DELETE FROM continuation_edges")
         self._connection.execute("DELETE FROM capsules_fts")
         self._connection.execute("DELETE FROM capsules")
         self._connection.execute("DELETE FROM sessions")
@@ -204,7 +289,13 @@ class TangRepository:
         return result
 
     def _count(self, table: str) -> int:
-        if table not in {"sessions", "capsules", "capsules_fts", "adapter_checkpoints"}:
+        if table not in {
+            "sessions",
+            "capsules",
+            "capsules_fts",
+            "adapter_checkpoints",
+            "continuation_edges",
+        }:
             raise ValueError("unsupported derived-data table")
         row = self._connection.execute(f"SELECT count(*) FROM {table}").fetchone()
         return int(row[0])

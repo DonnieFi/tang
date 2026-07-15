@@ -126,3 +126,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) promote stale milestone `c9f3727`; (b) fast-forward the renewed milestone; (c) create an unnecessary merge commit.
 - Decision: (b) — fast-forward `epic/04-codex-skill` milestone `e1f6a1674f24207f076ce0ab6eb2773496654b0a` into `main`, producing promotion SHA `e1f6a1674f24207f076ce0ab6eb2773496654b0a`. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
 - By: human (promotion approval) and agent (verified fast-forward execution)
+
+## 2026-07-15T01:15:32Z · tang-0dh.1 · Retain graph-referenced session tombstones
+- Context: Native history can disappear after a confirmed continuation edge is recorded. Cascading edge deletion would rewrite history, while retaining the searchable capsule would falsely imply the native source remains rereadable.
+- Options: (a) cascade-delete edges with sessions; (b) block native-deletion synchronization; (c) remove capsule/search data but retain the minimal session row with `native_available = 0` while any edge references it.
+- Decision: (c) — preserve honest confirmed topology and stable identities without presenting unavailable native content as discoverable or rereadable. Serves: Technological Implementation, Design, Potential Impact.
+- By: agent, implementing Epic 5 graph persistence
