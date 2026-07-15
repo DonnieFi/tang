@@ -59,6 +59,7 @@ class SourceSection:
 class MultiSourceContextPack:
     project_key: str
     sections: tuple[SourceSection, ...]
+    warnings: tuple[str, ...] = ()
     markdown_estimated_tokens: int = 0
     json_estimated_tokens: int = 0
     schema_version: int = 1
@@ -67,11 +68,21 @@ class MultiSourceContextPack:
     def estimated_tokens(self) -> int:
         return max(self.markdown_estimated_tokens, self.json_estimated_tokens)
 
+    @property
+    def status(self) -> str:
+        if self.warnings or any(
+            section.read_status != "complete" for section in self.sections
+        ):
+            return "partial"
+        return "complete"
+
     def as_dict(self) -> dict[str, object]:
         return {
             "estimated_tokens": self.json_estimated_tokens,
             "project_key": self.project_key,
             "schema_version": self.schema_version,
+            "status": self.status,
+            "warnings": list(self.warnings),
             "untrusted_data_envelope": {
                 "notice": UNTRUSTED_NOTICE,
                 "sources": [section.as_dict() for section in self.sections],
@@ -94,6 +105,7 @@ class MultiSourceContextPack:
                 "(Unicode characters / 4)"
             ),
             f"- Sources: {len(self.sections)}",
+            f"- Status: {self.status}",
             "",
             "## Safety envelope",
             "",
@@ -102,6 +114,11 @@ class MultiSourceContextPack:
             "## Untrusted historical evidence",
             "",
         ]
+        if self.warnings:
+            lines.append("Pack warnings (untrusted):")
+            for warning in self.warnings:
+                lines.extend(_indented(warning))
+            lines.append("")
         for section in self.sections:
             lines.extend(
                 [
@@ -157,6 +174,8 @@ class MultiSourceAllocator:
         self,
         sources: tuple[ValidatedSourceRead, ...],
         project_key: str,
+        *,
+        warnings: tuple[str, ...] = (),
     ) -> MultiSourceContextPack:
         if not sources:
             raise ValueError("multi-source allocation requires at least one source")
@@ -174,10 +193,12 @@ class MultiSourceAllocator:
         for index, single in enumerate(prepared):
             selected[index].append(single.excerpts[-1])
         if (
-            self._pack(ordered, prepared, selected, project_key).estimated_tokens
+            self._pack(
+                ordered, prepared, selected, project_key, warnings
+            ).estimated_tokens
             > self._token_budget
             and not self._fit_reserves(
-                ordered, prepared, selected, project_key
+                ordered, prepared, selected, project_key, warnings
             )
         ):
             raise ValueError("source metadata leaves no fair excerpt reserve")
@@ -191,7 +212,7 @@ class MultiSourceAllocator:
                 excerpt = queue.pop(0)
                 selected[index].append(excerpt)
                 selected[index].sort(key=lambda item: item.ordinal)
-                candidate = self._pack(ordered, prepared, selected, project_key)
+                candidate = self._pack(ordered, prepared, selected, project_key, warnings)
                 if candidate.estimated_tokens <= self._token_budget:
                     progress = True
                 else:
@@ -199,7 +220,7 @@ class MultiSourceAllocator:
                     queue.clear()
             if not progress:
                 break
-        return self._pack(ordered, prepared, selected, project_key)
+        return self._pack(ordered, prepared, selected, project_key, warnings)
 
     def _fit_reserves(
         self,
@@ -207,6 +228,7 @@ class MultiSourceAllocator:
         prepared,
         selected: list[list[ContextExcerpt]],
         project_key: str,
+        warnings: tuple[str, ...],
     ) -> bool:
         originals = [chosen[-1] for chosen in selected]
         marker = "\n\n[Excerpt truncated]"
@@ -228,7 +250,7 @@ class MultiSourceAllocator:
             ]
             for index, candidate in enumerate(candidates):
                 selected[index][-1] = candidate
-            pack = self._pack(sources, prepared, selected, project_key)
+            pack = self._pack(sources, prepared, selected, project_key, warnings)
             if pack.estimated_tokens <= self._token_budget:
                 fitted = candidates
                 low = keep + 1
@@ -248,6 +270,7 @@ class MultiSourceAllocator:
         prepared,
         selected: list[list[ContextExcerpt]],
         project_key: str,
+        warnings: tuple[str, ...],
     ) -> MultiSourceContextPack:
         sections = tuple(
             SourceSection(
@@ -263,7 +286,7 @@ class MultiSourceAllocator:
             )
             for item, single, chosen in zip(sources, prepared, selected)
         )
-        return self._estimated(MultiSourceContextPack(project_key, sections))
+        return self._estimated(MultiSourceContextPack(project_key, sections, warnings))
 
     @staticmethod
     def _estimated(pack: MultiSourceContextPack) -> MultiSourceContextPack:

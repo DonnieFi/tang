@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from tang.adapters import CodexAdapter, GrokAdapter, SessionHealth
+from tang.context_service import ContextGenerationError, ContextPackService
 from tang.discovery import DiscoveryFilter, DiscoveryItem, DiscoveryService, rfc3339
 from tang.indexing import IndexResult, ProjectIndexer
 from tang.project import resolve_project
@@ -39,6 +40,13 @@ def build_parser() -> argparse.ArgumentParser:
     search = subparsers.add_parser("search", help="search current-project capsules")
     search.add_argument("query")
     _add_discovery_arguments(search)
+    context = subparsers.add_parser("context", help="build a cited Context Pack")
+    context.add_argument("sessions", nargs="+")
+    context.add_argument("--json", action="store_true", dest="as_json")
+    context.add_argument("--database", type=Path)
+    context.add_argument("--cwd", type=Path, default=Path.cwd())
+    context.add_argument("--codex-home", type=Path)
+    context.add_argument("--grok-home", type=Path)
     return parser
 
 
@@ -163,6 +171,26 @@ def _run_discovery(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_context(args: argparse.Namespace) -> int:
+    connection = open_database(args.database)
+    try:
+        service = ContextPackService(
+            TangRepository(connection),
+            (CodexAdapter(args.codex_home), GrokAdapter(args.grok_home)),
+        )
+        try:
+            pack = service.generate(
+                tuple(args.sessions), resolve_project(args.cwd).key
+            )
+        except ContextGenerationError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 2
+    finally:
+        connection.close()
+    print(pack.to_json() if args.as_json else pack.to_markdown(), end="")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Print concise help until the vertical-slice commands are implemented."""
     parser = build_parser()
@@ -171,5 +199,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_index(args)
     if args.command in {"browse", "search"}:
         return _run_discovery(args)
+    if args.command == "context":
+        return _run_context(args)
     parser.print_help()
     return 0
