@@ -78,3 +78,15 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) fast-forward the reviewed milestone into `main`; (b) create a merge commit; (c) defer promotion.
 - Decision: (a) — fast-forward `epic/02-codex-adapter` milestone `a30866cd03958f395e3537d41dfa1b0d8e73c966` into `main`, producing promotion SHA `a30866cd03958f395e3537d41dfa1b0d8e73c966`. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
 - By: human (promotion approval) and agent (verified fast-forward execution)
+
+## 2026-07-15T00:24:25Z · tang-d6f.11 · Infer deletions only from healthy complete scans
+- Context: Incremental adapter checkpoints must remove derived state when a native session is deleted, but unreadable directories, malformed records, or truncated logs can make an existing session temporarily unseen. Treating absence during a degraded scan as deletion would destroy the last-known-good capsule and FTS record.
+- Options: (a) infer deletion whenever a checkpointed identity is unseen; (b) never infer native deletion; (c) emit removals only after a warning-free complete scan and retain all prior fingerprints during partial scans.
+- Decision: (c) — synchronize deletions promptly when the native inventory is authoritative while making degraded scans non-destructive and retryable. Serves: Technological Implementation, Design, Potential Impact.
+- By: agent, implementing the Epic 3 indexing privacy and resilience contract
+
+## 2026-07-15T00:31:00Z · tang-d6f.7 · Scope incremental checkpoints by project
+- Context: Gate review found that one store-global adapter checkpoint lets indexing project A suppress unchanged native sessions when the user later runs Tang from project B. The approved design keeps a global derived database but requires each index operation to discover the resolved current project independently.
+- Options: (a) retain one checkpoint per native store; (b) force every index operation to rescan without checkpoints; (c) key checkpoint persistence by adapter, store namespace, and resolved project while keeping the adapter cursor opaque.
+- Decision: (c) — preserve incremental scans within each project without allowing one project's indexing history to hide another project's eligible sessions; discard pre-release unscoped cursors during migration so the first scoped run performs a safe full scan. Serves: Technological Implementation, Design, Potential Impact.
+- By: agent, resolving an Epic 3 close-gate integration finding

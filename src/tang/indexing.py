@@ -55,7 +55,7 @@ class ProjectIndexer:
 
         for adapter in adapters:
             prior_checkpoint = self._repository.get_checkpoint(
-                adapter.adapter_key, adapter.source_namespace
+                adapter.adapter_key, adapter.source_namespace, active_project.key
             )
             scan = adapter.scan(prior_checkpoint)
             warnings.extend(
@@ -149,7 +149,7 @@ class ProjectIndexer:
                     if checkpoint_changed:
                         assert scan.next_checkpoint is not None
                         self._repository.put_checkpoint(
-                            scan.next_checkpoint, timestamp
+                            scan.next_checkpoint, active_project.key, timestamp
                         )
                 indexed += len(pending)
                 deleted += len(removable)

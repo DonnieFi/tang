@@ -60,8 +60,14 @@ def test_index_is_current_project_scoped_incremental_and_restart_safe(
             stored.source.project_hint == str(current)
             for stored in repository.sessions_for_project(project.key)
         )
-        assert repository.get_checkpoint("codex", "index-codex") is not None
-        assert repository.get_checkpoint("grok", "index-grok") is not None
+        assert (
+            repository.get_checkpoint("codex", "index-codex", project.key)
+            is not None
+        )
+        assert (
+            repository.get_checkpoint("grok", "index-grok", project.key)
+            is not None
+        )
 
         second = indexer.index(adapters, project, now=NOW)
 
@@ -74,9 +80,44 @@ def test_index_is_current_project_scoped_incremental_and_restart_safe(
     try:
         repository = TangRepository(reopened)
         assert len(repository.sessions_for_project(project.key)) == 4
-        assert repository.get_checkpoint("codex", "index-codex") is not None
+        assert (
+            repository.get_checkpoint("codex", "index-codex", project.key)
+            is not None
+        )
     finally:
         reopened.close()
+
+
+def test_adapter_checkpoints_are_scoped_per_project(
+    discovery_corpus, tmp_path: Path
+) -> None:
+    current = tmp_path / "current-project"
+    foreign = tmp_path / "foreign-project"
+    current.mkdir()
+    foreign.mkdir()
+    point_corpus_at_projects(discovery_corpus, current, foreign)
+    connection = open_database(tmp_path / "tang.db")
+    repository = TangRepository(connection)
+    adapter = CodexAdapter(
+        discovery_corpus.codex_home, source_namespace="multi-project"
+    )
+    current_project = resolve_project(current)
+    foreign_project = resolve_project(foreign)
+    try:
+        first = ProjectIndexer(repository).index((adapter,), current_project, now=NOW)
+        second = ProjectIndexer(repository).index((adapter,), foreign_project, now=NOW)
+
+        assert first.indexed >= 1
+        assert second.indexed == 1
+        assert len(repository.sessions_for_project(foreign_project.key)) == 1
+        assert repository.get_checkpoint(
+            "codex", "multi-project", current_project.key
+        ) is not None
+        assert repository.get_checkpoint(
+            "codex", "multi-project", foreign_project.key
+        ) is not None
+    finally:
+        connection.close()
 
 
 def test_index_json_and_human_output_are_deterministic(
@@ -144,7 +185,9 @@ def test_index_refreshes_capsule_fts_and_removes_deleted_native_session(
         source_id = (
             repository.sessions_for_project(project.key)[0].source.identity.canonical
         )
-        first_checkpoint = repository.get_checkpoint("codex", "updates")
+        first_checkpoint = repository.get_checkpoint(
+            "codex", "updates", project.key
+        )
         assert first.indexed == 1
 
         with log.open("a", encoding="utf-8") as destination:
@@ -166,7 +209,9 @@ def test_index_refreshes_capsule_fts_and_removes_deleted_native_session(
             )
 
         refreshed = indexer.index((adapter,), project, now=NOW)
-        second_checkpoint = repository.get_checkpoint("codex", "updates")
+        second_checkpoint = repository.get_checkpoint(
+            "codex", "updates", project.key
+        )
         assert refreshed.indexed == 1
         assert second_checkpoint != first_checkpoint
         assert repository.search_capsule_ids(project.key, "Quasarrefresh") == (
@@ -180,6 +225,9 @@ def test_index_refreshes_capsule_fts_and_removes_deleted_native_session(
         assert repository.get_session(source_id) is None
         assert repository.get_capsule(source_id) is None
         assert repository.search_capsule_ids(project.key, "Quasarrefresh") == ()
-        assert repository.get_checkpoint("codex", "updates") != second_checkpoint
+        assert (
+            repository.get_checkpoint("codex", "updates", project.key)
+            != second_checkpoint
+        )
     finally:
         connection.close()

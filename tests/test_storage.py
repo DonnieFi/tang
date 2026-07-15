@@ -63,6 +63,31 @@ def test_existing_database_upgrades_from_first_migration(tmp_path: Path) -> None
         upgraded.close()
 
 
+def test_project_checkpoint_migration_discards_unscoped_cursor(tmp_path: Path) -> None:
+    path = tmp_path / "checkpoint-upgrade" / "tang.db"
+    connection = open_database(path, migrations=MIGRATIONS[:2])
+    connection.execute(
+        """
+        INSERT INTO adapter_checkpoints(adapter, source_namespace, cursor, updated_at)
+        VALUES ('codex', 'fixture', 'unsafe-global-cursor', '2026-07-15T00:00:00Z')
+        """
+    )
+    connection.close()
+
+    upgraded = open_database(path)
+    try:
+        assert (
+            upgraded.execute("SELECT count(*) FROM adapter_checkpoints").fetchone()[0]
+            == 0
+        )
+        columns = {
+            row[1] for row in upgraded.execute("PRAGMA table_info(adapter_checkpoints)")
+        }
+        assert "project_key" in columns
+    finally:
+        upgraded.close()
+
+
 def test_failed_migration_rolls_back_and_can_recover(tmp_path: Path) -> None:
     path = tmp_path / "failure" / "tang.db"
     broken = (

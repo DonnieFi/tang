@@ -206,7 +206,8 @@ class TangRepository:
     def _count(self, table: str) -> int:
         if table not in {"sessions", "capsules", "capsules_fts", "adapter_checkpoints"}:
             raise ValueError("unsupported derived-data table")
-        return int(self._connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
+        row = self._connection.execute(f"SELECT count(*) FROM {table}").fetchone()
+        return int(row[0])
 
     def fingerprint_for(self, source_id: str) -> SourceFingerprint | None:
         row = self._connection.execute(
@@ -221,33 +222,36 @@ class TangRepository:
         return SourceFingerprint(row["fingerprint_algorithm"], row["fingerprint_value"])
 
     def put_checkpoint(
-        self, checkpoint: AdapterCheckpoint, updated_at: datetime
+        self, checkpoint: AdapterCheckpoint, project_key: str, updated_at: datetime
     ) -> None:
         self._require_transaction()
         self._connection.execute(
             """
-            INSERT INTO adapter_checkpoints(adapter, source_namespace, cursor, updated_at)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(adapter, source_namespace) DO UPDATE SET
+            INSERT INTO adapter_checkpoints(
+                adapter, source_namespace, project_key, cursor, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(adapter, source_namespace, project_key) DO UPDATE SET
                 cursor=excluded.cursor, updated_at=excluded.updated_at
             """,
             (
                 checkpoint.adapter,
                 checkpoint.source_namespace,
+                project_key,
                 checkpoint.cursor,
                 _rfc3339(updated_at),
             ),
         )
 
     def get_checkpoint(
-        self, adapter: str, source_namespace: str
+        self, adapter: str, source_namespace: str, project_key: str
     ) -> AdapterCheckpoint | None:
         row = self._connection.execute(
             """
             SELECT cursor FROM adapter_checkpoints
-            WHERE adapter = ? AND source_namespace = ?
+            WHERE adapter = ? AND source_namespace = ? AND project_key = ?
             """,
-            (adapter, source_namespace),
+            (adapter, source_namespace, project_key),
         ).fetchone()
         if row is None:
             return None

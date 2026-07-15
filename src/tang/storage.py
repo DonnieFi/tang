@@ -69,6 +69,26 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    (
+        3,
+        (
+            "ALTER TABLE adapter_checkpoints RENAME TO adapter_checkpoints_v2",
+            """
+            CREATE TABLE adapter_checkpoints (
+                adapter TEXT NOT NULL,
+                source_namespace TEXT NOT NULL,
+                project_key TEXT NOT NULL,
+                cursor TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(adapter, source_namespace, project_key)
+            )
+            """,
+            # Pre-release v2 checkpoints had no project ownership. Discarding
+            # them causes one safe full rescan instead of suppressing another
+            # project's unchanged native records.
+            "DROP TABLE adapter_checkpoints_v2",
+        ),
+    ),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 

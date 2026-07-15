@@ -98,11 +98,11 @@ def test_rollback_leaves_no_partial_session_or_checkpoint(tmp_path: Path) -> Non
         with pytest.raises(RuntimeError, match="abort"):
             with repository.transaction():
                 repository.upsert_session(record, "project-a", NOW)
-                repository.put_checkpoint(checkpoint, NOW)
+                repository.put_checkpoint(checkpoint, "project-a", NOW)
                 raise RuntimeError("abort transaction")
 
         assert repository.get_session(record.identity.canonical) is None
-        assert repository.get_checkpoint("codex", "fixture") is None
+        assert repository.get_checkpoint("codex", "fixture", "project-a") is None
     finally:
         connection.close()
 
@@ -115,14 +115,14 @@ def test_checkpoint_and_rows_survive_restart(tmp_path: Path) -> None:
     repository = TangRepository(first)
     with repository.transaction():
         repository.upsert_session(record, "project-a", NOW)
-        repository.put_checkpoint(checkpoint, NOW)
+        repository.put_checkpoint(checkpoint, "project-a", NOW)
     first.close()
 
     second = open_database(path)
     try:
         reopened = TangRepository(second)
         assert reopened.get_session(record.identity.canonical) is not None
-        assert reopened.get_checkpoint("codex", "fixture") == checkpoint
+        assert reopened.get_checkpoint("codex", "fixture", "project-a") == checkpoint
     finally:
         second.close()
 
