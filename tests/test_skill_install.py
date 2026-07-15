@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from tang.cli import main
 from tang.skill_install import install_codex_skill
 
 
@@ -47,3 +48,17 @@ def test_skill_install_refuses_symlinked_destination(tmp_path: Path) -> None:
 
     with pytest.raises(OSError, match="symlinked"):
         install_codex_skill(codex_home, source=source, force=True)
+
+
+def test_skill_install_cli_uses_the_bundled_skill(tmp_path: Path, capsys) -> None:
+    codex_home = tmp_path / "codex"
+
+    assert main(["skill", "install", "codex", "--codex-home", str(codex_home)]) == 0
+    first = capsys.readouterr()
+    assert first.err == ""
+    assert first.out == "Tang Codex skill installed.\n"
+    assert "name: tang" in (codex_home / "skills" / "tang" / "SKILL.md").read_text()
+
+    assert main(["skill", "install", "codex", "--codex-home", str(codex_home)]) == 0
+    second = capsys.readouterr()
+    assert second.out == "Tang Codex skill is already current.\n"

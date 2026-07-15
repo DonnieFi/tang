@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tang Multiverse"
+  short_description: "Continue prior coding-agent work with citations"
+  default_prompt: "Use $tang to find prior project sessions and continue their work here with source citations."

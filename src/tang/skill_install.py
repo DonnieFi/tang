@@ -20,7 +20,11 @@ class SkillInstallResult:
 def bundled_skill_path() -> Path:
     """Return the source-tree or installed-package Tang skill directory."""
 
-    return Path(__file__).resolve().parent / "skills" / "tang"
+    module = Path(__file__).resolve()
+    packaged = module.parent / "skills" / "tang"
+    if packaged.is_dir():
+        return packaged
+    return module.parents[2] / "skills" / "tang"
 
 
 def codex_skill_root(codex_home: Path | None = None) -> Path:
