@@ -1,0 +1,61 @@
+name: Linux release path
+
+on:
+  push:
+    branches: [main, "epic/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: false
+      - name: Install locked development environment
+        run: uv sync --locked --python ${{ matrix.python-version }}
+      - name: Run full suite
+        run: uv run --python ${{ matrix.python-version }} pytest -q
+      - name: Compile package
+        run: uv run --python ${{ matrix.python-version }} python -m compileall -q src
+
+  release-smoke:
+    name: Build and install wheel
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: false
+      - name: Build reproducible artifacts
+        run: uv run --with setuptools python scripts/build_release.py dist
+      - name: Install wheel without rebuilding source
+        run: |
+          uv venv --python 3.12 /tmp/tang-wheel
+          uv pip install --python /tmp/tang-wheel/bin/python dist/tang_multiverse-0.1.0-py3-none-any.whl
+      - name: Smoke CLI, skill, and isolated demo
+        run: |
+          export PATH="/tmp/tang-wheel/bin:$PATH"
+          tang --help
+          tang skill install codex --codex-home /tmp/tang-codex
+          tang demo --ascii --width 100 > demo-output.txt
+          grep -q "Demo complete" demo-output.txt
+          test ! -e "$HOME/.local/share/tang/tang.db"
+      - name: Upload demo output on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-failure-output
+          path: demo-output.txt
+          if-no-files-found: ignore
