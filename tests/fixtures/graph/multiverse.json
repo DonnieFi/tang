@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "project_key": "fixture:tang-multiverse",
+  "active_source_id": "codex:multiverse:g",
+  "nodes": [
+    {"source_id": "grok:multiverse:a", "harness": "grok", "native_id": "a", "title": "Explore adapter seam", "timestamp": "2026-07-14T20:00:00Z", "health": "complete", "native_available": true},
+    {"source_id": "codex:multiverse:b", "harness": "codex", "native_id": "b", "title": "Verify project identity", "timestamp": "2026-07-14T20:05:00Z", "health": "complete", "native_available": true},
+    {"source_id": "codex:multiverse:c", "harness": "codex", "native_id": "c", "title": "Merge discovery design", "timestamp": "2026-07-14T20:10:00Z", "health": "complete", "native_available": true},
+    {"source_id": "codex:multiverse:d", "harness": "codex", "native_id": "d", "title": "Branch into storage", "timestamp": "2026-07-14T20:15:00Z", "health": "unknown", "native_available": true},
+    {"source_id": "codex:multiverse:e", "harness": "codex", "native_id": "e", "title": "Branch into context", "timestamp": "2026-07-14T20:20:00Z", "health": "complete", "native_available": true},
+    {"source_id": "grok:multiverse:f", "harness": "grok", "native_id": "f", "title": "Recover graph constraints", "timestamp": "2026-07-14T20:25:00Z", "health": "possibly_interrupted", "native_available": false},
+    {"source_id": "codex:multiverse:g", "harness": "codex", "native_id": "g", "title": "Current active handle", "timestamp": "2026-07-14T20:30:00Z", "health": "complete", "native_available": true},
+    {"source_id": "codex:multiverse:h", "harness": "codex", "native_id": "h", "title": "Isolated experiment", "timestamp": "2026-07-14T20:35:00Z", "health": "unknown", "native_available": true}
+  ],
+  "edges": [
+    {"source_id": "grok:multiverse:a", "target_id": "codex:multiverse:c", "confirmed_at": "2026-07-14T20:11:00Z", "confirmation_mode": "explicit"},
+    {"source_id": "codex:multiverse:b", "target_id": "codex:multiverse:c", "confirmed_at": "2026-07-14T20:11:00Z", "confirmation_mode": "explicit"},
+    {"source_id": "codex:multiverse:c", "target_id": "codex:multiverse:d", "confirmed_at": "2026-07-14T20:16:00Z", "confirmation_mode": "explicit"},
+    {"source_id": "codex:multiverse:c", "target_id": "codex:multiverse:e", "confirmed_at": "2026-07-14T20:21:00Z", "confirmation_mode": "explicit"},
+    {"source_id": "codex:multiverse:e", "target_id": "codex:multiverse:g", "confirmed_at": "2026-07-14T20:31:00Z", "confirmation_mode": "explicit"},
+    {"source_id": "grok:multiverse:f", "target_id": "codex:multiverse:g", "confirmed_at": "2026-07-14T20:31:00Z", "confirmation_mode": "explicit"}
+  ],
+  "invalid_candidates": [
+    {"reason": "self-link", "source_id": "codex:multiverse:g", "target_id": "codex:multiverse:g"},
+    {"reason": "cycle", "source_id": "codex:multiverse:g", "target_id": "codex:multiverse:c"}
+  ]
+}
