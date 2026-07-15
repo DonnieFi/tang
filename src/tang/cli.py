@@ -6,11 +6,12 @@ import argparse
 import json
 import sys
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
-from tang.adapters import CodexAdapter, GrokAdapter, SessionHealth
+from tang.adapters import CodexAdapter, GrokAdapter, SessionHealth, SessionIdentity
 from tang.context_service import ContextGenerationError, ContextPackService
+from tang.continuation import ContinuationError, ContinuationService, LinkResult
 from tang.discovery import DiscoveryFilter, DiscoveryItem, DiscoveryService, rfc3339
 from tang.doctor import doctor_exit_code, run_doctor
 from tang.indexing import IndexResult, ProjectIndexer
@@ -19,6 +20,7 @@ from tang.redaction import ContentKind, DEFAULT_REDACTOR, RedactionSeam
 from tang.repository import TangRepository
 from tang.storage import open_database
 from tang.skill_install import install_codex_skill
+from tang.target import candidates_for_project, resolve_current_target
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -56,6 +58,16 @@ def build_parser() -> argparse.ArgumentParser:
     purge.add_argument("--all", action="store_true", dest="purge_all")
     purge.add_argument("--yes", action="store_true", help="confirm without a prompt")
     purge.add_argument("--database", type=Path)
+    link = subparsers.add_parser("link", help="record confirmed continuation edges")
+    link.add_argument("--from", dest="source_ids", nargs="+", required=True)
+    target = link.add_mutually_exclusive_group(required=True)
+    target.add_argument("--current", action="store_true")
+    target.add_argument("--to", dest="target_id")
+    link.add_argument("--current-native-id")
+    link.add_argument("--json", action="store_true", dest="as_json")
+    link.add_argument("--database", type=Path)
+    link.add_argument("--cwd", type=Path, default=Path.cwd())
+    link.add_argument("--codex-home", type=Path)
     doctor = subparsers.add_parser("doctor", help="check Tang readiness")
     doctor.add_argument("--json", action="store_true", dest="as_json")
     doctor.add_argument("--database", type=Path)
@@ -285,6 +297,69 @@ def _run_skill(args: argparse.Namespace) -> int:
     return 0
 
 
+def _link_document(result: LinkResult) -> dict[str, object]:
+    return {
+        "existing": result.existing,
+        "inserted": result.inserted,
+        "schema_version": 1,
+        "source_ids": list(result.source_ids),
+        "target_id": result.target_id,
+    }
+
+
+def _run_link(args: argparse.Namespace) -> int:
+    project = resolve_project(args.cwd)
+    connection = open_database(args.database)
+    try:
+        repository = TangRepository(connection)
+        service = ContinuationService(repository)
+        try:
+            if args.current:
+                scan = CodexAdapter(args.codex_home).scan(None)
+                discovery = candidates_for_project(scan.records, project)
+                for warning in discovery.warnings:
+                    print(f"warning: {warning.code}: {warning.message}", file=sys.stderr)
+                excluded = frozenset(
+                    SessionIdentity(*source_id.split(":", 2))
+                    for source_id in args.source_ids
+                )
+                resolution = resolve_current_target(
+                    discovery.candidates,
+                    project,
+                    current_native_id=args.current_native_id,
+                    exclude=excluded,
+                )
+                result = service.link_resolved(
+                    tuple(args.source_ids),
+                    resolution,
+                    project.key,
+                    datetime.now(timezone.utc),
+                )
+            else:
+                result = service.link(
+                    tuple(args.source_ids),
+                    args.target_id,
+                    project.key,
+                    "explicit",
+                    datetime.now(timezone.utc),
+                )
+        except (ContinuationError, ValueError) as error:
+            code = error.code if isinstance(error, ContinuationError) else "invalid-session-id"
+            print(f"error[{code}]: {error}", file=sys.stderr)
+            return 2
+    finally:
+        connection.close()
+
+    if args.as_json:
+        print(json.dumps(_link_document(result), sort_keys=True, separators=(",", ":")))
+    else:
+        print(
+            f"Linked {len(result.source_ids)} source(s) to {result.target_id}; "
+            f"inserted {result.inserted}, existing {result.existing}."
+        )
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Dispatch Tang's scriptable commands, or show top-level help."""
     parser = build_parser()
@@ -301,5 +376,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_doctor(args)
     if args.command == "skill":
         return _run_skill(args)
+    if args.command == "link":
+        return _run_link(args)
     parser.print_help()
     return 0
