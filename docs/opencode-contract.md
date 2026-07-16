@@ -63,8 +63,9 @@ not a tester-specific product path. From a private Tang checkout, open OpenCode
 OpenCode hosts its custom tool under Bun.
 The project-local `tang_contract_probe` custom tool is discovered from
 `.opencode/tools/`. In one OpenAI-backed session and one xAI/Grok-backed
-session, ask OpenCode to call `tang_contract_probe` with the exact expected
-provider ID for that run. The report fails closed when that provider is absent.
+session, ask OpenCode to call `tang_contract_probe`. Provider/model choice does
+not control whether Tang can read a supported OpenCode transcript; the two runs
+establish representative coverage rather than an adapter eligibility rule.
 Acceptance is pinned to OpenCode `1.17.20` on Linux `x86_64`; other semantic
 versions and platforms cannot produce `result: "pass"` without new validation.
 
@@ -84,14 +85,13 @@ python3 scripts/probe_opencode_contract.py \
   --cwd "$PROJECT" \
   --current-session-id "$ACTIVE_OPENCODE_SESSION_ID" \
   --current-message-id "$INVOKING_OPENCODE_MESSAGE_ID" \
-  --expect-provider "$EXPECTED_PROVIDER_ID" \
   --expected-version 1.17.20 \
   --overall-timeout 120
 ```
 
 The dynamic IDs above come from OpenCode tool context; do not type or send them
 separately. Return only the probe's JSON report. It contains the pinned version,
-platform, expected provider class, booleans, counts, and fixed metadata classes.
+platform, booleans, counts, and fixed metadata classes.
 It cannot contain raw session/message IDs, arbitrary provider/role/part labels,
 export hashes, paths, titles, transcript text, reasoning, tool inputs/outputs,
 or credentials.
@@ -125,7 +125,7 @@ Epic 7's provider claim remains pending until both reports show:
 - `result: "pass"`;
 - `current_session_matches: true`;
 - `invoking_message_matches_once: true` and
-  `invoking_message_provider_matches: true`;
+  `invoking_message_is_assistant: true`;
 - `version_supported: true` and `platform_supported: true`;
 - stable, chronological, project-scoped identities;
 - at least one visible user and assistant text part; and
@@ -142,12 +142,13 @@ For the OpenAI report, open a fresh top-level OpenCode session in the Tang
 worktree with an OpenAI model. First request and receive one normal short text
 answer. Then ask:
 
-> Call `tang_contract_probe` with `expectedProvider` set to `openai`. Return
-> only the tool's JSON object with no commentary.
+> Call `tang_contract_probe`. Return only the tool's JSON object with no
+> commentary.
 
 Save only that JSON object. Do not send native OpenCode logs or exports. Repeat
 the same sequence in a separate fresh top-level session backed by an xAI/Grok
-model, using `expectedProvider` set to `xai`.
+model. The probe may report a fixed `other` provider class when OpenCode uses a
+provider alias; that diagnostic does not affect transcript readability.
 
 A successful report has `result: "pass"` and true checks for version, platform,
 catalog boundary, stable/project-scoped identities, ordering inputs, meaningful

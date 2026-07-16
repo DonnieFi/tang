@@ -146,7 +146,6 @@ def _session_evidence(
     expected_session_id: str,
     current_session: bool,
     invoking_message_id: str | None,
-    expected_provider: str | None,
 ) -> dict[str, Any]:
     info = exported.get("info")
     messages = exported.get("messages")
@@ -162,7 +161,7 @@ def _session_evidence(
     visible_text_parts = 0
     excluded_part_classes: set[str] = set()
     invoking_messages = 0
-    invoking_provider_matches = False
+    invoking_message_is_assistant = False
     for message in messages:
         if not isinstance(message, dict):
             raise ProbeFailure("session_export_invalid_shape")
@@ -186,9 +185,7 @@ def _session_evidence(
             ordering_inputs_complete = False
         if invoking_message_id is not None and message_id == invoking_message_id:
             invoking_messages += 1
-            invoking_provider_matches = (
-                role == "assistant" and provider_class == expected_provider
-            )
+            invoking_message_is_assistant = role == "assistant"
         for part in parts:
             if not isinstance(part, dict):
                 raise ProbeFailure("session_export_invalid_shape")
@@ -234,8 +231,8 @@ def _session_evidence(
         "invoking_message_matches_once": (
             None if invoking_message_id is None else invoking_messages == 1
         ),
-        "invoking_message_provider_matches": (
-            None if invoking_message_id is None else invoking_provider_matches
+        "invoking_message_is_assistant": (
+            None if invoking_message_id is None else invoking_message_is_assistant
         ),
         "message_count": len(messages),
         "metadata_shape_valid": metadata_shape_valid,
@@ -261,7 +258,6 @@ def probe(
     max_sessions: int,
     current_session_id: str | None,
     invoking_message_id: str | None,
-    expected_provider: str | None,
     expected_version: str,
     command_timeout: float,
     overall_timeout: float,
@@ -368,9 +364,6 @@ def probe(
                 invoking_message_id=(
                     invoking_message_id if current_session_id == source_id else None
                 ),
-                expected_provider=(
-                    expected_provider if current_session_id == source_id else None
-                ),
             )
         )
 
@@ -401,10 +394,10 @@ def probe(
         if current_evidence is None
         else current_evidence["invoking_message_matches_once"]
     )
-    invoking_provider_matches = (
+    invoking_message_is_assistant = (
         None
         if current_evidence is None
-        else current_evidence["invoking_message_provider_matches"]
+        else current_evidence["invoking_message_is_assistant"]
     )
     target_evidence_required = current_session_id is not None
     catalog_within_boundary = len(listed) < CATALOG_LIMIT
@@ -434,8 +427,8 @@ def probe(
         "current_session_catalog_listed": current_catalog_listed,
         "current_session_matches": current_match,
         "current_session_visible_user_and_assistant_text": current_visible_text,
+        "invoking_message_is_assistant": invoking_message_is_assistant,
         "invoking_message_matches_once": invoking_message_matches,
-        "invoking_message_provider_matches": invoking_provider_matches,
         "platform_supported": system == SUPPORTED_SYSTEM
         and machine == SUPPORTED_MACHINE,
         "session_count_positive": bool(sessions),
@@ -459,7 +452,7 @@ def probe(
                 current_match is True
                 and current_visible_text is True
                 and invoking_message_matches is True
-                and invoking_provider_matches is True
+                and invoking_message_is_assistant is True
             )
         )
     )
@@ -473,7 +466,6 @@ def probe(
             "system": system,
         },
         "checks": checks,
-        "expected_provider": expected_provider,
         "expected_version": expected_version,
         "sessions": sessions,
     }
@@ -491,7 +483,6 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-sessions", type=int, default=10)
     parser.add_argument("--current-session-id")
     parser.add_argument("--current-message-id")
-    parser.add_argument("--expect-provider", choices=sorted(SUPPORTED_PROVIDERS))
     parser.add_argument(
         "--expected-version",
         choices=(SUPPORTED_OPENCODE_VERSION,),
@@ -515,7 +506,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     target_arguments = (
         args.current_session_id,
         args.current_message_id,
-        args.expect_provider,
     )
     if any(value is not None for value in target_arguments) and not all(
         value is not None for value in target_arguments
@@ -535,7 +525,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             max_sessions=args.max_sessions,
             current_session_id=args.current_session_id,
             invoking_message_id=args.current_message_id,
-            expected_provider=args.expect_provider,
             expected_version=args.expected_version,
             command_timeout=args.timeout,
             overall_timeout=args.overall_timeout,

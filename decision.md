@@ -246,3 +246,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) reject every shared OpenCode project identity; (b) accept and export sibling-directory sessions; (c) exclude foreign-directory entries, report that filtering occurred, and retain the conservative latest-100 saturation failure because upstream truncation could still hide active-directory sessions.
 - Decision: (c) — keep Tang's project isolation at the canonical directory seam while accurately representing OpenCode's broader project grouping and preserving a fail-visible incomplete boundary. Serves: Technological Implementation, Design, Potential Impact.
 - By: human (live functional evidence) and agent (contract correction)
+
+## 2026-07-16T19:29:53Z · tang-09a.1 · Keep OpenCode transcript support provider-agnostic
+- Context: Live tool execution matched the exact current session and invoking assistant message but OpenCode exposed the selected model through a provider alias outside the probe's fixed OpenAI/xAI classes. The human clarified that Tang must read supported OpenCode transcripts regardless of model or provider.
+- Options: (a) expand model/provider aliases and continue gating readability on them; (b) infer the model vendor from display names; (c) require exact session/message/assistant identity while treating fixed provider classes as non-gating diagnostics and retaining OpenAI/xAI runs only as representative coverage.
+- Decision: (c) — remove the expected-provider argument and pass condition; do not limit the permanent adapter by provider or model. Exact invoking-message identity remains mandatory, arbitrary provider metadata remains non-echoing, and separate OpenAI/xAI live runs document breadth without defining eligibility. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: human (explicit provider-agnostic requirement) and agent (contract implementation)

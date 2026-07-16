@@ -88,8 +88,6 @@ def test_probe_emits_only_privacy_safe_contract_evidence(
             "ses_private_identifier",
             "--current-message-id",
             "msg_tang_assistant_0001",
-            "--expect-provider",
-            "openai",
         ],
         check=False,
         capture_output=True,
@@ -106,11 +104,10 @@ def test_probe_emits_only_privacy_safe_contract_evidence(
     document = json.loads(result.stdout)
     assert document["schema_version"] == 1
     assert document["result"] == "pass"
-    assert document["expected_provider"] == "openai"
     assert document["expected_version"] == "1.17.20"
     assert document["checks"]["current_session_matches"] is True
+    assert document["checks"]["invoking_message_is_assistant"] is True
     assert document["checks"]["invoking_message_matches_once"] is True
-    assert document["checks"]["invoking_message_provider_matches"] is True
     assert document["checks"]["platform_supported"] is True
     assert document["checks"]["version_supported"] is True
     assert document["checks"]["all_updated_milliseconds_present"] is True
@@ -266,7 +263,7 @@ def test_probe_reports_safe_executable_and_timeout_errors(
     assert json.loads(timed_out.stdout)["error_code"] == "version_timeout"
 
 
-def test_probe_fails_when_invoking_message_provider_differs(
+def test_probe_does_not_gate_readability_on_provider_family(
     tmp_path: Path, monkeypatch
 ) -> None:
     project = tmp_path / "project"
@@ -287,21 +284,19 @@ def test_probe_fails_when_invoking_message_provider_differs(
             "ses_private_identifier",
             "--current-message-id",
             "msg_tang_assistant_0001",
-            "--expect-provider",
-            "xai",
         ],
         check=False,
         capture_output=True,
         text=True,
     )
 
-    assert result.returncode == 1
+    assert result.returncode == 0
     document = json.loads(result.stdout)
-    assert document["result"] == "fail"
-    assert document["checks"]["invoking_message_provider_matches"] is False
+    assert document["result"] == "pass"
+    assert document["checks"]["invoking_message_is_assistant"] is True
 
 
-def test_probe_checks_expected_provider_on_exact_invoking_message(
+def test_probe_reports_fixed_provider_classes_without_gating(
     tmp_path: Path, monkeypatch
 ) -> None:
     project = tmp_path / "project"
@@ -326,18 +321,16 @@ def test_probe_checks_expected_provider_on_exact_invoking_message(
             "ses_private_identifier",
             "--current-message-id",
             "msg_tang_assistant_0001",
-            "--expect-provider",
-            "openai",
         ],
         check=False,
         capture_output=True,
         text=True,
     )
 
-    assert result.returncode == 1
+    assert result.returncode == 0
     document = json.loads(result.stdout)
     assert document["sessions"][0]["provider_classes"] == ["openai", "xai"]
-    assert document["checks"]["invoking_message_provider_matches"] is False
+    assert document["checks"]["invoking_message_is_assistant"] is True
 
 
 def test_probe_rejects_duplicate_invoking_message_identity(
@@ -364,8 +357,6 @@ def test_probe_rejects_duplicate_invoking_message_identity(
             "ses_private_identifier",
             "--current-message-id",
             "msg_tang_assistant_0001",
-            "--expect-provider",
-            "openai",
         ],
         check=False,
         capture_output=True,
@@ -509,8 +500,6 @@ def test_probe_requires_meaningful_visible_text(
             "ses_private_identifier",
             "--current-message-id",
             "msg_tang_assistant_0001",
-            "--expect-provider",
-            "openai",
         ],
         check=False,
         capture_output=True,
@@ -596,7 +585,6 @@ def test_probe_enforces_pinned_version_and_platform(
         max_sessions=10,
         current_session_id=None,
         invoking_message_id=None,
-        expected_provider=None,
         expected_version="1.17.20",
         command_timeout=30.0,
         overall_timeout=120.0,

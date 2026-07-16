@@ -4,12 +4,8 @@ import { tool } from "@opencode-ai/plugin"
 export default tool({
   description:
     "Probe Tang's OpenCode source/current-session contract without returning IDs, paths, titles, transcript text, tool values, or credentials.",
-  args: {
-    expectedProvider: tool.schema
-      .enum(["openai", "xai"])
-      .describe("Exact provider ID expected for this acceptance run"),
-  },
-  async execute(args, context) {
+  args: {},
+  async execute(_args, context) {
     const script = path.join(
       context.worktree,
       "scripts",
@@ -29,8 +25,6 @@ export default tool({
           context.sessionID,
           "--current-message-id",
           context.messageID,
-          "--expect-provider",
-          args.expectedProvider,
           "--expected-version",
           "1.17.20",
           "--overall-timeout",

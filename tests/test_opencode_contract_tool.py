@@ -16,9 +16,8 @@ def test_opencode_contract_tool_passes_exact_context_without_exposing_it() -> No
     assert "context.directory" in source
     assert "context.worktree" in source
     assert "TANG_OPENCODE_EXECUTABLE" in source
-    assert "expectedProvider" in source
-    assert '.enum(["openai", "xai"])' in source
-    assert '"--expect-provider"' in source
+    assert "expectedProvider" not in source
+    assert '"--expect-provider"' not in source
     assert '"--overall-timeout"' in source
     assert '"--expected-version"' in source
     assert '"1.17.20"' in source
