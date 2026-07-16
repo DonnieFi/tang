@@ -270,3 +270,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) require all three harnesses for every command; (b) require an OpenCode-only mode flag; (c) use one stable adapter factory that adds OpenCode to index/context when discovered or explicitly configured, while doctor always instantiates its readiness check.
 - Decision: (c) — preserve default Codex/Grok behavior on absent installs; accept `--opencode-executable` and `TANG_OPENCODE_EXECUTABLE`; expose `--harness opencode`; and have doctor report distinct missing, empty, ready, or degraded state without creating Tang storage. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
 - By: agent, applying Epic 7's permanent-integration scope and backward-compatibility acceptance criteria
+
+## 2026-07-16T20:27:22Z · tang-09a.5 · Keep continuation policy harness-based
+- Context: The pre-Epic 7 continuation service rejected every non-Codex destination even after OpenCode could prove an exact, fresh, explicitly confirmed active target.
+- Options: (a) retain Codex-only targets; (b) infer support from any indexed adapter; (c) declare the fixed destination policy `{codex, opencode}` and keep sources adapter-neutral.
+- Decision: (c) — authorization remains at the ContinuationService seam; OpenCode target proof remains in its host-context resolver; unsupported targets refuse before mutation. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: agent, under the human-approved Epic 7 scope

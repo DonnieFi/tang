@@ -140,6 +140,13 @@ always checks the OpenCode surface and distinguishes `missing`, `empty`,
 native sessions. Indexed OpenCode sessions use `O1`, `O2`, and later
 project-local handles and can be filtered with `--harness opencode`.
 
+Continuation policy is deliberately harness-based rather than provider-based:
+Codex and OpenCode are supported destinations; Codex, Grok, and OpenCode can
+be sources. An OpenCode destination must come from the exact, fresh host
+context described above and receive explicit confirmation before Tang records
+any derived edge. Tang neither writes transcript content into OpenCode nor
+reads provider credentials.
+
 On 2026-07-16, privacy-safe live reports passed from one direct OpenAI-backed
 session and one direct xAI/Grok-backed session on the pinned host. Both reports
 showed:

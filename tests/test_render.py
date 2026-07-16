@@ -11,9 +11,10 @@ NOW = datetime(2026, 7, 15, tzinfo=timezone.utc)
 
 
 def node(native_id: str, harness: str = "codex", *, current: bool = False) -> GraphNode:
+    prefix = {"codex": "C", "grok": "G", "opencode": "O"}[harness]
     return GraphNode(
         f"{harness}:map:{native_id}",
-        f"{'G' if harness == 'grok' else 'C'}{ord(native_id[0])}",
+        f"{prefix}{ord(native_id[0])}",
         harness,
         native_id,
         f"Title {native_id.upper()}",
@@ -26,12 +27,19 @@ def node(native_id: str, harness: str = "codex", *, current: bool = False) -> Gr
 
 def hero() -> MultiverseGraph:
     nodes = (
-        node("a", "grok"), node("b"), node("c"), node("d"),
-        node("e"), node("f", "grok"), node("g", current=True),
+        node("a", "grok"),
+        node("b"),
+        node("c"),
+        node("d"),
+        node("e"),
+        node("f", "grok"),
+        node("g", current=True),
     )
     by_id = {item.native_id: item.source_id for item in nodes}
     pairs = (("a", "c"), ("b", "c"), ("c", "d"), ("c", "e"), ("e", "g"), ("f", "g"))
-    edges = tuple(GraphEdge(by_id[source], by_id[target], NOW) for source, target in pairs)
+    edges = tuple(
+        GraphEdge(by_id[source], by_id[target], NOW) for source, target in pairs
+    )
     timelines = tuple(
         tuple(by_id[native_id] for native_id in path)
         for path in ("acd", "aceg", "bcd", "bceg", "fg")
@@ -83,6 +91,22 @@ def test_linear_renderer_keeps_direction_obvious() -> None:
     assert "CONTINUE" in rendered
 
 
+def test_renderer_labels_an_active_opencode_destination_honestly() -> None:
+    source = node("source", "grok")
+    target = node("target", "opencode", current=True)
+    graph = MultiverseGraph(
+        "project",
+        (source, target),
+        (GraphEdge(source.source_id, target.source_id, NOW),),
+        ((source.source_id, target.source_id),),
+    )
+
+    rendered = render_multiverse(graph, width=90, color=False)
+
+    assert "O116 · opencode" in rendered
+    assert "ACTIVE O116" in rendered
+
+
 def test_color_no_color_narrow_and_ascii_snapshots() -> None:
     graph = hero()
     color = render_multiverse(graph, width=100, color=True)
@@ -97,8 +121,7 @@ def test_color_no_color_narrow_and_ascii_snapshots() -> None:
     assert no_color == render_multiverse(graph, width=100, color=False)
     assert narrow == render_multiverse(graph, width=48, color=False)
     assert all(
-        label in narrow
-        for label in ("HANDLE", "HARNESS", "UTC", "HEALTH", "TITLE")
+        label in narrow for label in ("HANDLE", "HARNESS", "UTC", "HEALTH", "TITLE")
     )
     assert "[ACTIVE]" in narrow
     assert "MULTIVERSE NETWORK" not in narrow

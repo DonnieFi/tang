@@ -10,6 +10,9 @@ from tang.repository import StoredContinuation, TangRepository
 from tang.target import TargetResolution, TargetResolutionKind
 
 
+SUPPORTED_DESTINATION_ADAPTERS = frozenset(("codex", "opencode"))
+
+
 class ContinuationError(ValueError):
     """A structured refusal that is safe to expose through CLI surfaces."""
 
@@ -39,10 +42,13 @@ class ContinuationService:
     ) -> LinkResult:
         """Link only through a uniquely resolved or explicitly confirmed target."""
 
-        if resolution.kind is not TargetResolutionKind.RESOLVED or resolution.target is None:
+        if (
+            resolution.kind is not TargetResolutionKind.RESOLVED
+            or resolution.target is None
+        ):
             raise ContinuationError(
                 "target-unconfirmed",
-                "The current Codex target must be confirmed before linking.",
+                "The current target must be confirmed before linking.",
             )
         return self.link(
             source_ids,
@@ -74,21 +80,29 @@ class ContinuationService:
             ) from error
         ordered = tuple(dict.fromkeys(source_ids))
         if len(ordered) != len(source_ids):
-            raise ContinuationError("duplicate-source", "A source was selected more than once.")
+            raise ContinuationError(
+                "duplicate-source", "A source was selected more than once."
+            )
         if target_id in ordered:
-            raise ContinuationError("self-link", "A session cannot continue into itself.")
+            raise ContinuationError(
+                "self-link", "A session cannot continue into itself."
+            )
 
         with self._repository.transaction():
             target = self._repository.get_session(target_id)
             if target is None:
-                raise ContinuationError("unknown-target", "The target session is not indexed.")
+                raise ContinuationError(
+                    "unknown-target", "The target session is not indexed."
+                )
             if target.project_key != project_key:
                 raise ContinuationError(
-                    "foreign-target", "The target does not belong to the current project."
+                    "foreign-target",
+                    "The target does not belong to the current project.",
                 )
-            if target.source.identity.adapter != "codex":
+            if target.source.identity.adapter not in SUPPORTED_DESTINATION_ADAPTERS:
                 raise ContinuationError(
-                    "unsupported-target", "The release target must be a Codex session."
+                    "unsupported-target",
+                    "Tang supports Codex and OpenCode continuation targets.",
                 )
 
             sources = {}
@@ -106,9 +120,7 @@ class ContinuationService:
                 sources[source_id] = source
 
             existing = self._repository.continuations_for_project(project_key)
-            existing_pairs = {
-                (edge.source_id, edge.target_id) for edge in existing
-            }
+            existing_pairs = {(edge.source_id, edge.target_id) for edge in existing}
             new_sources = tuple(
                 source_id
                 for source_id in ordered
