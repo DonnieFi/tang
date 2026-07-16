@@ -7,8 +7,8 @@ verified on Linux against OpenCode `1.17.20` on 2026-07-16:
   project IDs, directories, and millisecond created/updated timestamps;
 - `opencode export SESSION_ID` supplies one `info` object plus chronological
   message objects containing typed parts; and
-- OpenCode custom-tool context supplies the active `sessionID`, `directory`,
-  and `worktree` without Tang reading provider authentication.
+- OpenCode custom-tool context supplies the active `sessionID`, `messageID`,
+  `directory`, and `worktree` without Tang reading provider authentication.
 
 The local proof used an isolated temporary OpenCode data/config/cache home,
 disabled model fetching and plugins, created one credential-free session via
@@ -20,6 +20,7 @@ based on OpenCode's published OpenAPI/SDK contract and must be confirmed by the
 privacy-safe live-provider probe before Epic 7 claims provider support.
 
 `session-list-updated.json` represents the same identity after a source change;
-`session-list-empty.json` and `session-export-malformed.json` establish absent
-and malformed boundaries. Reasoning and tool canaries must never become visible
-Tang turns or persisted capsule text.
+the zero-byte `session-list-empty.json` preserves the pinned CLI's actual empty
+stdout, and `session-export-malformed.json` establishes the malformed boundary.
+Reasoning and tool canaries must never become visible Tang turns or persisted
+capsule text.

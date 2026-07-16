@@ -16,7 +16,8 @@ The source adapter is based on documented, non-interactive CLI contracts:
   deliberately removes the visible text needed for source-cited continuation.
 
 The destination integration uses OpenCode's documented custom-tool context.
-The context supplies the exact active `sessionID`, `directory`, and `worktree`.
+The context supplies the exact active `sessionID`, invoking `messageID`,
+`directory`, and `worktree`.
 Tang can therefore require explicit confirmation of a concrete current target
 without guessing from modification times or a global “latest session.”
 
@@ -64,6 +65,8 @@ The project-local `tang_contract_probe` custom tool is discovered from
 `.opencode/tools/`. In one OpenAI-backed session and one xAI/Grok-backed
 session, ask OpenCode to call `tang_contract_probe` with the exact expected
 provider ID for that run. The report fails closed when that provider is absent.
+Acceptance is pinned to OpenCode `1.17.20` on Linux `x86_64`; other semantic
+versions and platforms cannot produce `result: "pass"` without new validation.
 
 If OpenCode is not on `PATH`, launch it with the executable path exported for
 the tool process:
@@ -80,22 +83,32 @@ python3 scripts/probe_opencode_contract.py \
   --opencode "$TANG_OPENCODE_EXECUTABLE" \
   --cwd "$PROJECT" \
   --current-session-id "$ACTIVE_OPENCODE_SESSION_ID" \
+  --current-message-id "$INVOKING_OPENCODE_MESSAGE_ID" \
   --expect-provider "$EXPECTED_PROVIDER_ID" \
+  --expected-version 1.17.20 \
   --overall-timeout 120
 ```
 
-The dynamic values above come from OpenCode tool context; do not type or send
-them separately. Return only the probe's JSON report. It contains version,
-platform, provider IDs, booleans, counts, part-type labels, and one-way identity
-digests. It cannot contain raw session IDs, export hashes, paths, titles,
-transcript text, reasoning, tool inputs/outputs, or credentials.
+The dynamic IDs above come from OpenCode tool context; do not type or send them
+separately. Return only the probe's JSON report. It contains the pinned version,
+platform, expected provider class, booleans, counts, and fixed metadata classes.
+It cannot contain raw session/message IDs, arbitrary provider/role/part labels,
+export hashes, paths, titles, transcript text, reasoning, tool inputs/outputs,
+or credentials.
 
-OpenCode `1.17.20` exposes no directory filter or pagination option for
-`session list`. The probe therefore lists the supported catalog without a
-global top-N limit, filters it to the canonical project directory, and only
-then caps exports. The active context session is always included in that cap.
-Each command has a 30-second deadline and the complete probe has a 120-second
-deadline. Failures expose only allow-listed error codes, never stderr.
+OpenCode `1.17.20`'s CLI `session list` is project-scoped but requests root
+sessions only, and its service defaults to the latest 100. The probe requests
+that boundary explicitly, reports it, sorts deterministically before capping
+exports, and fails visibly if all 100 slots are occupied. It does not claim a
+complete catalog or non-root discovery. The production adapter bead must
+validate the documented directory-filtered server catalog, include non-root
+sessions where supported, impose an explicit bound, and report partial when the
+bound is reached. It must not read OpenCode's private database.
+
+The active tool-context session is exported directly even when it is absent
+from the root catalog. Each command has a 30-second deadline and the complete
+probe has a 120-second deadline. Cancelling the OpenCode tool terminates the
+subprocess. Failures expose only allow-listed error codes, never stderr.
 
 The production ordering contract is created milliseconds followed by stable
 message ID. The probe verifies that both inputs are present and that source
@@ -108,6 +121,33 @@ Epic 7's provider claim remains pending until both reports show:
 
 - `result: "pass"`;
 - `current_session_matches: true`;
+- `invoking_message_matches_once: true` and
+  `invoking_message_provider_matches: true`;
+- `version_supported: true` and `platform_supported: true`;
 - stable, chronological, project-scoped identities;
 - at least one visible user and assistant text part; and
 - the intended OpenAI or xAI/Grok provider ID.
+
+## Functional acceptance procedure
+
+Use a clean checkout of `epic/07-opencode-integration`. The Tang CLI does not
+need to be globally installed for this contract probe; the OpenCode tool calls
+the standard-library Python script directly. Confirm the host reports OpenCode
+`1.17.20`, Linux, and `x86_64` before starting.
+
+For the OpenAI report, open a fresh top-level OpenCode session in the Tang
+worktree with an OpenAI model. First request and receive one normal short text
+answer. Then ask:
+
+> Call `tang_contract_probe` with `expectedProvider` set to `openai`. Return
+> only the tool's JSON object with no commentary.
+
+Save only that JSON object. Do not send native OpenCode logs or exports. Repeat
+the same sequence in a separate fresh top-level session backed by an xAI/Grok
+model, using `expectedProvider` set to `xai`.
+
+A successful report has `result: "pass"` and true checks for version, platform,
+catalog boundary, stable/project-scoped identities, ordering inputs, meaningful
+user/assistant text, the exact current session, the exact invoking message, and
+the invoking provider. If either report fails, return its JSON unchanged; its
+fixed error/check fields are the safe diagnostic evidence.

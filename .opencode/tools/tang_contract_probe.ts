@@ -6,8 +6,7 @@ export default tool({
     "Probe Tang's OpenCode source/current-session contract without returning IDs, paths, titles, transcript text, tool values, or credentials.",
   args: {
     expectedProvider: tool.schema
-      .string()
-      .min(1)
+      .enum(["openai", "xai"])
       .describe("Exact provider ID expected for this acceptance run"),
   },
   async execute(args, context) {
@@ -28,23 +27,40 @@ export default tool({
           context.directory,
           "--current-session-id",
           context.sessionID,
+          "--current-message-id",
+          context.messageID,
           "--expect-provider",
           args.expectedProvider,
+          "--expected-version",
+          "1.17.20",
           "--overall-timeout",
           "120",
         ],
         {
           cwd: context.directory,
           env: process.env,
-          stderr: "pipe",
+          stderr: "ignore",
           stdout: "pipe",
         },
       )
-      const timeout = setTimeout(() => processResult.kill(), 125_000)
+      const terminate = () => {
+        try {
+          processResult.kill()
+        } catch {
+          // The process may have exited between the signal and this callback.
+        }
+      }
+      const abort = () => terminate()
+      context.abort.addEventListener("abort", abort, { once: true })
+      if (context.abort.aborted) terminate()
+      const timeout = setTimeout(terminate, 125_000)
       const [stdout, exitCode] = await Promise.all([
         new Response(processResult.stdout).text(),
         processResult.exited,
-      ]).finally(() => clearTimeout(timeout))
+      ]).finally(() => {
+        clearTimeout(timeout)
+        context.abort.removeEventListener("abort", abort)
+      })
       if (exitCode !== 0 && stdout.trim().length === 0) {
         return JSON.stringify({
           schema_version: 1,
