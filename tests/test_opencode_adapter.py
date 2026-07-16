@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -16,9 +17,15 @@ from tang.adapters import (
     TurnSelection,
 )
 from tang.cli import main
+from tang.indexing import ProjectIndexer
 from tang.project import resolve_project
 from tang.repository import TangRepository
 from tang.storage import open_database
+from tang.target import (
+    OpenCodeTargetContext,
+    TargetResolutionKind,
+    resolve_opencode_target,
+)
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "opencode"
@@ -270,6 +277,133 @@ def test_scan_is_incremental_detects_changes_and_clean_deletion(
     assert len(changed.records) == 1
     assert changed.records[0].fingerprint.value == "1784224860001"
     assert deleted.removed == (first.records[0].identity,)
+
+
+def test_linked_worktree_scans_keep_directory_scoped_sessions_and_checkpoints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    primary = tmp_path / "primary"
+    linked = tmp_path / "linked"
+    subprocess.run(
+        ["git", "init", "--initial-branch=main", str(primary)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Tang Fixture"],
+        cwd=primary,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "fixture@example.invalid"],
+        cwd=primary,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "fixture baseline"],
+        cwd=primary,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "linked", str(linked)],
+        cwd=primary,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    primary_catalog, primary_export = fixture_documents(primary)
+    linked_catalog, linked_export = fixture_documents(linked)
+    linked_id = "ses_tangLinked00000000000000000002"
+    linked_catalog[0]["id"] = linked_id
+    linked_export["info"]["id"] = linked_id
+    for message in linked_export["messages"]:
+        if isinstance(message, dict) and isinstance(message.get("info"), dict):
+            message["info"]["sessionID"] = linked_id
+    state = {
+        "catalog": [*primary_catalog, *linked_catalog],
+        "exports": {SESSION_ID: primary_export, linked_id: linked_export},
+        "version": "1.17.20",
+    }
+    executable = fake_opencode(tmp_path, monkeypatch, state=state)
+    primary_adapter = OpenCodeAdapter(primary, executable)
+    linked_adapter = OpenCodeAdapter(linked, executable)
+    project = resolve_project(primary)
+    connection = open_database(primary / ".tang" / "tang.db")
+    repository = TangRepository(connection)
+    indexer = ProjectIndexer(repository)
+    try:
+        first = indexer.index((primary_adapter,), project)
+        second = indexer.index((linked_adapter,), resolve_project(linked))
+
+        assert first.indexed == second.indexed == 1
+        assert primary_adapter.source_namespace == linked_adapter.source_namespace
+        assert len(repository.sessions_for_project(project.key)) == 2
+        checkpoint = repository.get_checkpoint(
+            "opencode", primary_adapter.source_namespace, project.key
+        )
+        assert checkpoint is not None
+        checkpoint_document = json.loads(checkpoint.cursor)
+        assert checkpoint_document["schema_version"] == 2
+        assert len(checkpoint_document["scopes"]) == 2
+
+        state["catalog"] = [*linked_catalog]
+        fake_opencode(tmp_path, monkeypatch, state=state)
+        removed = indexer.index((primary_adapter,), project)
+        retained = repository.sessions_for_project(project.key)
+
+        assert removed.deleted == 1
+        assert len(retained) == 1
+        assert retained[0].source.identity.native_id == linked_id
+        assert retained[0].native_available
+
+        observed = linked_adapter.scan(None).records[0]
+        context = OpenCodeTargetContext.from_host(
+            session_id=linked_id,
+            directory=linked,
+            worktree=linked,
+            observed_source=observed,
+        )
+        resolution = resolve_opencode_target(
+            retained, resolve_project(linked), context
+        )
+        assert resolution.kind is TargetResolutionKind.CONFIRMATION_REQUIRED
+    finally:
+        connection.close()
+
+
+def test_legacy_checkpoint_forces_safe_full_scan_without_removals(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    adapter = adapter_for(tmp_path, monkeypatch, project)
+    legacy_identity = SessionIdentity(
+        "opencode", "fixture-opencode", "ses_tangLegacy00000000000000000002"
+    )
+    legacy = AdapterCheckpoint(
+        "opencode",
+        "fixture-opencode",
+        json.dumps(
+            {
+                "fingerprints": {legacy_identity.canonical: "1"},
+                "schema_version": 1,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+    )
+
+    scan = adapter.scan(legacy)
+
+    assert scan.status is BatchStatus.PARTIAL
+    assert scan.removed == ()
+    assert [warning.code for warning in scan.warnings] == ["checkpoint-upgraded"]
+    assert scan.next_checkpoint is not None
+    assert json.loads(scan.next_checkpoint.cursor)["schema_version"] == 2
 
 
 def test_catalog_includes_child_sessions_and_filters_exact_directory(

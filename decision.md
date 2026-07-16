@@ -282,3 +282,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) require users to copy native IDs into the generic CLI; (b) create a separate interactive OpenCode selector; (c) install one Tang Agent Skill with a thin `/tang` loader and private custom-tool bridge that converts exact host context into a safe project-local handle.
 - Decision: (c) — keep one workflow, reuse Tang's deterministic JSON CLI and explicit confirmation policy, preserve unrelated OpenCode configuration, and package all version-coupled assets with the wheel. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
 - By: agent, applying the human-approved permanent OpenCode integration scope
+
+## 2026-07-16T23:14:36Z · tang-09a.9 · Partition OpenCode checkpoints by physical worktree
+- Context: Linked Git worktrees intentionally share one Tang project identity and database, while OpenCode's supported catalog query is scoped to one exact physical directory; sharing one adapter namespace let a refresh in one worktree report another worktree's sessions as removed.
+- Options: (a) broaden every OpenCode scan across sibling worktrees; (b) include the physical directory in the public session namespace, changing stable identities and duplicating existing rows; (c) retain the native-store namespace and version the opaque adapter checkpoint so fingerprints and removals are partitioned by a one-way canonical-directory digest.
+- Decision: (c) — keep discovery exact-directory and private, preserve stable session identities plus the shared project graph/database, and discard legacy unscoped cursors for one safe removal-free full scan. The change remains behind the adapter interface and requires no storage migration. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: agent, applying the approved worktree-isolation acceptance criteria

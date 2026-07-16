@@ -119,6 +119,15 @@ field (`opencode-updated-ms-v1`). Tang treats an unchanged value as unchanged
 native evidence; if a future OpenCode version can alter export content without
 updating that field, it requires a new adapter contract and live verification.
 
+OpenCode catalogs are scoped to one exact canonical directory. Tang keeps the
+native-store session identity stable while partitioning its opaque incremental
+checkpoint by a one-way digest of that directory. Linked Git worktrees retain
+one shared Tang project identity, database, and session graph, but each physical
+OpenCode catalog has an independent fingerprint and deletion scope. A legacy
+unscoped checkpoint causes one safe full scan without removals before the new
+checkpoint is stored. Tang still queries only the active directory and neither
+broadens native discovery nor writes a directory path into the cursor.
+
 The active tool-context session is exported directly even when it is absent
 from the root catalog. Each command has a 30-second deadline and the complete
 probe has a 120-second deadline. Cancelling the OpenCode tool terminates the

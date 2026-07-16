@@ -88,6 +88,9 @@ class OpenCodeAdapter:
         self.source_namespace = source_namespace or self._namespace_for(
             self._executable
         )
+        self._checkpoint_scope = hashlib.sha256(
+            os.fsencode(self._project_dir)
+        ).hexdigest()
         SessionIdentity(self.adapter_key, self.source_namespace, "validation")
 
     @staticmethod
@@ -113,7 +116,8 @@ class OpenCodeAdapter:
 
     def scan(self, checkpoint: AdapterCheckpoint | None) -> ScanBatch:
         warnings: list[AdapterWarning] = []
-        previous = self._decode_checkpoint(checkpoint, warnings)
+        scopes = self._decode_checkpoint(checkpoint, warnings)
+        previous = scopes.get(self._checkpoint_scope, {})
         try:
             version = self._run_cli(("--version",), "version").strip()
         except _OpenCodeFailure as error:
@@ -154,19 +158,28 @@ class OpenCodeAdapter:
 
         removed: tuple[SessionIdentity, ...] = ()
         if not warnings:
+            absent_from_scope = previous.keys() - {
+                identity.canonical for identity in seen
+            }
+            retained_elsewhere = {
+                canonical
+                for scope, fingerprints in scopes.items()
+                if scope != self._checkpoint_scope
+                for canonical in fingerprints
+            }
             removed = tuple(
                 SessionIdentity.from_canonical(canonical)
-                for canonical in previous.keys()
-                - {identity.canonical for identity in seen}
+                for canonical in absent_from_scope - retained_elsewhere
             )
-            for identity in removed:
-                current.pop(identity.canonical, None)
+            for canonical in absent_from_scope:
+                current.pop(canonical, None)
 
+        next_scopes = {**scopes, self._checkpoint_scope: current}
         next_checkpoint = AdapterCheckpoint(
             self.adapter_key,
             self.source_namespace,
             json.dumps(
-                {"fingerprints": current, "schema_version": 1},
+                {"schema_version": 2, "scopes": next_scopes},
                 sort_keys=True,
                 separators=(",", ":"),
             ),
@@ -595,7 +608,7 @@ class OpenCodeAdapter:
         self,
         checkpoint: AdapterCheckpoint | None,
         warnings: list[AdapterWarning],
-    ) -> dict[str, str]:
+    ) -> dict[str, dict[str, str]]:
         if checkpoint is None:
             return {}
         if (
@@ -611,27 +624,29 @@ class OpenCodeAdapter:
             return {}
         try:
             payload = json.loads(checkpoint.cursor)
-            fingerprints = payload["fingerprints"]
-            if payload.get("schema_version") != 1 or not isinstance(
-                fingerprints, dict
-            ):
+            if not isinstance(payload, dict):
                 raise ValueError
-            if not all(
-                isinstance(key, str) and isinstance(value, str)
-                for key, value in fingerprints.items()
-            ):
+            if payload.get("schema_version") == 1:
+                self._validated_fingerprints(payload["fingerprints"])
+                warnings.append(
+                    AdapterWarning(
+                        "checkpoint-upgraded",
+                        "The legacy OpenCode checkpoint was discarded for a safe worktree-scoped full scan.",
+                    )
+                )
+                return {}
+            scopes = payload["scopes"]
+            if payload.get("schema_version") != 2 or not isinstance(scopes, dict):
                 raise ValueError
-            identities = [
-                SessionIdentity.from_canonical(canonical)
-                for canonical in fingerprints
-            ]
-            if any(
-                identity.adapter != self.adapter_key
-                or identity.source_namespace != self.source_namespace
-                for identity in identities
-            ):
-                raise ValueError
-            return fingerprints
+            decoded: dict[str, dict[str, str]] = {}
+            for scope, fingerprints in scopes.items():
+                if (
+                    not isinstance(scope, str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", scope)
+                ):
+                    raise ValueError
+                decoded[scope] = self._validated_fingerprints(fingerprints)
+            return decoded
         except (json.JSONDecodeError, KeyError, TypeError, ValueError):
             warnings.append(
                 AdapterWarning(
@@ -640,6 +655,21 @@ class OpenCodeAdapter:
                 )
             )
             return {}
+
+    def _validated_fingerprints(self, value: object) -> dict[str, str]:
+        if not isinstance(value, dict) or not all(
+            isinstance(key, str) and isinstance(fingerprint, str)
+            for key, fingerprint in value.items()
+        ):
+            raise ValueError
+        identities = [SessionIdentity.from_canonical(canonical) for canonical in value]
+        if any(
+            identity.adapter != self.adapter_key
+            or identity.source_namespace != self.source_namespace
+            for identity in identities
+        ):
+            raise ValueError
+        return value
 
     def _same_project(self, value: object) -> bool:
         if not isinstance(value, str) or not value:
