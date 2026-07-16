@@ -3,8 +3,23 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote
 
-from tang.adapters import CodexAdapter, GrokAdapter
+from tang.adapters import (
+    AdapterCheckpoint,
+    AdapterWarning,
+    BatchStatus,
+    CodexAdapter,
+    GrokAdapter,
+    OpaqueSourceLocator,
+    ScanBatch,
+    SessionHealth,
+    SessionIdentity,
+    SourceFingerprint,
+    SourceRecord,
+    TurnBatch,
+    TurnSelection,
+)
 from tang.cli import main
 from tang.indexing import ProjectIndexer
 from tang.project import resolve_project
@@ -13,6 +28,7 @@ from tang.storage import open_database
 
 
 NOW = datetime(2026, 7, 15, 0, 0, tzinfo=timezone.utc)
+GROK_SESSION_ID = "019f6000-1234-7000-8000-000000000099"
 
 
 def point_corpus_at_projects(discovery_corpus, current: Path, foreign: Path) -> None:
@@ -29,6 +45,59 @@ def point_corpus_at_projects(discovery_corpus, current: Path, foreign: Path) -> 
     payload = json.loads(summary.read_text())
     payload["git_root_dir"] = str(current)
     summary.write_text(json.dumps(payload, separators=(",", ":")))
+
+
+def write_grok_session(
+    home: Path, project: Path, *, malformed_summary: bool = False
+) -> Path:
+    group = home / "sessions" / quote(str(project), safe="")
+    session = group / GROK_SESSION_ID
+    session.mkdir(parents=True)
+    (group / ".cwd").write_text(str(project), encoding="utf-8")
+    summary = session / "summary.json"
+    if malformed_summary:
+        summary.write_text("{broken", encoding="utf-8")
+    else:
+        summary.write_text(
+            json.dumps(
+                {
+                    "created_at": "2026-07-15T00:00:00Z",
+                    "updated_at": "2026-07-15T00:01:00Z",
+                    "git_root_dir": str(project),
+                    "generated_title": "Scoped diagnostic fixture",
+                },
+                separators=(",", ":"),
+            ),
+            encoding="utf-8",
+        )
+    (session / "updates.jsonl").write_text(
+        json.dumps(
+            {
+                "method": "session/update",
+                "params": {
+                    "sessionId": GROK_SESSION_ID,
+                    "update": {
+                        "sessionUpdate": "user_message_chunk",
+                        "content": {"type": "text", "text": "Scoped warning fixture."},
+                    },
+                },
+                "timestamp": 1784059200,
+            },
+            separators=(",", ":"),
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return summary
+
+
+def point_codex_at_project(home: Path, project: Path) -> None:
+    log = next((home / "sessions").rglob("*.jsonl"))
+    rows = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+    rows[0]["payload"]["cwd"] = str(project)
+    log.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8"
+    )
 
 
 def test_index_is_current_project_scoped_incremental_and_restart_safe(
@@ -146,21 +215,26 @@ def test_index_json_and_human_output_are_deterministic(
     document = json.loads(first.out)
     assert document == {
         "deleted": 0,
+        "diagnostic_count": 0,
+        "diagnostics": [],
         "excluded": 1,
         "indexed": 4,
         "schema_version": 1,
         "status": "partial",
         "unchanged": 0,
         "warning_count": document["warning_count"],
+        "warnings": document["warnings"],
     }
     assert document["warning_count"] > 0
+    assert {warning["scope"] for warning in document["warnings"]} == {"project"}
     assert "warning:" in first.err
     assert str(tmp_path) not in first.out + first.err
 
     assert main(arguments) == 1
     second = capsys.readouterr()
     assert second.out == (
-        "Indexed 0; deleted 0; unchanged 0; excluded 0; status partial.\n"
+        "Indexed 0; deleted 0; unchanged 0; excluded 0; diagnostics 0; "
+        "status partial.\n"
     )
     assert "warning:" in second.err
     assert str(tmp_path) not in second.out + second.err
@@ -225,6 +299,206 @@ def test_index_advances_past_unreadable_eligible_session_and_retries_on_change(
 
         assert recovered.indexed == 1
         assert len(repository.sessions_for_project(project.key)) == 2
+    finally:
+        connection.close()
+
+
+def test_foreign_adapter_damage_is_a_complete_index_with_qualified_diagnostics(
+    copied_codex_home: Path, tmp_path: Path, capsys
+) -> None:
+    current = tmp_path / "current"
+    foreign = tmp_path / "foreign"
+    current.mkdir()
+    foreign.mkdir()
+    point_codex_at_project(copied_codex_home, current)
+    grok_home = tmp_path / "grok-home"
+    write_grok_session(grok_home, foreign, malformed_summary=True)
+    database = tmp_path / "tang.db"
+    arguments = [
+        "index",
+        "--database",
+        str(database),
+        "--cwd",
+        str(current),
+        "--codex-home",
+        str(copied_codex_home),
+        "--grok-home",
+        str(grok_home),
+    ]
+
+    assert main([*arguments, "--json"]) == 0
+    captured = capsys.readouterr()
+    document = json.loads(captured.out)
+
+    assert document["status"] == "complete"
+    assert document["indexed"] == 1
+    assert document["excluded"] == 1
+    assert document["warning_count"] == 0
+    assert document["warnings"] == []
+    assert document["diagnostic_count"] == 3
+    assert [item["code"] for item in document["diagnostics"]] == [
+        "created-at-drift",
+        "malformed-summary",
+        "updated-at-drift",
+    ]
+    assert {item["scope"] for item in document["diagnostics"]} == {"foreign"}
+    assert "diagnostic[foreign]" in captured.err
+    assert "warning:" not in captured.err
+    assert str(foreign) not in captured.out + captured.err
+
+    assert main(arguments) == 0
+    repeated = capsys.readouterr()
+    assert repeated.out == (
+        "Indexed 0; deleted 0; unchanged 0; excluded 0; diagnostics 4; "
+        "status complete.\n"
+    )
+    assert repeated.err.count("diagnostic[foreign]") == 4
+
+
+def test_foreign_codex_damage_is_a_qualified_complete_index(
+    copied_codex_home: Path, tmp_path: Path
+) -> None:
+    current = tmp_path / "current"
+    foreign = tmp_path / "foreign"
+    current.mkdir()
+    foreign.mkdir()
+    point_codex_at_project(copied_codex_home, foreign)
+    with next((copied_codex_home / "sessions").rglob("*.jsonl")).open(
+        "a", encoding="utf-8"
+    ) as log:
+        log.write("{malformed\n")
+    grok_home = tmp_path / "grok-home"
+    write_grok_session(grok_home, current)
+    connection = open_database(tmp_path / "tang.db")
+    try:
+        result = ProjectIndexer(TangRepository(connection)).index(
+            (CodexAdapter(copied_codex_home), GrokAdapter(grok_home)),
+            resolve_project(current),
+            now=NOW,
+        )
+
+        assert result.status == "complete"
+        assert result.indexed == 1
+        assert result.excluded == 1
+        assert result.warnings == ()
+        assert [diagnostic.code for diagnostic in result.diagnostics] == [
+            "malformed-jsonl"
+        ]
+        assert {diagnostic.scope for diagnostic in result.diagnostics} == {"foreign"}
+    finally:
+        connection.close()
+
+
+def test_current_or_unresolved_adapter_damage_remains_partial_and_retryable(
+    tmp_path: Path,
+) -> None:
+    current = tmp_path / "current"
+    missing = tmp_path / "missing"
+    current.mkdir()
+    grok_home = tmp_path / "grok-home"
+    summary = write_grok_session(grok_home, current, malformed_summary=True)
+    connection = open_database(tmp_path / "tang.db")
+    repository = TangRepository(connection)
+    project = resolve_project(current)
+    indexer = ProjectIndexer(repository)
+    adapter = GrokAdapter(grok_home, source_namespace="scoped-warning")
+    try:
+        first = indexer.index((adapter,), project, now=NOW)
+
+        assert first.status == "partial"
+        assert first.diagnostics == ()
+        assert "malformed-summary" in {warning.code for warning in first.warnings}
+        assert first.indexed == 1
+
+        summary.write_text(
+            json.dumps(
+                {
+                    "created_at": "2026-07-15T00:00:00Z",
+                    "updated_at": "2026-07-15T00:01:00Z",
+                    "git_root_dir": str(current),
+                },
+                separators=(",", ":"),
+            ),
+            encoding="utf-8",
+        )
+        recovered = indexer.index((adapter,), project, now=NOW)
+
+        assert recovered.status == "complete"
+        assert recovered.indexed == 1
+
+        summary.write_text(
+            json.dumps(
+                {
+                    "created_at": "2026-07-15T00:00:00Z",
+                    "updated_at": "2026-07-15T00:01:00Z",
+                    "git_root_dir": str(missing),
+                },
+                separators=(",", ":"),
+            ),
+            encoding="utf-8",
+        )
+        unresolved = indexer.index((adapter,), project, now=NOW)
+
+        assert unresolved.status == "partial"
+        assert unresolved.diagnostics == ()
+        assert {warning.code for warning in unresolved.warnings} == {
+            "project-hint-unavailable"
+        }
+    finally:
+        connection.close()
+
+
+def test_ambiguous_duplicate_warning_is_never_downgraded_by_a_foreign_record(
+    tmp_path: Path,
+) -> None:
+    current = tmp_path / "current"
+    foreign = tmp_path / "foreign"
+    current.mkdir()
+    foreign.mkdir()
+    identity = SessionIdentity("codex", "duplicate-scope", "foreign")
+    source = SourceRecord(
+        identity,
+        OpaqueSourceLocator("fixture:foreign"),
+        SourceFingerprint("sha256", "foreign"),
+        str(foreign),
+        NOW,
+        NOW,
+        health=SessionHealth.COMPLETE,
+    )
+
+    class DuplicateAdapter:
+        adapter_key = "codex"
+        source_namespace = "duplicate-scope"
+
+        def scan(self, checkpoint: AdapterCheckpoint | None) -> ScanBatch:
+            return ScanBatch(
+                BatchStatus.PARTIAL,
+                records=(source,),
+                warnings=(
+                    AdapterWarning(
+                        "duplicate-session-id",
+                        "A duplicate identity might represent another project.",
+                        identity,
+                        str(foreign),
+                    ),
+                ),
+            )
+
+        def read(self, session_ref: SourceRecord, selection: TurnSelection) -> TurnBatch:
+            raise AssertionError("a foreign record must not be read")
+
+    connection = open_database(tmp_path / "tang.db")
+    try:
+        result = ProjectIndexer(TangRepository(connection)).index(
+            (DuplicateAdapter(),), resolve_project(current), now=NOW
+        )
+
+        assert result.status == "partial"
+        assert result.excluded == 1
+        assert result.diagnostics == ()
+        assert [warning.code for warning in result.warnings] == [
+            "duplicate-session-id"
+        ]
     finally:
         connection.close()
 

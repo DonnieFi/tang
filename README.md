@@ -132,14 +132,14 @@ It does **not** supply a false product claim. Cursor's private history format re
 
 Native harness logs remain the source of truth. Tang stores only derived continuity data needed for discovery and the graph.
 
-- The SQLite database is local and created with user-only permissions (`0600`) on supported POSIX systems.
+- Each canonical project owns its local SQLite database at `.tang/tang.db`; Tang creates it with user-only permissions (`0700` directory, `0600` database) on supported POSIX systems.
 - Discovery Capsules contain at most 8 KiB of redacted visible text per session.
 - System prompts, hidden reasoning, tool payloads, tool results, file bodies, and full transcripts are excluded.
 - Selected native sources are reread and redacted when a Context Pack is created.
 - Recovered content is wrapped as untrusted historical evidence, never executable instruction.
-- `tang purge --all` removes Tang-derived records, including stored source paths;
+- `tang purge --all` removes all Tang-derived records for the current project, including stored source paths;
   it never deletes or rewrites the native harness logs that remain the source of truth.
-- `tang demo` uses a temporary data directory and must not touch native logs or the user's Tang database.
+- `tang demo` uses a temporary data directory and must not touch native logs or the user's normal project Tang database.
 
 Redaction reduces accidental disclosure; it is not encryption and does not promise protection against forensic recovery.
 
@@ -176,10 +176,10 @@ The Codex skill is the primary interactive experience. The CLI stays scriptable 
 | Command | Purpose |
 |---|---|
 | `tang index` | Incrementally index sessions for the current project |
-| `tang browse` | List indexed sessions and capability status |
-| `tang search QUERY` | Search redacted Discovery Capsules; simple keywords or quoted phrases are recommended |
+| `tang browse [--page N]` | Show up to five numbered, redacted sessions with short project handles such as `C1` or `G2` |
+| `tang search QUERY [--page N]` | Search redacted Discovery Capsules and show numbered choices; simple keywords or quoted phrases are recommended |
 | `tang context SESSION...` | Produce a compact Markdown or JSON Context Pack |
-| `tang link --from SESSION... --current` | Confirm links into the current Codex session |
+| `tang link --from SESSION... --current` | Record selected sources into an explicitly confirmed current Codex session |
 | `tang graph [SESSION]` | Render the containing Multiverse Map |
 | `tang purge --all` | Remove Tang-derived data after confirmation |
 | `tang doctor` | Check installation, database, FTS5, and adapter readiness without creating absent derived storage |
@@ -188,7 +188,25 @@ The Codex skill is the primary interactive experience. The CLI stays scriptable 
 
 Human-readable output goes to `stdout`; diagnostics go to `stderr`. JSON output uses deterministic ordering, RFC 3339 UTC timestamps, and `schema_version: 1`.
 `tang index` exits with status 1 when indexing is partial so automation can detect
-degraded results without parsing its output.
+degraded results without parsing its output. JSON and stderr distinguish
+project-impacting `warnings` from `diagnostic[foreign]` records: a malformed
+session proven to belong to another project remains visible without degrading
+the active project's successful index.
+
+Human `browse` and `search` show at most five numbered choices per page with a
+short project-local handle (`C1` for Codex, `G1` for Grok), redacted display
+name, harness, time, health, capability, and snippet. Use `--page 2` for the
+next page. Pass those case-insensitive handles directly to `context`, `link`,
+or `graph`. Handles remain stable in the project's `.tang/tang.db`; `purge
+--all` resets them with all other derived data. JSON retains the exact
+`source_id` for scripts and the Codex skill's private selection mapping.
+
+Continuation is never automatic. After selecting sources and reviewing the
+Context Pack, confirm one target and run `tang link`; then use `tang graph` on
+the returned target to see the recorded continuity. Replaying the same
+confirmed link is idempotent and reports an existing edge rather than creating
+another. The canonical command is `link`: if you try `tang connect`, Tang
+points you to `tang link --help` instead of registering a second workflow.
 
 ## Judge path
 

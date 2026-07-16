@@ -200,7 +200,7 @@ def test_context_cli_renders_deterministic_markdown_and_json(
         connection.close()
     arguments = [
         "context",
-        native.identity.canonical,
+        "c1",
         "--database",
         str(database),
         "--cwd",

@@ -151,6 +151,7 @@ class AdapterWarning:
     code: str
     message: str = field(repr=False)
     identity: SessionIdentity | None = None
+    project_hint: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "code", _identity_segment(self.code, "warning code"))
@@ -158,9 +159,9 @@ class AdapterWarning:
             raise ValueError("warning message must not be empty")
 
     @property
-    def sort_key(self) -> tuple[str, str, str]:
+    def sort_key(self) -> tuple[str, str, str, str]:
         identity = self.identity.canonical if self.identity is not None else ""
-        return (self.code, identity, self.message)
+        return (self.code, identity, self.message, self.project_hint or "")
 
 
 @dataclass(frozen=True, slots=True)

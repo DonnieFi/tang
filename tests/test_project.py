@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from tang.project import ProjectKind, ProjectResolutionError, resolve_project
+from tang.storage import project_data_path
 
 
 def git(*args: str, cwd: Path | None = None) -> None:
@@ -38,6 +39,10 @@ def test_main_and_linked_worktree_share_project_identity(tmp_path: Path) -> None
     assert primary.key == worktree.key
     assert primary.identity_path == worktree.identity_path
     assert primary.display_name == worktree.display_name == "primary-project"
+    assert primary.root_path == worktree.root_path == repository.resolve()
+    assert project_data_path(primary) == project_data_path(worktree) == (
+        repository / ".tang" / "tang.db"
+    )
 
 
 def test_separate_clone_has_distinct_identity(tmp_path: Path) -> None:
@@ -51,6 +56,19 @@ def test_separate_clone_has_distinct_identity(tmp_path: Path) -> None:
     assert source.kind is copied.kind is ProjectKind.GIT
     assert source.key != copied.key
     assert source.identity_path != copied.identity_path
+
+
+def test_bare_git_repository_uses_its_own_root_for_project_storage(
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "bare-project.git"
+    git("init", "--bare", str(repository))
+
+    project = resolve_project(repository)
+
+    assert project.kind is ProjectKind.GIT
+    assert project.root_path == repository.resolve()
+    assert project_data_path(project) == repository / ".tang" / "tang.db"
 
 
 def test_symlink_and_normalized_paths_resolve_to_same_project(tmp_path: Path) -> None:
@@ -75,6 +93,7 @@ def test_non_git_directory_uses_resolved_path_identity(tmp_path: Path) -> None:
     assert direct.kind is ProjectKind.DIRECTORY
     assert direct.identity_path == directory.resolve()
     assert direct == through_alias
+    assert project_data_path(direct) == directory / ".tang" / "tang.db"
 
 
 def test_display_and_repr_do_not_expose_absolute_path(tmp_path: Path) -> None:

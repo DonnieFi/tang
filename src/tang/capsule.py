@@ -10,6 +10,7 @@ from tang.redaction import (
     ContentKind,
     RedactionSeam,
     Redactor,
+    conceal_native_session_ids,
     required_redaction,
 )
 from tang.repository import StoredCapsule
@@ -18,6 +19,7 @@ from tang.timeutil import optional_rfc3339
 
 CAPSULE_BYTE_LIMIT = 8_192
 _MAX_TITLE_CHARACTERS = 256
+_MAX_DISPLAY_NAME_CHARACTERS = 96
 _MAX_EXCERPT_CHARACTERS = 2_048
 _MAX_RECENT_EXCERPTS = 4
 _TRUNCATED = "…[Truncated]"
@@ -70,8 +72,14 @@ class DiscoveryCapsuleBuilder:
             excerpts.append(excerpt)
             redaction_count += count
 
+        display_name, display_name_truncated = self._display_name(
+            source, title, excerpts
+        )
+
         content: dict[str, object] = {
             "capabilities": ["native-reread", "visible-user-agent-turns"],
+            "display_name": display_name,
+            "display_name_truncated": display_name_truncated,
             "excerpts": excerpts,
             "harness": source.identity.adapter,
             "health": source.health.value,
@@ -96,6 +104,35 @@ class DiscoveryCapsuleBuilder:
             search_text="\n".join(search_parts),
             byte_count=len(encoded),
             updated_at=source.updated_at,
+        )
+
+    @staticmethod
+    def _display_name(
+        source: SourceRecord, title: str, excerpts: list[dict[str, object]]
+    ) -> tuple[str, bool]:
+        """Build a compact recognizable label from already permitted evidence."""
+
+        candidate = title
+        if not candidate:
+            candidate = next(
+                (
+                    str(excerpt["text"])
+                    for excerpt in excerpts
+                    if excerpt["role"] == TurnRole.USER.value
+                ),
+                "",
+            )
+        if candidate:
+            normalized = " ".join(candidate.split())
+            if normalized:
+                return _bounded(
+                    conceal_native_session_ids(normalized),
+                    _MAX_DISPLAY_NAME_CHARACTERS,
+                )
+        return (
+            f"{source.identity.adapter.title()} session · "
+            f"{optional_rfc3339(source.updated_at)}",
+            False,
         )
 
     @staticmethod

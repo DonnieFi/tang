@@ -5,9 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from tang.adapters import BatchStatus, SessionAdapter, SourceRecord, TurnSelection
+from tang.adapters import (
+    AdapterWarning,
+    BatchStatus,
+    SessionAdapter,
+    SourceRecord,
+    TurnSelection,
+)
 from tang.capsule import DiscoveryCapsuleBuilder
-from tang.project import ProjectIdentity, ProjectResolutionError
+from tang.project import ProjectIdentity, ProjectResolutionError, resolve_project
 from tang.repository import StoredCapsule, TangRepository
 from tang.target import TargetCandidate
 
@@ -20,12 +26,26 @@ class IndexWarning:
 
 
 @dataclass(frozen=True, slots=True)
+class IndexDiagnostic:
+    """A visible store-wide issue proven not to affect this project."""
+
+    code: str
+    message: str = field(repr=False)
+    scope: str
+
+    def __post_init__(self) -> None:
+        if self.scope != "foreign":
+            raise ValueError("only foreign diagnostics are non-impacting")
+
+
+@dataclass(frozen=True, slots=True)
 class IndexResult:
     indexed: int
     deleted: int
     unchanged: int
     excluded: int
     warnings: tuple[IndexWarning, ...]
+    diagnostics: tuple[IndexDiagnostic, ...] = ()
 
     @property
     def status(self) -> str:
@@ -42,6 +62,29 @@ class ProjectIndexer:
         self._repository = repository
         self._capsules = capsule_builder or DiscoveryCapsuleBuilder()
 
+    @staticmethod
+    def _is_proven_foreign_warning(
+        warning: AdapterWarning,
+        record_scopes: dict[str, str],
+        active_project: ProjectIdentity,
+    ) -> bool:
+        """Downgrade only warnings tied to one resolvable foreign source."""
+
+        if warning.code == "duplicate-session-id":
+            # A duplicate identity can represent a second, differently scoped
+            # native file, so a single record's project hint is insufficient.
+            return False
+        if warning.identity is not None:
+            scope = record_scopes.get(warning.identity.canonical)
+            if scope is not None:
+                return scope == "foreign"
+        if warning.project_hint is None:
+            return False
+        try:
+            return resolve_project(warning.project_hint).key != active_project.key
+        except (OSError, ValueError, ProjectResolutionError):
+            return False
+
     def index(
         self,
         adapters: tuple[SessionAdapter, ...],
@@ -51,6 +94,7 @@ class ProjectIndexer:
     ) -> IndexResult:
         indexed = deleted = unchanged = excluded = 0
         warnings: list[IndexWarning] = []
+        diagnostics: list[IndexDiagnostic] = []
         timestamp = now or datetime.now(timezone.utc)
 
         for adapter in adapters:
@@ -58,16 +102,10 @@ class ProjectIndexer:
                 adapter.adapter_key, adapter.source_namespace, active_project.key
             )
             scan = adapter.scan(prior_checkpoint)
-            warnings.extend(
-                IndexWarning(
-                    warning.code,
-                    warning.message,
-                    warning.identity.canonical if warning.identity else None,
-                )
-                for warning in scan.warnings
-            )
             pending: list[tuple[SourceRecord, StoredCapsule]] = []
             checkpoint_safe = True
+            record_scopes: dict[str, str] = {}
+            eligible_sources: list[SourceRecord] = []
             for source in scan.records:
                 try:
                     candidate = TargetCandidate.from_source(source)
@@ -82,8 +120,24 @@ class ProjectIndexer:
                     checkpoint_safe = False
                     continue
                 if candidate.project_key != active_project.key:
+                    record_scopes[source.identity.canonical] = "foreign"
                     excluded += 1
                     continue
+                record_scopes[source.identity.canonical] = "current"
+                eligible_sources.append(source)
+
+            for warning in scan.warnings:
+                source_id = warning.identity.canonical if warning.identity else None
+                if self._is_proven_foreign_warning(
+                    warning, record_scopes, active_project
+                ):
+                    diagnostics.append(
+                        IndexDiagnostic(warning.code, warning.message, "foreign")
+                    )
+                    continue
+                warnings.append(IndexWarning(warning.code, warning.message, source_id))
+
+            for source in eligible_sources:
                 stored_fingerprint = self._repository.fingerprint_for(
                     source.identity.canonical
                 )
@@ -161,4 +215,11 @@ class ProjectIndexer:
                 indexed += len(pending)
                 deleted += len(removable)
 
-        return IndexResult(indexed, deleted, unchanged, excluded, tuple(warnings))
+        return IndexResult(
+            indexed,
+            deleted,
+            unchanged,
+            excluded,
+            tuple(warnings),
+            tuple(diagnostics),
+        )

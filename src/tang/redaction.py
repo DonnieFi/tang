@@ -125,6 +125,12 @@ DEFAULT_RULES = (
 )
 
 
+_NATIVE_SESSION_UUID = re.compile(
+    r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-"
+    r"[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}(?![0-9A-Fa-f])"
+)
+
+
 class Redactor:
     """Apply a stable ordered corpus of conservative secret patterns."""
 
@@ -175,6 +181,12 @@ def required_redaction(
             f"{kind.value} content was unexpectedly excluded at {seam.value}"
         )
     return result
+
+
+def conceal_native_session_ids(text: str) -> str:
+    """Hide UUID-shaped native session handles on human discovery surfaces."""
+
+    return _NATIVE_SESSION_UUID.sub("[session]", text)
 
 
 DEFAULT_REDACTOR = Redactor()

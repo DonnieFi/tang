@@ -73,10 +73,11 @@ class GrokAdapter:
             )
 
         warnings: list[AdapterWarning] = []
-        previous = self._decode_checkpoint(checkpoint, warnings)
+        previous, validated = self._decode_checkpoint(checkpoint, warnings)
         # Carry unseen entries forward. Epic 3 will add explicit deletion
         # handling; Epic 1 must never let partial scans erase known-good state.
         current: dict[str, str] = dict(previous)
+        current_validated = set(validated)
         records: list[SourceRecord] = []
         seen: set[SessionIdentity] = set()
 
@@ -101,8 +102,16 @@ class GrokAdapter:
             )
             seen.add(identity)
             try:
+                fingerprint = self._fingerprint(session_dir)
+                if (
+                    previous.get(identity.canonical) == fingerprint.value
+                    and identity.canonical in validated
+                ):
+                    # Keep the complete native-content digest check while avoiding
+                    # a second JSON metadata parse for unchanged sessions.
+                    continue
                 record, record_warnings, summary_valid = self._source_record(
-                    session_dir, identity
+                    session_dir, identity, fingerprint
                 )
             except _UnsafeSourceError:
                 warnings.append(
@@ -123,17 +132,30 @@ class GrokAdapter:
                 )
                 continue
 
-            warnings.extend(record_warnings)
+            warnings.extend(
+                AdapterWarning(
+                    warning.code,
+                    warning.message,
+                    warning.identity,
+                    record.project_hint,
+                )
+                for warning in record_warnings
+            )
             if not summary_valid and identity.canonical in previous:
                 warnings.append(
                     AdapterWarning(
                         "last-known-good-retained",
                         "Invalid current metadata was ignored so the prior record remains authoritative.",
                         identity,
+                        record.project_hint,
                     )
                 )
                 continue
             current[identity.canonical] = record.fingerprint.value
+            if summary_valid:
+                current_validated.add(identity.canonical)
+            else:
+                current_validated.discard(identity.canonical)
             if previous.get(identity.canonical) != record.fingerprint.value:
                 records.append(record)
 
@@ -147,12 +169,17 @@ class GrokAdapter:
             )
             for identity in removed:
                 current.pop(identity.canonical, None)
+                current_validated.discard(identity.canonical)
 
         next_checkpoint = AdapterCheckpoint(
             self.adapter_key,
             self.source_namespace,
             json.dumps(
-                {"schema_version": 1, "fingerprints": current},
+                {
+                    "schema_version": 2,
+                    "fingerprints": current,
+                    "validated": sorted(current_validated),
+                },
                 sort_keys=True,
                 separators=(",", ":"),
             ),
@@ -388,7 +415,10 @@ class GrokAdapter:
             return False
 
     def _source_record(
-        self, session_dir: Path, identity: SessionIdentity
+        self,
+        session_dir: Path,
+        identity: SessionIdentity,
+        fingerprint: SourceFingerprint,
     ) -> tuple[SourceRecord, tuple[AdapterWarning, ...], bool]:
         warnings: list[AdapterWarning] = []
         session_dir = self._validated_session_dir(session_dir)
@@ -476,7 +506,7 @@ class GrokAdapter:
             SourceRecord(
                 identity=identity,
                 locator=OpaqueSourceLocator(str(session_dir.resolve())),
-                fingerprint=self._fingerprint(session_dir),
+                fingerprint=fingerprint,
                 project_hint=project_hint,
                 started_at=started_at,
                 updated_at=updated_at,
@@ -589,9 +619,9 @@ class GrokAdapter:
         self,
         checkpoint: AdapterCheckpoint | None,
         warnings: list[AdapterWarning],
-    ) -> dict[str, str]:
+    ) -> tuple[dict[str, str], frozenset[str]]:
         if checkpoint is None:
-            return {}
+            return {}, frozenset()
         if (
             checkpoint.adapter != self.adapter_key
             or checkpoint.source_namespace != self.source_namespace
@@ -602,20 +632,30 @@ class GrokAdapter:
                     "The checkpoint belongs to another adapter namespace; a full scan ran.",
                 )
             )
-            return {}
+            return {}, frozenset()
         try:
             payload = json.loads(checkpoint.cursor)
             fingerprints = payload["fingerprints"]
-            if payload.get("schema_version") != 1 or not isinstance(
-                fingerprints, dict
-            ):
+            schema_version = payload.get("schema_version")
+            if schema_version not in {1, 2} or not isinstance(fingerprints, dict):
                 raise ValueError
             if not all(
                 isinstance(key, str) and isinstance(value, str)
                 for key, value in fingerprints.items()
             ):
                 raise ValueError
-            return fingerprints
+            if schema_version == 1:
+                # Revalidate legacy checkpoint entries once before treating them
+                # as safe to skip; v1 did not record structural validity.
+                return fingerprints, frozenset()
+            validated = payload["validated"]
+            if (
+                not isinstance(validated, list)
+                or not all(isinstance(value, str) for value in validated)
+                or not set(validated).issubset(fingerprints)
+            ):
+                raise ValueError
+            return fingerprints, frozenset(validated)
         except (json.JSONDecodeError, KeyError, TypeError, ValueError):
             warnings.append(
                 AdapterWarning(
@@ -623,7 +663,7 @@ class GrokAdapter:
                     "The checkpoint was invalid; a full scan ran.",
                 )
             )
-            return {}
+            return {}, frozenset()
 
     @staticmethod
     def _visible_update(

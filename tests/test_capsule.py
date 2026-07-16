@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -100,6 +101,73 @@ def test_capsule_keeps_first_user_goal_and_recent_chronology_under_utf8_cap(
     )
     assert excerpts[-1]["ordinal"] == 11
     assert capsule.content["omitted_visible_turns"] > 0
+
+
+def test_display_name_prefers_a_redacted_title_then_a_bounded_user_goal(
+    codex_fixture_home: Path,
+) -> None:
+    source, read = fixture_source_and_read(codex_fixture_home)
+    native_id = source.identity.native_id
+    titled = replace(
+        source,
+        title=f'Resume {native_id} with PASSWORD="display-name-secret"',
+    )
+
+    title_capsule = DiscoveryCapsuleBuilder().build(titled, read, "project-a")
+
+    assert "display-name-secret" not in title_capsule.content["display_name"]
+    assert native_id not in title_capsule.content["display_name"]
+    assert "[REDACTED:credential]" in title_capsule.content["display_name"]
+    assert "[session]" in title_capsule.content["display_name"]
+
+    long_goal = "Recover the migration checkpoint " + "x" * 200
+    untitled = replace(source, title=None)
+    goal_read = TurnBatch(
+        identity=source.identity,
+        status=BatchStatus.COMPLETE,
+        turns=(
+            VisibleTurn(
+                ordinal=0,
+                role=TurnRole.USER,
+                text=long_goal,
+                citation_locator="jsonl:1",
+                timestamp=source.updated_at,
+            ),
+        ),
+    )
+
+    goal_capsule = DiscoveryCapsuleBuilder().build(untitled, goal_read, "project-a")
+
+    assert goal_capsule.content["display_name"].startswith(
+        "Recover the migration checkpoint"
+    )
+    assert goal_capsule.content["display_name"].endswith("…[Truncated]")
+    assert len(goal_capsule.content["display_name"]) <= 96
+
+
+def test_display_name_has_a_neutral_fallback_without_a_title_or_user_turn(
+    codex_fixture_home: Path,
+) -> None:
+    source, _read = fixture_source_and_read(codex_fixture_home)
+    agent_only = TurnBatch(
+        identity=source.identity,
+        status=BatchStatus.COMPLETE,
+        turns=(
+            VisibleTurn(
+                ordinal=0,
+                role=TurnRole.AGENT,
+                text="Only an agent response is available.",
+                citation_locator="jsonl:1",
+                timestamp=source.updated_at,
+            ),
+        ),
+    )
+
+    capsule = DiscoveryCapsuleBuilder().build(
+        replace(source, title=None), agent_only, "project-a"
+    )
+
+    assert capsule.content["display_name"] == "Codex session · 2026-07-14T20:01:02Z"
 
 
 def test_capsule_repository_update_delete_and_fts(codex_fixture_home: Path, tmp_path: Path) -> None:

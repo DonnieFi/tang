@@ -41,6 +41,16 @@ class ProjectIdentity:
         if not self.key or not self.display_name or not self.identity_path.is_absolute():
             raise ValueError("project identity must be complete and absolute")
 
+    @property
+    def root_path(self) -> Path:
+        """Return the canonical project directory that owns derived state."""
+
+        return (
+            self.identity_path.parent
+            if self.kind is ProjectKind.GIT and self.identity_path.name == ".git"
+            else self.identity_path
+        )
+
 
 def _key(kind: ProjectKind, identity_path: Path) -> str:
     digest = hashlib.sha256(str(identity_path).encode("utf-8")).hexdigest()

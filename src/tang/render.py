@@ -40,7 +40,7 @@ def _node_label(node: GraphNode, *, ascii_only: bool) -> Text:
         active if node.current else "  ",
         style=f"bold {STEEL}" if node.current else "",
     )
-    label.append(_compact_id(node.native_id, ascii_only=ascii_only), style=f"bold {TEAL}")
+    label.append(_compact_id(node.handle, ascii_only=ascii_only), style=f"bold {TEAL}")
     separator = " | " if ascii_only else " · "
     label.append(
         f"{separator}{_safe(node.harness, ascii_only=ascii_only)}", style="white"
@@ -159,14 +159,14 @@ def render_multiverse(
             item = Text(overflow="fold")
             item.append("[ACTIVE] " if node.current else "", style=f"bold {STEEL}")
             item.append(
-                f"HANDLE {_safe(node.harness, ascii_only=ascii_only)}",
+                f"HANDLE {_safe(node.handle, ascii_only=ascii_only)}",
                 style=f"bold {TEAL}",
             )
             item.append(
+                f" | HARNESS {_safe(node.harness, ascii_only=ascii_only)}"
                 f" | UTC {rfc3339(node.updated_at)}"
                 f" | HEALTH {node.health.value}\n"
-                f"TITLE {_safe(node.title or '(untitled)', ascii_only=ascii_only)}\n"
-                f"SOURCE ID {_safe(node.source_id, ascii_only=ascii_only)}"
+                f"TITLE {_safe(node.title or '(untitled)', ascii_only=ascii_only)}"
             )
             details.add_row(item)
     else:
@@ -177,17 +177,17 @@ def render_multiverse(
             box=table_box,
         )
         details.add_column("HANDLE", no_wrap=True)
+        details.add_column("HARNESS", no_wrap=True)
         details.add_column("UTC", no_wrap=True)
         details.add_column("HEALTH", no_wrap=True)
         details.add_column("TITLE", overflow="fold")
-        details.add_column("SOURCE ID", overflow="fold")
         for node in graph.nodes:
             details.add_row(
-                f"{'ACTIVE ' if node.current else ''}{node.harness}",
+                f"{'ACTIVE ' if node.current else ''}{node.handle}",
+                node.harness,
                 rfc3339(node.updated_at),
                 node.health.value,
                 _safe(node.title or "(untitled)", ascii_only=ascii_only),
-                _safe(node.source_id, ascii_only=ascii_only),
                 style=f"bold {TEAL}" if node.current else None,
             )
 

@@ -189,7 +189,7 @@ def run_acceptance(wheel: Path, work: Path, python: str) -> dict[str, Any]:
     current, _foreign, codex_home, grok_home = _prepare_corpus(work)
     native_before = _tree_hashes(work / "native")
     executable, interpreter = _install_wheel(wheel, work, python)
-    database = work / "data" / "tang.db"
+    database = current / ".tang" / "tang.db"
     skill_home = work / "codex-skill-home"
     environment = {
         **os.environ,
@@ -199,7 +199,7 @@ def run_acceptance(wheel: Path, work: Path, python: str) -> dict[str, Any]:
         "PYTHONUTF8": "1",
     }
     runner = Runner(executable, environment)
-    common = ["--database", str(database), "--cwd", str(current)]
+    common = ["--cwd", str(current)]
     adapters = ["--codex-home", str(codex_home), "--grok-home", str(grok_home)]
 
     help_result = runner.run("help", ["--help"])
@@ -210,9 +210,25 @@ def run_acceptance(wheel: Path, work: Path, python: str) -> dict[str, Any]:
     _require(index_doc["status"] == "partial", "fixture index should report partial")
     _require(index_doc["indexed"] == 4, "fixture index should index four current-project sessions")
     _require(index_doc["excluded"] == 1, "fixture index should exclude one foreign session")
+    _require(
+        all(item["scope"] == "project" for item in index_doc["warnings"]),
+        "partial fixture warnings were not qualified as project-impacting",
+    )
+    _require(
+        index_doc["diagnostics"] == [],
+        "fixture has no proven-foreign adapter damage",
+    )
     _require(database.is_file(), "index did not create the configured database")
     if os.name == "posix":
         _require(stat.S_IMODE(database.stat().st_mode) == 0o600, "database mode is not 0600")
+        _require(
+            stat.S_IMODE(database.parent.stat().st_mode) == 0o700,
+            "project storage directory mode is not 0700",
+        )
+    _require(
+        not (work / "xdg-data").exists(),
+        "normal commands created a user-global database fallback",
+    )
 
     repeat = runner.run(
         "index-repeat", ["index", *common, *adapters, "--json"], expected=1
@@ -229,15 +245,88 @@ def run_acceptance(wheel: Path, work: Path, python: str) -> dict[str, Any]:
         {item["harness"] for item in results} == {"codex", "grok"},
         "search did not find both harnesses",
     )
+    _require(
+        all(isinstance(item.get("display_name"), str) and item["display_name"] for item in results),
+        "search did not provide non-empty human display names",
+    )
     _require(runner.results[-1]["elapsed_seconds"] < 10, "search exceeded 10 seconds")
+
+    browse_page = runner.run("browse-page", ["browse", *common, "--page", "1", "--json"])
+    browse_page_doc = _json(browse_page.stdout, "browse page")
+    _require(browse_page_doc["page"] == 1, "browse did not report its first page")
+    _require(
+        all("choice_number" in item for item in browse_page_doc["results"]),
+        "paged browse omitted choice numbers",
+    )
+    _require(
+        all(
+            isinstance(item.get("session_handle"), str)
+            and item["session_handle"].isalnum()
+            and len(item["session_handle"]) <= 4
+            for item in browse_page_doc["results"]
+        ),
+        "paged browse omitted simple project session handles",
+    )
+    human_browse = runner.run("browse-human", ["browse", *common])
+    _require("Page 1 of 1" in human_browse.stdout, "human browse omitted page context")
+    _require("[1] " in human_browse.stdout, "human browse omitted numbered choices")
+    _require(
+        all(
+            item["session_handle"] in human_browse.stdout
+            for item in browse_page_doc["results"]
+        ),
+        "human browse omitted a linkable project session handle",
+    )
+    _require(
+        all(
+            item["source_id"] not in human_browse.stdout
+            and item["source_id"].rsplit(":", 1)[1] not in human_browse.stdout
+            for item in browse_page_doc["results"]
+        ),
+        "human browse exposed a canonical or native session identifier",
+    )
 
     selected = [
         next(item["source_id"] for item in results if item["harness"] == harness)
         for harness in ("grok", "codex")
     ]
+    handles_by_source = {
+        item["source_id"]: item["session_handle"]
+        for item in browse_page_doc["results"]
+    }
+    selected_handles = [handles_by_source[source_id] for source_id in selected]
+    current_source_id = selected[1]
+    current_native_id = current_source_id.rsplit(":", 1)[1]
+    excluded_search = runner.run(
+        "search-exclude-current",
+        [
+            "search",
+            "checkpoint",
+            *common,
+            "--exclude-current",
+            "--current-native-id",
+            current_native_id,
+            "--json",
+        ],
+        timeout=10,
+    )
+    excluded_results = _json(excluded_search.stdout, "search exclude current")["results"]
+    _require(
+        all(item["source_id"] != current_source_id for item in excluded_results),
+        "search returned the exactly excluded current session",
+    )
+    _require(
+        any(item["harness"] == "grok" for item in excluded_results),
+        "current exclusion removed unrelated Grok sources",
+    )
+    connect = runner.run("connect-guidance", ["connect"], expected=2)
+    _require(
+        "tang link" in connect.stderr and "explicitly confirming a target" in connect.stderr,
+        "connect did not provide the safe canonical link route",
+    )
     context = runner.run(
         "context",
-        ["context", *selected, *common, *adapters, "--json"],
+        ["context", *selected_handles, *common, *adapters, "--json"],
         timeout=30,
     )
     pack = _json(context.stdout, "context")
@@ -264,7 +353,7 @@ def run_acceptance(wheel: Path, work: Path, python: str) -> dict[str, Any]:
         [
             "link",
             "--from",
-            *selected,
+            *selected_handles,
             "--current",
             "--current-native-id",
             target_suffix,
@@ -280,13 +369,14 @@ def run_acceptance(wheel: Path, work: Path, python: str) -> dict[str, Any]:
         "link sources changed from the explicit selection",
     )
     _require(link_doc["target_id"].endswith(TARGET_NATIVE_ID), "link resolved the wrong target")
+    target_handle = handles_by_source[link_doc["target_id"]]
 
     ambiguous = runner.run(
         "ambiguous-link-refusal",
         [
             "link",
             "--from",
-            *selected,
+            *selected_handles,
             "--current",
             *common,
             "--codex-home",
@@ -302,7 +392,7 @@ def run_acceptance(wheel: Path, work: Path, python: str) -> dict[str, Any]:
 
     cycle = runner.run(
         "cycle-refusal",
-        ["link", "--from", link_doc["target_id"], "--to", selected[1], *common],
+        ["link", "--from", target_handle, "--to", selected_handles[1], *common],
         expected=2,
     )
     _require("error[cycle]" in cycle.stderr, "cycle was not rejected")
@@ -310,7 +400,7 @@ def run_acceptance(wheel: Path, work: Path, python: str) -> dict[str, Any]:
     graph = runner.run(
         "graph-wide",
         [
-            "graph", link_doc["target_id"], *common, "--codex-home", str(codex_home),
+            "graph", target_handle, *common, "--codex-home", str(codex_home),
             "--current-native-id", TARGET_NATIVE_ID, "--width", "120",
         ],
     )
@@ -322,18 +412,18 @@ def run_acceptance(wheel: Path, work: Path, python: str) -> dict[str, Any]:
 
     narrow = runner.run(
         "graph-narrow-ascii",
-        ["graph", link_doc["target_id"], *common, "--width", "40", "--ascii"],
+        ["graph", target_handle, *common, "--width", "40", "--ascii"],
     )
     _require(narrow.stdout.isascii(), "ASCII graph emitted non-ASCII output")
     _require("TANG MULTIVERSE MAP" in narrow.stdout, "narrow graph omitted its title")
 
     doctor = runner.run(
-        "doctor", ["doctor", "--database", str(database), *adapters, "--json"], expected=1
+        "doctor", ["doctor", *common, *adapters, "--json"], expected=1
     )
     doctor_doc = _json(doctor.stdout, "doctor")
     _require(doctor_doc["status"] == "degraded", "partial fixture should make doctor degraded")
 
-    purge = runner.run("purge", ["purge", "--all", "--yes", "--database", str(database)])
+    purge = runner.run("purge", ["purge", "--all", "--yes", *common])
     _require(
         "Native harness logs were not modified" in purge.stdout,
         "purge omitted its native-data guarantee",

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import os
 import sqlite3
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from pathlib import Path
+
+from tang.project import ProjectIdentity
 
 
 BUSY_TIMEOUT_MS = 5_000
@@ -108,23 +110,59 @@ MIGRATIONS: tuple[Migration, ...] = (
             "CREATE INDEX continuation_edges_project ON continuation_edges(project_key, source_id, target_id)",
         ),
     ),
+    (
+        5,
+        (
+            "ALTER TABLE sessions ADD COLUMN session_handle TEXT",
+            """
+            WITH prefixed AS (
+                SELECT
+                    source_id,
+                    project_key,
+                    started_at,
+                    adapter,
+                    CASE adapter
+                        WHEN 'codex' THEN 'C'
+                        WHEN 'grok' THEN 'G'
+                        WHEN 'opencode' THEN 'O'
+                        WHEN 'cursor' THEN 'R'
+                        ELSE 'S'
+                    END AS prefix
+                FROM sessions
+            ),
+            ranked AS (
+                SELECT
+                    source_id,
+                    prefix || CAST(
+                        ROW_NUMBER() OVER (
+                            PARTITION BY project_key, prefix
+                            ORDER BY started_at, source_id
+                        ) AS TEXT
+                    ) AS session_handle
+                FROM prefixed
+            )
+            UPDATE sessions
+            SET session_handle = (
+                SELECT ranked.session_handle
+                FROM ranked
+                WHERE ranked.source_id = sessions.source_id
+            )
+            """,
+            "CREATE UNIQUE INDEX sessions_project_handle ON sessions(project_key, session_handle)",
+        ),
+    ),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 
 
-def data_path(environment: Mapping[str, str] | None = None) -> Path:
-    """Return the platform-native Tang database path without creating it."""
+class DatabaseOpenError(RuntimeError):
+    """The configured derived-storage path cannot be opened safely."""
 
-    environ = os.environ if environment is None else environment
-    base = environ.get("XDG_DATA_HOME")
-    if base:
-        root = Path(base).expanduser()
-    else:
-        home = environ.get("HOME")
-        if not home:
-            raise RuntimeError("HOME or XDG_DATA_HOME is required")
-        root = Path(home).expanduser() / ".local" / "share"
-    return root / "tang" / "tang.db"
+
+def project_data_path(project: ProjectIdentity) -> Path:
+    """Return the canonical project-local database path without creating it."""
+
+    return project.root_path / ".tang" / "tang.db"
 
 
 def _secure_parent(path: Path) -> None:
@@ -159,15 +197,20 @@ def _migrate(
 
 
 def open_database(
-    path: Path | None = None,
+    path: Path,
     *,
     migrations: Sequence[Migration] = MIGRATIONS,
 ) -> sqlite3.Connection:
     """Open a configured database and migrate it before returning."""
 
-    database_path = (path or data_path()).expanduser().resolve()
-    _secure_parent(database_path)
-    connection = sqlite3.connect(database_path, isolation_level=None)
+    try:
+        database_path = path.expanduser().resolve()
+        _secure_parent(database_path)
+        connection = sqlite3.connect(database_path, isolation_level=None)
+    except (OSError, sqlite3.Error) as error:
+        raise DatabaseOpenError(
+            f"Tang cannot open derived storage at {path.expanduser()}"
+        ) from error
     try:
         if os.name == "posix":
             database_path.chmod(0o600)
@@ -177,6 +220,11 @@ def open_database(
         connection.execute("PRAGMA journal_mode = WAL")
         _migrate(connection, migrations)
         return connection
+    except OSError as error:
+        connection.close()
+        raise DatabaseOpenError(
+            f"Tang cannot initialize derived storage at {database_path}"
+        ) from error
     except BaseException:
         connection.close()
         raise

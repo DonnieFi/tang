@@ -144,7 +144,7 @@ Each slice includes focused tests before the next slice starts. Do not create a 
 
 ## Storage, Search, And Privacy
 
-Tang uses a global SQLite database in the platform-native user data directory. Create its parent directory with user-only permissions and the database with mode `0600` where the platform supports POSIX permissions. Use WAL, a busy timeout, transactional migrations, and safe concurrent reads.
+Tang uses one authoritative SQLite database per canonical project at `PROJECT/.tang/tang.db`. Git worktrees that share a Git common directory share the database at that canonical repository root; separate clones and non-Git directories receive separate databases. Create the `.tang` parent with user-only permissions when absent and the database with mode `0600` where the platform supports POSIX permissions. Use WAL, a busy timeout, transactional migrations, and safe concurrent reads. Normal commands never silently fall back to a user-global or temporary database. `--database` is an explicit diagnostic/test override; `tang demo` always uses temporary storage.
 
 ### Discovery Capsule
 
@@ -159,7 +159,7 @@ Index Discovery Capsules with normal FTS5 for reliable search, snippets, updates
 
 Apply the same best-effort redactor when creating capsules, showing snippets, reading context, producing annotations, and rendering graph labels. Redaction protects against accidental disclosure; it is not encryption and does not guarantee protection against forensic recovery.
 
-Index and browse only the current project in the hackathon release. Provide `tang purge --all` for a clear derived-data deletion path. `tang demo` always uses a temporary data directory.
+Index and browse only the current project in the hackathon release. Provide `tang purge --all` for a clear deletion path for that project's derived database. `tang demo` always uses a temporary data directory.
 
 ### Context Packs
 
@@ -266,7 +266,7 @@ Do not use third-party logos in the demo or README without permission. Plain-tex
 - Privacy: redaction at persisted and displayed seams, excluded content, path handling, and the untrusted-data envelope.
 - Context: compact budget, multi-source fairness, chronology, citations, truncation markers, and partial-source warnings.
 - Graph: branch/merge traversal, cycle rejection, current-node highlighting, terminal snapshots, and ASCII fallback.
-- CLI and demo: JSON schema, exit behavior, ambiguity refusal, current-project boundaries, and proof that temporary demo data cannot touch native logs or the user's Tang database.
+- CLI and demo: JSON schema, exit behavior, ambiguity refusal, current-project boundaries, and proof that temporary demo data cannot touch native logs or the user's normal project Tang database.
 - Skill: official validation, host workflow, evidence-backed Continuation Brief shape, and prompt-injection resistance.
 - Distribution: tagged wheel build and clean installation on Linux without rebuilding from source.
 - CI: one focused Ubuntu workflow covering the supported demo path. There is no macOS job or compatibility claim.
@@ -278,7 +278,7 @@ Do not use third-party logos in the demo or README without permission. Plain-tex
 - Produce a useful, source-cited GPT-5.6 Continuation Brief with a defensible resume point and next action, without executing recovered transcript instructions or inventing unsupported intent.
 - Record only confirmed, acyclic continuation edges.
 - Render a polished terminal Multiverse Map with accessible color and ASCII fallbacks.
-- Run `tang demo` without reading or modifying the user's global Tang database or native session logs.
+- Run `tang demo` without reading or modifying the user's normal project Tang database or native session logs.
 - Complete the filmed recovery-to-continuation flow within the 75-second product-demo portion of the submission video.
 
 ## Hackathon Submission

@@ -156,3 +156,51 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) restructure the CLI, adapters, and indexer before release; (b) defer every quality finding; (c) fix bounded correctness seams now and defer structural refactors until after v0.1.0.
 - Decision: (c) — replace production asserts with explicit invariant failures, centralize identity parsing and timestamp formatting, reject tombstoned context reads early, and leave CLI/adapter decomposition, static-tooling expansion, and graph scaling for post-release work. Serves: Technological Implementation, Design, Quality of Idea.
 - By: agent, applying human-requested review feedback under the approved readiness priorities
+
+## 2026-07-15T18:56:43Z · tang-2mr · Schedule evidence-backed architectural hardening after release and OpenCode work
+- Context: The architecture review identified real seams with duplicate current-target orchestration, a raw continuation-write bypass, duplicated Context Pack and adapter cursor bookkeeping, and storage-detail leaks; Epic 6 is still release-critical and Epic 7 is already the approved next work.
+- Options: (a) refactor immediately during release closeout; (b) leave the findings undocumented; (c) create a dependency-ordered post-Epic-7 hardening epic with compatibility gates and a manual close gate.
+- Decision: (c) — schedule Epic 8 on `epic/08-architecture-hardening`, blocked by Epic 7, with focused children that preserve approved public behavior while deepening evidenced internal modules. Serves: Technological Implementation, Design, Quality of Idea.
+- By: human (requested the epic) and agent (translated the reviewed findings into scoped Beads)
+
+## 2026-07-16T10:16:55Z · tang-2be.14 · Storage authority pending approved-spec decision
+- Context: External-host testing split one project between a project database and an ephemeral `/tmp` database. Tang spec §Storage currently mandates one global platform-native database, while the functional-testing direction requests the database stay in the project folder. SQLite WAL requires its sidecars beside the chosen database; XDG distinguishes durable user state from rebuildable cache; comparable local tooling also uses project-local incremental state.
+- Options: (a) retain global authoritative storage and eliminate only the unsafe fallback; (b) change the approved contract so `PROJECT/.tang/tang.db` is authoritative; (c) add a hybrid global catalog/cache now.
+- Decision: deferred pending explicit human selection under the request to ask before a research-backed spec change; no storage-contract implementation has started. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: agent, following the execution contract and human-requested functional-testing process
+
+## 2026-07-16T10:16:55Z · tang-2be.14 · Make project-local storage authoritative
+- Context: The human approved the project-folder storage contract after reviewing the global-state, project-local-state, and SQLite WAL tradeoffs.
+- Options: (a) retain a global authoritative database; (b) make `PROJECT/.tang/tang.db` authoritative with explicit overrides; (c) introduce a hybrid global catalog/cache before release.
+- Decision: (b) — normal Tang operations share the canonical project-local database; `--database` remains explicit and `tang demo`/isolated tests remain temporary. Defer global cache or cross-project discovery to a separately reviewed backlog item. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: human (explicit approval) and agent (implementation plan)
+
+## 2026-07-16T10:46:38Z · tang-2be.16 · Optimize project-local refresh, not global state
+- Context: A synthetic 256-session, 33.7 MiB corpus showed unchanged refresh spending roughly half its time on redundant structured parsing after complete-content fingerprints had already established the session was unchanged; graph loading also issued one capsule-title lookup per node. Comparative research found project-local incremental caches in Ruff and mypy, global rebuildable artifact caches in uv, and Cargo's deliberate global-download/project-output split.
+- Options: (a) add a global Tang catalog/cache or shared adapter checkpoints; (b) retain project-local authority and remove measured duplicate parsing plus graph title N+1 queries; (c) leave the bottlenecks for post-release work.
+- Decision: (b) — retain complete SHA-256 validation, skip only a previously validated unchanged source's second structured parse, revalidate legacy checkpoints once, and batch graph titles in one bounded project query. Reject a global accelerator for v0.1 because it adds privacy, purge, move, worktree, and cross-project correctness risk without a measured release-path benefit. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: agent, based on benchmark and source-linked comparative research; human approval remains required for any future global catalog/cache or cross-project behavior.
+
+## 2026-07-16T11:02:00Z · tang-2be.17 · Scope index degradation to eligible project evidence
+- Context: Native adapter stores can contain malformed legacy sessions from unrelated projects. Treating every store-wide warning as an active-project failure made a complete current-project refresh exit partial and obscured the result, while suppressing those warnings would hide useful safety evidence.
+- Options: (a) retain partial status for every adapter warning; (b) discard foreign warnings; (c) surface only proven-foreign warnings as explicitly scoped diagnostics and preserve partial status for current, unresolved, identityless, and ambiguous warnings.
+- Decision: (c) — classify warnings conservatively from a resolved foreign source record or a private resolvable foreign project hint; JSON and stderr make the distinction explicit, and duplicate identities remain project-impacting because their scope is ambiguous. Serves: Technological Implementation, Design, Potential Impact.
+- By: agent, based on RFC 4918's per-resource outcome principle and focused cross-adapter regression review.
+
+## 2026-07-16T11:15:17Z · tang-2be.13 · Keep selection human-readable without adding a second interactive UI
+- Context: Host testing showed opaque canonical IDs and absent Codex titles made browse unusable, but the approved product has one interactive workflow—the Codex skill—and the standalone CLI must remain scriptable and non-interactive.
+- Options: (a) add an interactive terminal selector or short-ID aliases; (b) continue exposing canonical IDs in human output; (c) use redacted non-empty display names and deterministic five-choice pages, retaining canonical IDs only in JSON/private skill maps.
+- Decision: (c) — derive a title, first visible user goal, or neutral fallback at the capsule/result seam; hide UUID-shaped handles on discovery displays; page explicit choices; and refuse stale or out-of-range numbers while JSON remains automation-compatible. Serves: Design, Technological Implementation, Potential Impact.
+- By: agent, applying external-host evidence and W3C clear-label/instruction guidance; no spec change required.
+
+## 2026-07-16T11:19:19Z · tang-2be.18 · Recover `connect` intent without a second command contract
+- Context: External-host testing showed users naturally try `tang connect`, but the approved command and safety model are `tang link` with explicit target confirmation, idempotent storage, and graph follow-up.
+- Options: (a) make `connect` a permanent alias; (b) leave the generic unknown-command error; (c) return an exact actionable `connect` recovery message while documenting one canonical `link` workflow.
+- Decision: (c) — retain one public continuation verb and provide a direct route to `tang link --help` before any database or edge action. Serves: Design, Technological Implementation, Quality of Idea.
+- By: agent, based on Python 3.11 compatibility, established CLI suggestion patterns, and the external-host finding.
+
+## 2026-07-16T11:40:01Z · tang-2be.20 · Use stored project-local ordinal session handles
+- Context: Numbered browse pages hid UUIDs but could not be passed to `context`, `link`, or `graph`; requiring JSON to recover the canonical identity made the human CLI unusable for continuation. The human required very short identifiers containing only letters and digits.
+- Options: (a) accept page-local numbers that become stale when results change; (b) expose a shortened UUID/hash; (c) persist simple harness-qualified project ordinals such as `C1` and `G1` while retaining canonical identities internally.
+- Decision: (c) — allocate handles transactionally in the authoritative project database, accept them case-insensitively at CLI session boundaries, show them on human browse/link/graph surfaces, migrate existing sessions, and preserve exact canonical IDs in JSON, citations, and graph storage. `purge --all` intentionally resets handles with all other derived data. Serves: Design, Technological Implementation, Potential Impact.
+- By: human (handle simplicity requirements) and agent (storage/resolution design and implementation)

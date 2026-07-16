@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -125,6 +126,45 @@ def test_checkpoint_and_rows_survive_restart(tmp_path: Path) -> None:
         assert reopened.get_checkpoint("codex", "fixture", "project-a") == checkpoint
     finally:
         second.close()
+
+
+def test_project_handles_are_short_stable_and_case_insensitive(tmp_path: Path) -> None:
+    connection = open_database(tmp_path / "handles" / "tang.db")
+    repository = TangRepository(connection)
+    first = source("first")
+    second = source("second")
+    grok = replace(
+        source("grok"), identity=SessionIdentity("grok", "fixture", "grok")
+    )
+    foreign = source("foreign")
+    try:
+        with repository.transaction():
+            repository.upsert_session(first, "project-a", NOW)
+            repository.upsert_session(second, "project-a", NOW)
+            repository.upsert_session(grok, "project-a", NOW)
+            repository.upsert_session(foreign, "project-b", NOW)
+
+        assert repository.get_session(first.identity.canonical).handle == "C1"
+        assert repository.get_session(second.identity.canonical).handle == "C2"
+        assert repository.get_session(grok.identity.canonical).handle == "G1"
+        assert repository.get_session(foreign.identity.canonical).handle == "C1"
+        assert repository.resolve_session_token("c1", "project-a") == (
+            first.identity.canonical
+        )
+        assert repository.resolve_session_token(
+            first.identity.canonical, "project-a"
+        ) == first.identity.canonical
+
+        with repository.transaction():
+            repository.upsert_session(first, "project-a", NOW + timedelta(seconds=2))
+        assert repository.get_session(first.identity.canonical).handle == "C1"
+
+        with pytest.raises(ValueError, match="not indexed"):
+            repository.resolve_session_token("C99", "project-a")
+        with pytest.raises(ValueError, match="letter followed by a number"):
+            repository.resolve_session_token("C-1", "project-a")
+    finally:
+        connection.close()
 
 
 def test_writes_require_boundaries_and_nested_transactions_fail(tmp_path: Path) -> None:

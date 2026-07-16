@@ -70,7 +70,7 @@ def test_graph_accepts_an_explicit_indexed_session(
     result = main(
         [
             "graph",
-            item.identity.canonical,
+            "c1",
             "--database",
             str(database),
             "--cwd",
@@ -82,7 +82,8 @@ def test_graph_accepts_an_explicit_indexed_session(
     assert result == 0
     assert captured.err == ""
     assert "ISOLATED" in captured.out
-    assert item.identity.canonical in captured.out
+    assert "C1" in captured.out
+    assert item.identity.canonical not in captured.out
 
 
 def test_graph_infers_only_a_unique_current_target(
@@ -103,7 +104,7 @@ def test_graph_infers_only_a_unique_current_target(
     assert main(common) == 0
     inferred = capsys.readouterr()
     assert inferred.err == ""
-    assert "★ current" in inferred.out
+    assert "★ C1" in inferred.out
 
     monkeypatch.setattr(
         "tang.cli.CodexAdapter.scan",
@@ -136,7 +137,7 @@ def test_graph_respects_no_color_and_explicit_ascii(
     result = main(
         [
             "graph",
-            item.identity.canonical,
+            "C1",
             "--database",
             str(database),
             "--cwd",
@@ -152,4 +153,4 @@ def test_graph_respects_no_color_and_explicit_ascii(
     assert result == 0
     assert "\x1b[" not in output.getvalue()
     assert output.getvalue().isascii()
-    assert "* current | codex" in output.getvalue()
+    assert "* C1 | codex" in output.getvalue()

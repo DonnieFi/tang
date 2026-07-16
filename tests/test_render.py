@@ -13,6 +13,7 @@ NOW = datetime(2026, 7, 15, tzinfo=timezone.utc)
 def node(native_id: str, harness: str = "codex", *, current: bool = False) -> GraphNode:
     return GraphNode(
         f"{harness}:map:{native_id}",
+        f"{'G' if harness == 'grok' else 'C'}{ord(native_id[0])}",
         harness,
         native_id,
         f"Title {native_id.upper()}",
@@ -47,10 +48,10 @@ def test_hero_renderer_shows_connected_branch_merge_and_active_handle() -> None:
     assert rendered.count("──▶") == 11
     assert "MERGE" in rendered
     assert "BRANCH" in rendered
-    assert "★ g · codex" in rendered
-    assert "ACTIVE codex" in rendered
+    assert "★ C103 · codex" in rendered
+    assert "ACTIVE C103" in rendered
     assert "Title G" in rendered
-    assert "codex:map:g" in rendered
+    assert "codex:map:g" not in rendered
 
 
 def test_isolated_renderer_is_truthful() -> None:
@@ -71,9 +72,9 @@ def test_linear_renderer_keeps_direction_obvious() -> None:
     )
 
     rendered = render_multiverse(linear, width=90, color=False)
-    assert "first · grok" in rendered
+    assert "G102 · grok" in rendered
     assert "──▶" in rendered
-    assert "second · codex" in rendered
+    assert "C115 · codex" in rendered
     assert "CONTINUE" in rendered
 
 
@@ -91,7 +92,7 @@ def test_color_no_color_narrow_and_ascii_snapshots() -> None:
     assert narrow == render_multiverse(graph, width=48, color=False)
     assert all(
         label in narrow
-        for label in ("HANDLE", "UTC", "HEALTH", "TITLE", "SOURCE ID")
+        for label in ("HANDLE", "HARNESS", "UTC", "HEALTH", "TITLE")
     )
     assert "[ACTIVE]" in narrow
     assert ascii_rendered.isascii()

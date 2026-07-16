@@ -120,9 +120,14 @@ def test_graph_title_is_redacted_again_at_the_display_seam(tmp_path: Path) -> No
                 )
             )
 
+        statements: list[str] = []
+        connection.set_trace_callback(statements.append)
         graph = GraphService(repository).component(source_id)
+        connection.set_trace_callback(None)
         title = next(node.title for node in graph.nodes if node.source_id == source_id)
         assert title == "Release PASSWORD=[REDACTED:credential]"
         assert "graph-display-secret" not in str(title)
+        assert sum("LEFT JOIN capsules AS c" in statement for statement in statements) == 1
+        assert not any("SELECT * FROM capsules" in statement for statement in statements)
     finally:
         connection.close()

@@ -44,10 +44,7 @@ def test_scripted_skill_discovery_and_explicit_multi_select(
             'credentialmarker PASSWORD="preview-secret" deterministic checkpoint recovery',
         )
     )
-    database = tmp_path / "tang.db"
     common = [
-        "--database",
-        str(database),
         "--cwd",
         str(current),
     ]
@@ -60,6 +57,45 @@ def test_scripted_skill_discovery_and_explicit_multi_select(
 
     assert main(["index", *common, *adapter_paths, "--json"]) == 1
     capsys.readouterr()
+
+    current_native_id = "019f6000-5678-7000-8000-000000000002"
+    assert (
+        main(
+            [
+                "search",
+                "checkpoint",
+                *common,
+                "--exclude-current",
+                "--current-native-id",
+                current_native_id,
+                "--json",
+            ]
+        )
+        == 0
+    )
+    excluded_search = json.loads(capsys.readouterr().out)
+    assert all(
+        not result["source_id"].endswith(current_native_id)
+        for result in excluded_search["results"]
+    )
+    assert any(
+        result["harness"] == "grok" for result in excluded_search["results"]
+    )
+
+    assert (
+        main(
+            [
+                "browse",
+                *common,
+                "--exclude-current",
+            ]
+        )
+        == 2
+    )
+    ambiguous_current = capsys.readouterr()
+    assert ambiguous_current.out == ""
+    assert "error[target-unconfirmed]" in ambiguous_current.err
+
     assert main(["search", "checkpoint", *common, "--json"]) == 0
     search_output = capsys.readouterr()
     document = json.loads(search_output.out)
@@ -88,6 +124,13 @@ def test_scripted_skill_discovery_and_explicit_multi_select(
     assert "foreign-quasar-secret" not in context_output.out
 
     target_native_id = "019f6000-5678-7000-8000-000000000005"
+    assert main(["browse", *common, "--json"]) == 0
+    browse_results = json.loads(capsys.readouterr().out)["results"]
+    target_handle = next(
+        result["session_handle"]
+        for result in browse_results
+        if result["source_id"].endswith(target_native_id)
+    )
     link = [
         "link",
         "--from",
@@ -117,7 +160,7 @@ def test_scripted_skill_discovery_and_explicit_multi_select(
         [
             "link",
             "--from",
-            linked["target_id"],
+            target_handle,
             "--to",
             selected[1],
             *common,
@@ -130,7 +173,7 @@ def test_scripted_skill_discovery_and_explicit_multi_select(
     assert main(
         [
             "graph",
-            linked["target_id"],
+            target_handle,
             *common,
             "--codex-home",
             str(discovery_corpus.codex_home),
@@ -144,9 +187,12 @@ def test_scripted_skill_discovery_and_explicit_multi_select(
     assert graph_output.err == ""
     assert "TANG MULTIVERSE MAP" in graph_output.out
     assert graph_output.out.count("──▶") == len(selected)
-    assert "★ …" + target_native_id[-12:] in graph_output.out
-    assert "ACTIVE codex" in graph_output.out
+    assert f"★ {target_handle}" in graph_output.out
+    assert target_native_id not in graph_output.out
+    assert f"ACTIVE {target_handle}" in graph_output.out
 
+    database = current / ".tang" / "tang.db"
+    assert database.is_file()
     connection = open_database(database)
     try:
         edges = TangRepository(connection).continuations_for_project(
@@ -164,14 +210,24 @@ def test_skill_instructions_require_host_selection_without_invented_ids() -> Non
 
     required = (
         "host-native multi-select question",
-        "Accept only exact IDs from the current result set",
-        "never infer selection",
+        "Keep the canonical `source_id` private",
+        "displayed choice numbers",
+        "Accept only integers visible on the current page",
+        "deduplicate selected canonical IDs",
+        "--page 1",
+        "Next page",
+        "Never infer selection",
         "ask for a different phrase instead of inventing a candidate",
         "Stop before recording continuation links",
         "explicit approval",
         "Never guess among candidates",
         "source_ids` exactly match the selection",
         "tang graph <target_id>",
+        "one canonical continuation command",
+        "idempotent replay",
         "Do not build a second interactive terminal browser",
+        "Do not re-index before every follow-up browse or search",
+        "--exclude-current",
+        "error[target-unconfirmed]",
     )
     assert all(phrase in text for phrase in required)

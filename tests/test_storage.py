@@ -8,19 +8,22 @@ import pytest
 
 from tang.storage import (
     BUSY_TIMEOUT_MS,
+    DatabaseOpenError,
     MIGRATIONS,
     SCHEMA_VERSION,
-    data_path,
     open_database,
+    project_data_path,
 )
+from tang.project import resolve_project
 
 
-def test_data_path_prefers_xdg_and_does_not_create_it(tmp_path: Path) -> None:
-    xdg = tmp_path / "private-data"
+def test_project_data_path_is_local_and_does_not_create_it(tmp_path: Path) -> None:
+    project_root = tmp_path / "private-project"
+    project_root.mkdir()
 
-    path = data_path({"XDG_DATA_HOME": str(xdg), "HOME": "/ignored"})
+    path = project_data_path(resolve_project(project_root))
 
-    assert path == xdg / "tang" / "tang.db"
+    assert path == project_root / ".tang" / "tang.db"
     assert not path.exists()
 
 
@@ -49,6 +52,7 @@ def test_fresh_database_is_secure_configured_and_migrated(tmp_path: Path) -> Non
             row[1] for row in connection.execute("PRAGMA table_info(sessions)")
         }
         assert "native_available" in session_columns
+        assert "session_handle" in session_columns
     finally:
         connection.close()
 
@@ -111,6 +115,51 @@ def test_project_checkpoint_migration_discards_unscoped_cursor(tmp_path: Path) -
         upgraded.close()
 
 
+def test_handle_migration_backfills_short_project_ordinals(tmp_path: Path) -> None:
+    path = tmp_path / "handle-upgrade" / "tang.db"
+    connection = open_database(path, migrations=MIGRATIONS[:4])
+    rows = (
+        ("codex:fixture:b", "codex", "b", "2026-07-15T00:02:00Z"),
+        ("grok:fixture:a", "grok", "a", "2026-07-15T00:01:00Z"),
+        ("codex:fixture:a", "codex", "a", "2026-07-15T00:01:00Z"),
+    )
+    for source_id, adapter, native_id, timestamp in rows:
+        connection.execute(
+            """
+            INSERT INTO sessions(
+                source_id, project_key, adapter, source_namespace, native_id,
+                locator, fingerprint_algorithm, fingerprint_value, project_hint,
+                started_at, updated_at, health, indexed_at
+            ) VALUES (?, 'project', ?, 'fixture', ?, ?, 'sha256', ?, '/project',
+                      ?, ?, 'complete', ?)
+            """,
+            (
+                source_id,
+                adapter,
+                native_id,
+                f"fixture:{native_id}",
+                f"digest:{native_id}",
+                timestamp,
+                timestamp,
+                timestamp,
+            ),
+        )
+    connection.close()
+
+    upgraded = open_database(path)
+    try:
+        migrated = upgraded.execute(
+            "SELECT source_id, session_handle FROM sessions ORDER BY source_id"
+        ).fetchall()
+        assert [tuple(row) for row in migrated] == [
+            ("codex:fixture:a", "C1"),
+            ("codex:fixture:b", "C2"),
+            ("grok:fixture:a", "G1"),
+        ]
+    finally:
+        upgraded.close()
+
+
 def test_failed_migration_rolls_back_and_can_recover(tmp_path: Path) -> None:
     path = tmp_path / "failure" / "tang.db"
     broken = (
@@ -136,15 +185,29 @@ def test_failed_migration_rolls_back_and_can_recover(tmp_path: Path) -> None:
         recovered.close()
 
 
-def test_explicit_test_path_never_uses_user_data_directory(
+def test_explicit_test_path_does_not_create_project_storage(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    sentinel_root = tmp_path / "must-not-touch"
-    monkeypatch.setenv("XDG_DATA_HOME", str(sentinel_root))
+    project_root = tmp_path / "project"
+    project_root.mkdir()
     isolated = tmp_path / "isolated" / "test.db"
 
     connection = open_database(isolated)
     connection.close()
 
     assert isolated.exists()
-    assert not sentinel_root.exists()
+    assert not (project_root / ".tang").exists()
+
+
+def test_open_database_wraps_unwritable_storage_setup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "unwritable" / "tang.db"
+
+    def fail_secure_parent(_path: Path) -> None:
+        raise PermissionError("denied")
+
+    monkeypatch.setattr("tang.storage._secure_parent", fail_secure_parent)
+
+    with pytest.raises(DatabaseOpenError, match="Tang cannot open derived storage"):
+        open_database(path)

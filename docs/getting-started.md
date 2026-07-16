@@ -75,7 +75,7 @@ python3 scripts/functional_acceptance.py \
 The script does all of its product work in a temporary directory. It installs
 the wheel into a fresh virtual environment and uses only Tang's synthetic test
 sessions. It does not read your real Codex or Grok history and does not use your
-normal Tang database.
+normal project Tang database.
 
 The run checks:
 
@@ -137,6 +137,20 @@ the derived database is not initialized. An adapter can also be empty or
 degraded. Read the individual messages; a nonzero result does not necessarily
 mean the CLI installation itself failed.
 
+### Uninstall or replace the CLI
+
+Tang's uv package name is `tang-multiverse`, even though the command is `tang`:
+
+```bash
+uv tool uninstall tang-multiverse
+command -v tang  # prints nothing after a successful uninstall
+```
+
+This removes the global executable and its isolated uv environment. It does not
+delete a project's `.tang/tang.db`, rewrite Codex or Grok history, or remove a
+Codex skill installed separately. Reinstall the same or a newer wheel with the
+version-pinned `uv tool install ...` command above.
+
 ## The recommended way to use Tang
 
 The Codex skill is Tang's interactive workflow. Open Codex in the project whose
@@ -144,8 +158,9 @@ history you want to recover, then ask in plain English, for example:
 
 > Use Tang to find the earlier session where we discussed checkpoint recovery.
 
-Tang will index only that current project, show a short redacted list, and ask
-you to select one or more exact source sessions. After selection, it creates a
+Tang will index only that current project, show a short redacted list of up to
+five numbered session choices at a time, and ask you to select one or more
+choices. After selection, it creates a
 cited Context Pack. Codex uses that evidence to present:
 
 - the best-supported resume point;
@@ -176,29 +191,73 @@ Browse everything indexed for this project, or search using words you remember:
 ```bash
 tang browse
 tang search "checkpoint recovery"
+tang browse --page 2
 ```
 
-Copy one or more exact source IDs from those results and build a Context Pack:
+The human list intentionally hides long implementation IDs. It shows a redacted
+name, harness, time, health, capability status, a page choice such as `[2]`,
+and a short project handle such as `C1` (Codex) or `G1` (Grok).
+`--page 2` shows the next five choices. In Codex, Tang maps a selected number
+to its exact canonical ID privately and will refuse a stale or out-of-range
+number rather than guessing.
+
+Use the short handle directly in human commands. Handles are case-insensitive,
+remain stable across refreshes in the project's `.tang/tang.db`, and reset only
+when `tang purge --all` removes all derived project data:
 
 ```bash
-tang context <source-id> [<another-source-id> ...]
+tang context G1 C2
+tang graph C2
 ```
 
-For scripts, add `--json` to `index`, `browse`, `search`, or `context`. Tang JSON
-uses `schema_version: 1` and RFC 3339 timestamps.
+For scripts, request JSON to obtain an exact canonical source ID. JSON is also
+where Tang keeps the authoritative mapping used by the Codex skill:
+
+```bash
+tang browse --json
+```
+
+Pass one or more handles—or exact IDs from JSON—to build a Context Pack:
+
+```bash
+tang context <handle-or-source-id> [<another-handle-or-source-id> ...]
+```
+
+For scripts, add `--json` to `index`, `browse`, `search`, or `context`. Add an
+explicit `--page N` to page JSON results in five-choice groups; otherwise JSON
+returns the complete deterministic result set for automation. Tang JSON uses
+`schema_version: 1` and RFC 3339 timestamps.
 
 Continuation links should normally be confirmed through the Codex skill because
-the skill verifies the active target with you. After a confirmed link, render
-the connected component containing a session:
+the skill verifies the active target with you. The canonical command is
+`tang link`, not `tang connect`. After you have selected source IDs, reviewed
+their Context Pack, and explicitly confirmed one target, use either a
+host-confirmed current Codex target:
 
 ```bash
-tang graph <source-or-target-id>
+tang link --from <handle> [<another-handle> ...] \
+  --current --current-native-id <native-id>
+```
+
+or an explicitly chosen current-project target:
+
+```bash
+tang link --from <handle> [<another-handle> ...] \
+  --to <target-handle>
+```
+
+Tang never infers the target. A successful repeat is safe: it reports existing
+edges instead of adding duplicates. After a confirmed link, render the
+connected component containing the returned target ID:
+
+```bash
+tang graph <source-or-target-handle>
 ```
 
 Use an accessible fallback when needed:
 
 ```bash
-NO_COLOR=1 tang graph <source-or-target-id> --ascii --width 40
+NO_COLOR=1 tang graph <source-or-target-handle> --ascii --width 40
 ```
 
 To delete everything Tang derived while leaving native harness history alone:
@@ -213,10 +272,19 @@ Tang asks for confirmation. In a deliberate non-interactive script, use
 ## Where Tang keeps data
 
 Tang reads supported native session stores but does not rewrite them. Its own
-derived SQLite database is normally under the platform's user data directory:
+derived SQLite database lives in the canonical project folder:
 
-- `$XDG_DATA_HOME/tang/tang.db` when `XDG_DATA_HOME` is set; otherwise
-- `~/.local/share/tang/tang.db`.
+```text
+PROJECT/.tang/tang.db
+```
+
+Git worktrees that share one Git common directory share that canonical project
+database. Separate clones and non-Git directories use separate databases.
+Tang creates `.tang` with user-only permissions on supported POSIX systems.
+Tang never silently falls back to a temporary or user-global database; use
+`--database PATH` only when you deliberately need an isolated diagnostic or
+test database. Add `.tang/` to a project `.gitignore` if that project does not
+already ignore it; Tang does not edit your project files for you.
 
 The database contains project-scoped session metadata, small redacted Discovery
 Capsules, adapter checkpoints, search rows, and explicitly confirmed graph
@@ -255,7 +323,9 @@ on Linux with Python 3.11 or newer.
 
 Code `1` means the index is partial, not empty. Tang preserves recoverable
 sessions and reports warnings so automation and people can decide whether the
-available evidence is adequate.
+available evidence is adequate. A `diagnostic[foreign]` instead identifies a
+store-wide issue Tang proved belongs to another project; it remains visible but
+does not turn a complete current-project index into exit code `1`.
 
 ### Can Tang automatically decide which session to resume?
 

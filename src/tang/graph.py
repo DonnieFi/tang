@@ -19,6 +19,7 @@ from tang.repository import StoredContinuation, TangRepository
 @dataclass(frozen=True, slots=True)
 class GraphNode:
     source_id: str
+    handle: str
     harness: str
     native_id: str
     title: str | None
@@ -60,24 +61,26 @@ class GraphService:
         project_edges = self._repository.continuations_for_project(project_key)
         component_ids = self._weak_component(session_id, project_edges)
         sessions = {
-            stored.source.identity.canonical: stored
-            for stored in self._repository.sessions_for_project(project_key)
-            if stored.source.identity.canonical in component_ids
+            item.session.source.identity.canonical: item
+            for item in self._repository.graph_sessions(
+                project_key, tuple(component_ids)
+            )
         }
         nodes = tuple(
             GraphNode(
                 source_id=source_id,
-                harness=sessions[source_id].source.identity.adapter,
-                native_id=sessions[source_id].source.identity.native_id,
-                title=self._title(source_id),
-                updated_at=sessions[source_id].source.updated_at,
-                health=sessions[source_id].source.health,
-                native_available=sessions[source_id].native_available,
+                handle=sessions[source_id].session.handle,
+                harness=sessions[source_id].session.source.identity.adapter,
+                native_id=sessions[source_id].session.source.identity.native_id,
+                title=self._title(sessions[source_id].title),
+                updated_at=sessions[source_id].session.source.updated_at,
+                health=sessions[source_id].session.source.health,
+                native_available=sessions[source_id].session.native_available,
                 current=source_id == current_id,
             )
             for source_id in sorted(
                 sessions,
-                key=lambda value: (sessions[value].source.updated_at, value),
+                key=lambda value: (sessions[value].session.source.updated_at, value),
             )
         )
         edges = tuple(
@@ -92,18 +95,14 @@ class GraphService:
             self._timelines(component_ids, edges),
         )
 
-    def _title(self, source_id: str) -> str | None:
-        capsule = self._repository.get_capsule(source_id)
-        if capsule is None:
-            return None
-        title = capsule.content.get("source_title")
-        if not title:
+    def _title(self, title: str | None) -> str | None:
+        if title is None:
             return None
         result = required_redaction(
             self._redactor,
             RedactionSeam.GRAPH_LABEL,
             ContentKind.TITLE,
-            str(title),
+            title,
         )
         return result.text
 

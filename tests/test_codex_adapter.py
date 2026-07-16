@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from tang.adapters import (
+    AdapterCheckpoint,
     BatchStatus,
     CodexAdapter,
     TurnRole,
@@ -56,6 +57,53 @@ def test_incremental_scan_is_idempotent(codex_fixture_home: Path) -> None:
     assert second.status is BatchStatus.COMPLETE
     assert second.records == ()
     assert second.next_checkpoint == first.next_checkpoint
+
+
+def test_unchanged_valid_log_skips_the_redundant_structural_parse(
+    codex_fixture_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    adapter = fixture_adapter(codex_fixture_home)
+    first = adapter.scan(None)
+    calls = 0
+    original = adapter._source_record
+
+    def counted(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(adapter, "_source_record", counted)
+    second = adapter.scan(first.next_checkpoint)
+
+    assert second.records == ()
+    assert calls == 0
+
+
+def test_legacy_checkpoint_is_revalidated_once_before_fast_skipping(
+    codex_fixture_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    adapter = fixture_adapter(codex_fixture_home)
+    first = adapter.scan(None)
+    payload = json.loads(first.next_checkpoint.cursor)
+    legacy = AdapterCheckpoint(
+        "codex",
+        "fixture-codex",
+        json.dumps({"schema_version": 1, "fingerprints": payload["fingerprints"]}),
+    )
+    calls = 0
+    original = adapter._source_record
+
+    def counted(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(adapter, "_source_record", counted)
+    upgraded = adapter.scan(legacy)
+
+    assert upgraded.records == ()
+    assert calls == 1
+    assert json.loads(upgraded.next_checkpoint.cursor)["schema_version"] == 2
 
 
 def test_thread_session_link_does_not_replace_native_log_identity(

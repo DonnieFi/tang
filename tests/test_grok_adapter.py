@@ -67,6 +67,53 @@ def test_repeated_scan_honors_opaque_checkpoint(fixture_home: Path) -> None:
     assert second.next_checkpoint == first.next_checkpoint
 
 
+def test_unchanged_valid_session_skips_the_redundant_metadata_parse(
+    fixture_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    adapter = GrokAdapter(fixture_home, source_namespace="fixture")
+    first = adapter.scan(None)
+    calls = 0
+    original = adapter._source_record
+
+    def counted(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(adapter, "_source_record", counted)
+    second = adapter.scan(first.next_checkpoint)
+
+    assert second.records == ()
+    assert calls == 0
+
+
+def test_legacy_checkpoint_is_revalidated_once_before_fast_skipping(
+    fixture_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    adapter = GrokAdapter(fixture_home, source_namespace="fixture")
+    first = adapter.scan(None)
+    payload = json.loads(first.next_checkpoint.cursor)
+    legacy = AdapterCheckpoint(
+        "grok",
+        "fixture",
+        json.dumps({"schema_version": 1, "fingerprints": payload["fingerprints"]}),
+    )
+    calls = 0
+    original = adapter._source_record
+
+    def counted(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(adapter, "_source_record", counted)
+    upgraded = adapter.scan(legacy)
+
+    assert upgraded.records == ()
+    assert calls == 1
+    assert json.loads(upgraded.next_checkpoint.cursor)["schema_version"] == 2
+
+
 def test_scan_is_stable_and_read_only(fixture_home: Path) -> None:
     adapter = GrokAdapter(fixture_home, source_namespace="fixture")
     before = {

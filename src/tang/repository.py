@@ -30,8 +30,17 @@ def _datetime(value: str) -> datetime:
 class StoredSession:
     source: SourceRecord
     project_key: str
+    handle: str
     indexed_at: datetime
     native_available: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class StoredGraphSession:
+    """One graph node's session state and cached capsule title."""
+
+    session: StoredSession
+    title: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,11 +89,14 @@ class StoredCapsule:
 @dataclass(frozen=True, slots=True)
 class DiscoveryRow:
     source_id: str
+    handle: str
     harness: str
     updated_at: datetime
     health: SessionHealth
     title: str | None
     capabilities: tuple[str, ...]
+    display_name: str | None = None
+    first_user_excerpt: str | None = None
     snippet: str | None = None
 
 
@@ -124,15 +136,19 @@ class TangRepository:
         self, source: SourceRecord, project_key: str, indexed_at: datetime
     ) -> None:
         self._require_transaction()
+        handle = self._existing_or_next_handle(
+            source.identity.canonical, project_key, source.identity.adapter
+        )
         self._connection.execute(
             """
             INSERT INTO sessions(
-                source_id, project_key, adapter, source_namespace, native_id,
+                source_id, project_key, session_handle, adapter, source_namespace, native_id,
                 locator, fingerprint_algorithm, fingerprint_value, project_hint,
                 started_at, updated_at, health, indexed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(source_id) DO UPDATE SET
                 project_key=excluded.project_key,
+                session_handle=excluded.session_handle,
                 locator=excluded.locator,
                 fingerprint_algorithm=excluded.fingerprint_algorithm,
                 fingerprint_value=excluded.fingerprint_value,
@@ -146,6 +162,7 @@ class TangRepository:
             (
                 source.identity.canonical,
                 project_key,
+                handle,
                 source.identity.adapter,
                 source.identity.source_namespace,
                 source.identity.native_id,
@@ -159,6 +176,79 @@ class TangRepository:
                 rfc3339(indexed_at),
             ),
         )
+
+    @staticmethod
+    def _handle_prefix(adapter: str) -> str:
+        return {
+            "codex": "C",
+            "grok": "G",
+            "opencode": "O",
+            "cursor": "R",
+        }.get(adapter, "S")
+
+    def _existing_or_next_handle(
+        self, source_id: str, project_key: str, adapter: str
+    ) -> str:
+        existing = self._connection.execute(
+            "SELECT project_key, session_handle FROM sessions WHERE source_id = ?",
+            (source_id,),
+        ).fetchone()
+        if (
+            existing is not None
+            and existing["project_key"] == project_key
+            and existing["session_handle"] is not None
+        ):
+            return str(existing["session_handle"])
+        prefix = self._handle_prefix(adapter)
+        rows = self._connection.execute(
+            """
+            SELECT session_handle FROM sessions
+            WHERE project_key = ? AND session_handle LIKE ?
+            """,
+            (project_key, f"{prefix}%"),
+        ).fetchall()
+        numbers = [
+            int(str(row["session_handle"])[1:])
+            for row in rows
+            if str(row["session_handle"])[1:].isdigit()
+        ]
+        return f"{prefix}{max(numbers, default=0) + 1}"
+
+    def resolve_session_token(self, token: str, project_key: str) -> str:
+        """Resolve a simple project handle while preserving exact canonical IDs."""
+
+        if not token or token.strip() != token:
+            raise ValueError("session token must be non-empty and trimmed")
+        if ":" in token:
+            return token
+        normalized = token.upper()
+        if (
+            len(normalized) < 2
+            or not normalized.isascii()
+            or not normalized.isalnum()
+            or not normalized[0].isalpha()
+            or not normalized[1:].isdigit()
+            or normalized[1] == "0"
+        ):
+            raise ValueError("session handle must be a letter followed by a number")
+        row = self._connection.execute(
+            """
+            SELECT source_id FROM sessions
+            WHERE project_key = ? AND session_handle = ?
+            """,
+            (project_key, normalized),
+        ).fetchone()
+        if row is None:
+            raise ValueError("session handle is not indexed in the current project")
+        return str(row["source_id"])
+
+    def handle_for_source_id(self, source_id: str) -> str:
+        row = self._connection.execute(
+            "SELECT session_handle FROM sessions WHERE source_id = ?", (source_id,)
+        ).fetchone()
+        if row is None or row["session_handle"] is None:
+            raise ValueError("session is not indexed")
+        return str(row["session_handle"])
 
     def get_session(self, source_id: str) -> StoredSession | None:
         row = self._connection.execute(
@@ -176,6 +266,40 @@ class TangRepository:
             (project_key,),
         ).fetchall()
         return tuple(self._stored_session(row) for row in rows)
+
+    def graph_sessions(
+        self, project_key: str, source_ids: tuple[str, ...]
+    ) -> tuple[StoredGraphSession, ...]:
+        """Fetch graph-node state and titles in one bounded project query."""
+
+        identities = tuple(sorted(set(source_ids)))
+        if not identities:
+            return ()
+        placeholders = ", ".join("?" for _ in identities)
+        rows = self._connection.execute(
+            f"""
+            SELECT s.*, c.content_json
+            FROM sessions AS s
+            LEFT JOIN capsules AS c USING(source_id)
+            WHERE s.project_key = ? AND s.source_id IN ({placeholders})
+            ORDER BY s.source_id
+            """,
+            (project_key, *identities),
+        ).fetchall()
+        return tuple(
+            StoredGraphSession(
+                session=self._stored_session(row),
+                title=self._capsule_title(row["content_json"]),
+            )
+            for row in rows
+        )
+
+    @staticmethod
+    def _capsule_title(content_json: str | None) -> str | None:
+        if content_json is None:
+            return None
+        title = json.loads(content_json).get("source_title")
+        return str(title) if title else None
 
     @staticmethod
     def _stored_session(row: sqlite3.Row) -> StoredSession:
@@ -195,6 +319,7 @@ class TangRepository:
                 health=SessionHealth(row["health"]),
             ),
             project_key=row["project_key"],
+            handle=row["session_handle"],
             indexed_at=_datetime(row["indexed_at"]),
             native_available=bool(row["native_available"]),
         )
@@ -417,6 +542,31 @@ class TangRepository:
         ).fetchall()
         return tuple(row["source_id"] for row in rows)
 
+    def discovery_source_ids(
+        self,
+        project_key: str,
+        *,
+        adapter: str,
+        native_id: str | None = None,
+    ) -> tuple[str, ...]:
+        """Return exact discoverable identities for current-session exclusion."""
+
+        conditions = ["s.project_key = ?", "s.adapter = ?"]
+        parameters = [project_key, adapter]
+        if native_id is not None:
+            conditions.append("s.native_id = ?")
+            parameters.append(native_id)
+        rows = self._connection.execute(
+            f"""
+            SELECT s.source_id
+            FROM sessions AS s JOIN capsules AS c USING(source_id)
+            WHERE {' AND '.join(conditions)}
+            ORDER BY s.source_id
+            """,
+            parameters,
+        ).fetchall()
+        return tuple(row["source_id"] for row in rows)
+
     def browse_discovery(
         self,
         project_key: str,
@@ -425,13 +575,19 @@ class TangRepository:
         health: SessionHealth | None = None,
         since: datetime | None = None,
         until: datetime | None = None,
+        exclude_source_ids: tuple[str, ...] = (),
     ) -> tuple[DiscoveryRow, ...]:
         conditions, parameters = self._discovery_filters(
-            project_key, harness=harness, health=health, since=since, until=until
+            project_key,
+            harness=harness,
+            health=health,
+            since=since,
+            until=until,
+            exclude_source_ids=exclude_source_ids,
         )
         rows = self._connection.execute(
             f"""
-            SELECT s.source_id, s.adapter, s.updated_at, s.health, c.content_json
+            SELECT s.source_id, s.session_handle, s.adapter, s.updated_at, s.health, c.content_json
             FROM sessions AS s JOIN capsules AS c USING(source_id)
             WHERE {' AND '.join(conditions)}
             ORDER BY s.updated_at DESC, s.source_id
@@ -450,16 +606,22 @@ class TangRepository:
         since: datetime | None = None,
         until: datetime | None = None,
         limit: int = 20,
+        exclude_source_ids: tuple[str, ...] = (),
     ) -> tuple[DiscoveryRow, ...]:
         if not query.strip():
             raise ValueError("search query must not be empty")
         conditions, parameters = self._discovery_filters(
-            project_key, harness=harness, health=health, since=since, until=until
+            project_key,
+            harness=harness,
+            health=health,
+            since=since,
+            until=until,
+            exclude_source_ids=exclude_source_ids,
         )
         try:
             rows = self._connection.execute(
                 f"""
-                SELECT s.source_id, s.adapter, s.updated_at, s.health, c.content_json,
+                SELECT s.source_id, s.session_handle, s.adapter, s.updated_at, s.health, c.content_json,
                        snippet(capsules_fts, 2, '[', ']', ' … ', 18) AS snippet
                 FROM capsules_fts
                 JOIN sessions AS s USING(source_id)
@@ -482,6 +644,7 @@ class TangRepository:
         health: SessionHealth | None,
         since: datetime | None,
         until: datetime | None,
+        exclude_source_ids: tuple[str, ...] = (),
     ) -> tuple[list[str], list[str]]:
         conditions = ["s.project_key = ?"]
         parameters = [project_key]
@@ -497,18 +660,47 @@ class TangRepository:
         if until is not None:
             conditions.append("s.updated_at <= ?")
             parameters.append(rfc3339(until))
+        excluded = tuple(sorted(set(exclude_source_ids)))
+        if excluded:
+            conditions.append(
+                f"s.source_id NOT IN ({', '.join('?' for _ in excluded)})"
+            )
+            parameters.extend(excluded)
         return conditions, parameters
 
     @staticmethod
     def _discovery_row(row: sqlite3.Row, snippet: str | None = None) -> DiscoveryRow:
         content = json.loads(row["content_json"])
         capabilities = content.get("capabilities", [])
+        raw_excerpts = content.get("excerpts", [])
+        excerpts = raw_excerpts if isinstance(raw_excerpts, list) else []
+        first_user_excerpt = next(
+            (
+                excerpt.get("text")
+                for excerpt in excerpts
+                if isinstance(excerpt, dict)
+                and excerpt.get("role") == "user"
+                and isinstance(excerpt.get("text"), str)
+            ),
+            None,
+        )
         return DiscoveryRow(
             source_id=row["source_id"],
+            handle=row["session_handle"],
             harness=row["adapter"],
             updated_at=_datetime(row["updated_at"]),
             health=SessionHealth(row["health"]),
-            title=content.get("source_title"),
+            title=(
+                content["source_title"]
+                if isinstance(content.get("source_title"), str)
+                else None
+            ),
             capabilities=tuple(str(value) for value in capabilities),
-            snippet=snippet,
+            display_name=(
+                content["display_name"]
+                if isinstance(content.get("display_name"), str)
+                else None
+            ),
+            first_user_excerpt=first_user_excerpt,
+            snippet=snippet if snippet is not None else first_user_excerpt,
         )

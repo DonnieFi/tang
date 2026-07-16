@@ -167,11 +167,18 @@ def test_turn_selection_is_half_open() -> None:
 def test_sensitive_values_are_not_exposed_by_repr() -> None:
     record = source("native-1")
     visible_turn = turn(0)
+    warning = AdapterWarning(
+        "private-warning",
+        "private details",
+        record.identity,
+        "/private/project",
+    )
 
     assert "sensitive/native-1" not in repr(record)
     assert "/private/project" not in repr(record)
     assert "private title" not in repr(record)
     assert "private turn 0" not in repr(visible_turn)
+    assert "/private/project" not in repr(warning)
 
 
 def test_timestamps_are_normalized_to_utc_and_naive_values_fail() -> None:

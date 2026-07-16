@@ -9,7 +9,7 @@ from pathlib import Path
 
 from tang.adapters import CodexAdapter, GrokAdapter
 from tang.adapters.base import BatchStatus, ScanBatch
-from tang.storage import SCHEMA_VERSION, data_path
+from tang.storage import SCHEMA_VERSION
 
 
 @dataclass(frozen=True)
@@ -22,7 +22,7 @@ class DoctorCheck:
 
 
 def run_doctor(
-    database: Path | None = None,
+    database: Path,
     *,
     codex_home: Path | None = None,
     grok_home: Path | None = None,
@@ -41,7 +41,7 @@ def run_doctor(
             ),
         )
     ]
-    database_path = (database or data_path()).expanduser().resolve()
+    database_path = database.expanduser().resolve()
     if not database_path.is_file():
         checks.append(
             DoctorCheck(

@@ -113,11 +113,11 @@ def test_doctor_reports_empty_readable_adapter_stores(
     assert "grok: empty" in captured.out
 
 
-def test_doctor_default_path_does_not_create_storage(
+def test_doctor_default_project_path_does_not_create_storage(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
-    data_home = tmp_path / "data-home"
-    monkeypatch.setenv("XDG_DATA_HOME", str(data_home))
+    project = tmp_path / "project"
+    project.mkdir()
     monkeypatch.setattr("tang.doctor.shutil.which", lambda command: "/bin/tang")
 
     assert (
@@ -125,6 +125,8 @@ def test_doctor_default_path_does_not_create_storage(
             [
                 "doctor",
                 "--json",
+                "--cwd",
+                str(project),
                 "--codex-home",
                 str(tmp_path / "codex"),
                 "--grok-home",
@@ -139,7 +141,7 @@ def test_doctor_default_path_does_not_create_storage(
         check for check in document["checks"] if check["component"] == "database"
     )
     assert database["status"] == "not_initialized"
-    assert not data_home.exists()
+    assert not (project / ".tang").exists()
 
 
 def test_doctor_reads_existing_database_while_wal_writer_is_active(

@@ -59,10 +59,10 @@ def test_explicit_link_json_is_deterministic(tmp_path: Path, capsys) -> None:
         [
             "link",
             "--from",
-            first.identity.canonical,
-            second.identity.canonical,
+            "G1",
+            "c1",
             "--to",
-            target.identity.canonical,
+            "C2",
             "--database",
             str(database),
             "--cwd",
@@ -110,7 +110,7 @@ def test_unique_current_target_links_and_ambiguity_refuses(
     )
     assert main(common) == 0
     linked = capsys.readouterr()
-    assert target.identity.canonical in linked.out
+    assert linked.out == "Linked G1 to C1; inserted 1, existing 0.\n"
     assert linked.err == ""
 
     second_source = record("grok", "second-source", project)

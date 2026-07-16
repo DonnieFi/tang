@@ -5,6 +5,8 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 from tang.adapters import (
     BatchStatus,
     CodexAdapter,
@@ -16,13 +18,20 @@ from tang.adapters import (
 )
 from tang.capsule import DiscoveryCapsuleBuilder
 from tang.cli import main
-from tang.discovery import DiscoveryFilter, DiscoveryService
+from tang.discovery import DiscoveryFilter, DiscoveryService, discovery_page
 from tang.project import resolve_project
 from tang.repository import TangRepository
 from tang.storage import open_database
 
 
-def seed_discovery(database: Path, current: Path, foreign: Path, fixture_home: Path) -> None:
+def seed_discovery(
+    database: Path,
+    current: Path,
+    foreign: Path,
+    fixture_home: Path,
+    *,
+    extra_count: int = 0,
+) -> None:
     adapter = CodexAdapter(fixture_home, source_namespace="discovery")
     template = adapter.scan(None).records[0]
     connection = open_database(database)
@@ -30,10 +39,22 @@ def seed_discovery(database: Path, current: Path, foreign: Path, fixture_home: P
     builder = DiscoveryCapsuleBuilder()
     project = resolve_project(current)
     foreign_project = resolve_project(foreign)
-    records = (
+    records = [
         ("alpha", "codex", SessionHealth.COMPLETE, "Alpha plan", "forge exact phrase", 3, project.key),
         ("beta", "grok", SessionHealth.UNKNOWN, "Beta work", "forge nearby phrase", 2, project.key),
         ("foreign", "codex", SessionHealth.COMPLETE, "Foreign", "forge exact phrase", 4, foreign_project.key),
+    ]
+    records.extend(
+        (
+            f"extra-{number}",
+            "codex",
+            SessionHealth.COMPLETE,
+            f"Extra recovery {number}",
+            f"extra fixture {number}",
+            5 + number,
+            project.key,
+        )
+        for number in range(extra_count)
     )
     try:
         with repository.transaction():
@@ -81,9 +102,24 @@ def test_browse_and_search_are_project_scoped_filtered_and_deterministic(
         repository = TangRepository(connection)
         service = DiscoveryService(repository)
         project_key = resolve_project(current).key
+        assert repository.discovery_source_ids(
+            project_key, adapter="codex", native_id="alpha"
+        ) == ("codex:discovery:alpha",)
+        assert repository.discovery_source_ids(
+            project_key, adapter="codex", native_id="missing"
+        ) == ()
 
         browsed = service.browse(project_key)
         phrase = service.search(project_key, '"forge exact"')
+        excluded_browse = service.browse(
+            project_key,
+            exclude_source_ids=("codex:discovery:alpha", "codex:discovery:alpha"),
+        )
+        excluded_phrase = service.search(
+            project_key,
+            '"forge exact"',
+            exclude_source_ids=("codex:discovery:alpha",),
+        )
         filtered = service.browse(
             project_key,
             DiscoveryFilter(
@@ -98,8 +134,17 @@ def test_browse_and_search_are_project_scoped_filtered_and_deterministic(
             "codex:discovery:alpha",
             "grok:discovery:beta",
         ]
+        assert [item.display_name for item in browsed] == ["Alpha plan", "Beta work"]
+        assert [item.snippet for item in browsed] == [
+            "forge exact phrase",
+            "forge nearby phrase",
+        ]
         assert [item.source_id for item in phrase] == ["codex:discovery:alpha"]
         assert "[forge exact] phrase" in phrase[0].snippet
+        assert [item.source_id for item in excluded_browse] == [
+            "grok:discovery:beta"
+        ]
+        assert excluded_phrase == ()
         assert [item.source_id for item in filtered] == ["grok:discovery:beta"]
         assert service.search(project_key, "absenttoken") == ()
 
@@ -114,12 +159,41 @@ def test_browse_and_search_are_project_scoped_filtered_and_deterministic(
         displayed = service.search(project_key, "needle")
         assert "correct horse" not in displayed[0].snippet
         assert "[REDACTED:credential]" in displayed[0].snippet
+
+        capsule_row = connection.execute(
+            "SELECT content_json FROM capsules WHERE source_id = ?",
+            ("codex:discovery:alpha",),
+        ).fetchone()
+        assert capsule_row is not None
+        content = json.loads(capsule_row["content_json"])
+        content["display_name"] = (
+            'Resume codex:discovery:alpha 019f6000-5678-7000-8000-000000000002 '
+            'with PASSWORD="display-name-secret"'
+        )
+        with repository.transaction():
+            connection.execute(
+                "UPDATE capsules SET content_json = ? WHERE source_id = ?",
+                (
+                    json.dumps(content, sort_keys=True, separators=(",", ":")),
+                    "codex:discovery:alpha",
+                ),
+            )
+        display_item = next(
+            item
+            for item in service.browse(project_key)
+            if item.source_id == "codex:discovery:alpha"
+        )
+        assert "display-name-secret" not in display_item.display_name
+        assert "codex:discovery:alpha" not in display_item.display_name
+        assert "019f6000-5678-7000-8000-000000000002" not in display_item.display_name
+        assert "[REDACTED:credential]" in display_item.display_name
+        assert display_item.display_name.count("[session]") == 2
     finally:
         connection.close()
 
 
 def test_cli_json_lines_and_malformed_query_keep_diagnostics_on_stderr(
-    codex_fixture_home: Path, tmp_path: Path, capsys
+    codex_fixture_home: Path, tmp_path: Path, monkeypatch, capsys
 ) -> None:
     current = tmp_path / "current"
     foreign = tmp_path / "foreign"
@@ -137,13 +211,50 @@ def test_cli_json_lines_and_malformed_query_keep_diagnostics_on_stderr(
         "codex:discovery:alpha",
         "grok:discovery:beta",
     ]
+    assert [result["session_handle"] for result in document["results"]] == [
+        "C1",
+        "G1",
+    ]
     assert all(result["updated_at"].endswith("Z") for result in document["results"])
     assert json_result.err == ""
 
+    def unexpected_native_scan(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("current exclusion must use the indexed project database")
+
+    monkeypatch.setattr("tang.cli.CodexAdapter.scan", unexpected_native_scan)
+    assert (
+        main(
+            [
+                "search",
+                "forge",
+                *common,
+                "--exclude-current",
+                "--current-native-id",
+                "alpha",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    excluded = json.loads(capsys.readouterr().out)
+    assert [item["source_id"] for item in excluded["results"]] == [
+        "grok:discovery:beta"
+    ]
+
+    assert main(["browse", *common, "--current-native-id", "alpha"]) == 2
+    invalid_exclusion = capsys.readouterr()
+    assert invalid_exclusion.out == ""
+    assert (
+        invalid_exclusion.err
+        == "error: --current-native-id requires --exclude-current\n"
+    )
+
     assert main(["search", "forge", *common, "--harness", "grok"]) == 0
     line_result = capsys.readouterr()
-    assert line_result.out.count("\n") == 1
-    assert "grok:discovery:beta" in line_result.out
+    assert line_result.out.count("\n") == 2
+    assert "[1] G1 | Beta work | grok | 2026-07-14T02:00:00Z | unknown" in line_result.out
+    assert "Page 1 of 1 (1 results)." in line_result.out
+    assert "grok:discovery:beta" not in line_result.out
     assert "codex:discovery:alpha" not in line_result.out
     assert line_result.err == ""
 
@@ -151,3 +262,76 @@ def test_cli_json_lines_and_malformed_query_keep_diagnostics_on_stderr(
     malformed = capsys.readouterr()
     assert malformed.out == ""
     assert malformed.err == "error: malformed FTS query\n"
+
+
+def test_human_discovery_is_numbered_paged_and_maps_only_current_choices(
+    codex_fixture_home: Path, tmp_path: Path, capsys
+) -> None:
+    current = tmp_path / "current"
+    foreign = tmp_path / "foreign"
+    current.mkdir()
+    foreign.mkdir()
+    database = tmp_path / "tang.db"
+    seed_discovery(
+        database, current, foreign, codex_fixture_home, extra_count=5
+    )
+    common = ["--database", str(database), "--cwd", str(current)]
+
+    assert main(["browse", *common]) == 0
+    first = capsys.readouterr()
+
+    assert len([line for line in first.out.splitlines() if line.startswith("[")]) == 5
+    assert "Page 1 of 2 (7 results)." in first.out
+    assert "Use --page 2 for the next page." in first.out
+    assert "extra fixture" in first.out
+    assert "codex:discovery:" not in first.out
+    assert "grok:discovery:" not in first.out
+
+    assert main(["browse", *common, "--page", "2"]) == 0
+    second = capsys.readouterr()
+
+    assert "[6] C1 | Alpha plan" in second.out
+    assert "[7] G1 | Beta work" in second.out
+    assert "Page 2 of 2 (7 results)." in second.out
+    assert "Use --page 1 for the previous page." in second.out
+
+    assert main(["browse", *common, "--page", "3"]) == 2
+    out_of_range = capsys.readouterr()
+    assert out_of_range.out == ""
+    assert out_of_range.err == "error: page 3 is out of range; 2 page(s) available\n"
+
+    assert main(["browse", *common, "--page", "2", "--json"]) == 0
+    paged_document = json.loads(capsys.readouterr().out)
+    assert paged_document["page"] == 2
+    assert paged_document["page_count"] == 2
+    assert paged_document["result_count"] == 7
+    assert [item["choice_number"] for item in paged_document["results"]] == [6, 7]
+    assert [item["source_id"] for item in paged_document["results"]] == [
+        "codex:discovery:alpha",
+        "grok:discovery:beta",
+    ]
+
+    assert main(["browse", *common, "--json"]) == 0
+    unpaged_document = json.loads(capsys.readouterr().out)
+    assert len(unpaged_document["results"]) == 7
+    assert "page" not in unpaged_document
+    assert all("choice_number" not in item for item in unpaged_document["results"])
+
+    connection = open_database(database)
+    try:
+        items = DiscoveryService(TangRepository(connection)).browse(
+            resolve_project(current).key
+        )
+        first_page = discovery_page(items, 1)
+        selected = first_page.resolve_numbers((2, 1, 2))
+
+        assert [item.source_id for item in selected] == [
+            first_page.choices[0].item.source_id,
+            first_page.choices[1].item.source_id,
+        ]
+        with pytest.raises(ValueError, match="current result page"):
+            first_page.resolve_numbers((6,))
+        with pytest.raises(ValueError, match="out of range"):
+            discovery_page(items, 3)
+    finally:
+        connection.close()
