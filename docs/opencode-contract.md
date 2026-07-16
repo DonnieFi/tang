@@ -96,14 +96,17 @@ It cannot contain raw session/message IDs, arbitrary provider/role/part labels,
 export hashes, paths, titles, transcript text, reasoning, tool inputs/outputs,
 or credentials.
 
-OpenCode `1.17.20`'s CLI `session list` is project-scoped but requests root
-sessions only, and its service defaults to the latest 100. The probe requests
-that boundary explicitly, reports it, sorts deterministically before capping
-exports, and fails visibly if all 100 slots are occupied. It does not claim a
-complete catalog or non-root discovery. The production adapter bead must
-validate the documented directory-filtered server catalog, include non-root
-sessions where supported, impose an explicit bound, and report partial when the
-bound is reached. It must not read OpenCode's private database.
+OpenCode `1.17.20`'s CLI `session list` requests root sessions for OpenCode's
+project identity and its service defaults to the latest 100. That identity can
+span sibling clones or worktrees, so Tang filters the returned entries to the
+canonical active directory before export. The probe requests the upstream
+boundary explicitly, reports whether foreign-directory entries were excluded,
+sorts deterministically before capping exports, and fails visibly if all 100
+slots are occupied because truncation could hide local sessions. It does not
+claim a complete catalog or non-root discovery. The production adapter bead
+must validate the documented directory-filtered server catalog, include
+non-root sessions where supported, impose an explicit bound, and report partial
+when the bound is reached. It must not read OpenCode's private database.
 
 The active tool-context session is exported directly even when it is absent
 from the root catalog. Each command has a 30-second deadline and the complete

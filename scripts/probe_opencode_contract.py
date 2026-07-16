@@ -308,7 +308,7 @@ def probe(
 
     project_items: list[dict[str, Any]] = []
     current_item: dict[str, Any] | None = None
-    catalog_project_scoped = True
+    foreign_catalog_items_excluded = False
     for item in listed:
         if not isinstance(item, dict):
             raise ProbeFailure("session_list_invalid_shape")
@@ -324,7 +324,7 @@ def probe(
         ):
             raise ProbeFailure("session_list_invalid_shape")
         if Path(directory).resolve() != project:
-            catalog_project_scoped = False
+            foreign_catalog_items_excluded = True
             continue
         project_items.append(item)
         if current_session_id is not None and source_id == current_session_id:
@@ -426,7 +426,10 @@ def probe(
             item["updated_milliseconds_present"] for item in sessions
         ),
         "catalog_latest_root_limit": CATALOG_LIMIT,
-        "catalog_project_scoped": catalog_project_scoped,
+        "catalog_foreign_items_excluded": foreign_catalog_items_excluded,
+        "catalog_project_scoped": all(
+            Path(item["directory"]).resolve() == project for item in project_items
+        ),
         "catalog_within_supported_boundary": catalog_within_boundary,
         "current_session_catalog_listed": current_catalog_listed,
         "current_session_matches": current_match,

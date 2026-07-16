@@ -162,7 +162,7 @@ def test_probe_fails_closed_without_leaking_invalid_export(
     }
 
 
-def test_probe_rejects_catalog_items_outside_the_current_project(
+def test_probe_excludes_catalog_items_outside_the_current_directory(
     tmp_path: Path, monkeypatch
 ) -> None:
     project = tmp_path / "project"
@@ -213,9 +213,10 @@ def test_probe_rejects_catalog_items_outside_the_current_project(
         text=True,
     )
 
-    assert result.returncode == 1
+    assert result.returncode == 0
     document = json.loads(result.stdout)
-    assert document["checks"]["catalog_project_scoped"] is False
+    assert document["checks"]["catalog_project_scoped"] is True
+    assert document["checks"]["catalog_foreign_items_excluded"] is True
     assert document["checks"]["session_count_positive"] is True
     assert len(document["sessions"]) == 1
     assert "PRIVATE FOREIGN TITLE" not in result.stdout
