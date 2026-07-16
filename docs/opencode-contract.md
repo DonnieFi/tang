@@ -228,3 +228,24 @@ catalog boundary, stable/project-scoped identities, ordering inputs, meaningful
 user/assistant text, the exact current session, and the exact invoking message.
 Provider classes are fixed diagnostics only. If a report fails, return its JSON
 unchanged; its fixed error/check fields are the safe diagnostic evidence.
+
+## Epic 7 continuity acceptance
+
+On 2026-07-16, the deterministic clean-database matrix indexed synthetic Codex,
+Grok, and OpenCode histories; built one redacted, cited three-source Context
+Pack; required exact OpenCode host-target confirmation; atomically inserted
+three edges; traversed the mixed-harness graph; and purged only Tang-derived
+state. The focused adapter/privacy/index/context/target/link/graph/purge/skill
+matrix passed 130 tests. Full suites passed 319 tests on Python 3.12.8 and in an
+isolated Python 3.11.11 environment; the core synthetic continuity test took
+0.09 seconds in that run. A clean wheel installed into a fresh Python 3.11
+environment, installed the OpenCode workflow idempotently, and retained the
+documented top-level CLI.
+
+The earlier privacy-safe live contract reports already cover representative
+OpenAI-backed and xAI/Grok-backed OpenCode sessions on pinned Linux OpenCode
+1.17.20. Final live product evidence must additionally run `/tang` from a clean
+project database through source selection, cited context, explicit active-target
+confirmation, link insertion, and graph reveal. Record only handles, counts,
+fixed codes, timings, and pass/fail observations—never OAuth values, native IDs,
+paths, transcript prose, reasoning, or tool payloads.
