@@ -54,12 +54,16 @@ not promoted into a format claim. The adapter must treat invalid or incomplete
 exports as partial source failures and retain the last known good checkpoint;
 live-provider acceptance must include a non-trivial export.
 
-## Privacy-safe friend-host probe
+## Privacy-safe external-provider acceptance
 
-From a private Tang checkout, open OpenCode `1.17.20` in the Tang worktree.
+This is the live acceptance stage for Tang's permanent OpenCode integration,
+not a tester-specific product path. From a private Tang checkout, open OpenCode
+`1.17.20` in the Tang worktree. Python 3.11 or newer is required by the probe;
+OpenCode hosts its custom tool under Bun.
 The project-local `tang_contract_probe` custom tool is discovered from
 `.opencode/tools/`. In one OpenAI-backed session and one xAI/Grok-backed
-session, ask OpenCode to call `tang_contract_probe`.
+session, ask OpenCode to call `tang_contract_probe` with the exact expected
+provider ID for that run. The report fails closed when that provider is absent.
 
 If OpenCode is not on `PATH`, launch it with the executable path exported for
 the tool process:
@@ -75,14 +79,30 @@ The tool invokes:
 python3 scripts/probe_opencode_contract.py \
   --opencode "$TANG_OPENCODE_EXECUTABLE" \
   --cwd "$PROJECT" \
-  --current-session-id "$ACTIVE_OPENCODE_SESSION_ID"
+  --current-session-id "$ACTIVE_OPENCODE_SESSION_ID" \
+  --expect-provider "$EXPECTED_PROVIDER_ID" \
+  --overall-timeout 120
 ```
 
 The dynamic values above come from OpenCode tool context; do not type or send
 them separately. Return only the probe's JSON report. It contains version,
-platform, provider IDs, booleans, counts, part-type labels, export hashes, and
-one-way identity digests. It cannot contain raw session IDs, paths, titles,
+platform, provider IDs, booleans, counts, part-type labels, and one-way identity
+digests. It cannot contain raw session IDs, export hashes, paths, titles,
 transcript text, reasoning, tool inputs/outputs, or credentials.
+
+OpenCode `1.17.20` exposes no directory filter or pagination option for
+`session list`. The probe therefore lists the supported catalog without a
+global top-N limit, filters it to the canonical project directory, and only
+then caps exports. The active context session is always included in that cap.
+Each command has a 30-second deadline and the complete probe has a 120-second
+deadline. Failures expose only allow-listed error codes, never stderr.
+
+The production ordering contract is created milliseconds followed by stable
+message ID. The probe verifies that both inputs are present and that source
+timestamps are non-decreasing; the adapter will apply the deterministic
+tie-break. Missing timestamps or IDs qualify the source as incomplete rather
+than inviting Tang to guess. Only non-ignored user/assistant text parts are
+visible content.
 
 Epic 7's provider claim remains pending until both reports show:
 

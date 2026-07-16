@@ -14,5 +14,9 @@ def test_opencode_contract_tool_passes_exact_context_without_exposing_it() -> No
     assert "context.directory" in source
     assert "context.worktree" in source
     assert "TANG_OPENCODE_EXECUTABLE" in source
+    assert "expectedProvider" in source
+    assert '"--expect-provider"' in source
+    assert '"--overall-timeout"' in source
+    assert "processResult.kill()" in source
     assert "auth.json" not in source
     assert "console.log" not in source
