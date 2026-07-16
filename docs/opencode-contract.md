@@ -120,7 +120,9 @@ tie-break. Missing timestamps or IDs qualify the source as incomplete rather
 than inviting Tang to guess. Only non-ignored user/assistant text parts are
 visible content.
 
-Epic 7's provider claim remains pending until both reports show:
+On 2026-07-16, privacy-safe live reports passed from one direct OpenAI-backed
+session and one direct xAI/Grok-backed session on the pinned host. Both reports
+showed:
 
 - `result: "pass"`;
 - `current_session_matches: true`;
@@ -129,7 +131,13 @@ Epic 7's provider claim remains pending until both reports show:
 - `version_supported: true` and `platform_supported: true`;
 - stable, chronological, project-scoped identities;
 - at least one visible user and assistant text part; and
-- the intended OpenAI or xAI/Grok provider ID.
+- a fixed `openai` or `xai` provider classification for the representative run.
+
+Provider and model remain diagnostics, not transcript-eligibility rules. A
+supported OpenCode transcript can be recovered regardless of which provider or
+model produced it, provided the same host, identity, ordering, visibility, and
+privacy contracts hold. No native IDs, paths, transcript text, hashes, or raw
+reports are retained as project evidence.
 
 ## Functional acceptance procedure
 
@@ -152,6 +160,6 @@ provider alias; that diagnostic does not affect transcript readability.
 
 A successful report has `result: "pass"` and true checks for version, platform,
 catalog boundary, stable/project-scoped identities, ordering inputs, meaningful
-user/assistant text, the exact current session, the exact invoking message, and
-the invoking provider. If either report fails, return its JSON unchanged; its
-fixed error/check fields are the safe diagnostic evidence.
+user/assistant text, the exact current session, and the exact invoking message.
+Provider classes are fixed diagnostics only. If a report fails, return its JSON
+unchanged; its fixed error/check fields are the safe diagnostic evidence.

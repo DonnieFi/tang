@@ -9,6 +9,9 @@ verified on Linux against OpenCode `1.17.20` on 2026-07-16:
   message objects containing typed parts; and
 - OpenCode custom-tool context supplies the active `sessionID`, `messageID`,
   `directory`, and `worktree` without Tang reading provider authentication.
+- `tool-context.json` is an invented host-context envelope used to verify exact,
+  path-safe destination resolution. Tests replace its placeholder path with a
+  temporary project; it contains no native user metadata.
 
 The local proof used an isolated temporary OpenCode data/config/cache home,
 disabled model fetching and plugins, created one credential-free session via
