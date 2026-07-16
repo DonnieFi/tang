@@ -222,3 +222,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) retain lanes only; (b) replace them with a franchise-inspired illustration; (c) add a Tang-owned deterministic layered rail map above the lanes while preserving narrow and ASCII fallbacks.
 - Decision: (c) — wide Unicode output now makes merges and branches spatially immediate through left-to-right rails, junctions, unavailable-source marks, and the active handle; it copies no Marvel artwork, names, logos, palette, or proprietary styling. Serves: Design, Technological Implementation, Quality of Idea.
 - By: human (requested the network direction) and agent (original terminal layout and accessibility boundaries)
+
+## 2026-07-16T17:40:24Z · tang-09a · Start OpenCode engineering beside external release smoke
+- Context: The reviewed Epic 6 implementation is promoted on private `main`, while its final clean-host smoke is being performed independently later; a developer with live OpenCode access is available to validate the next adapter.
+- Options: (a) keep all OpenCode work blocked until the external smoke and Epic 6 closure; (b) start OpenCode from the unreviewed release branch; (c) begin Epic 7 from promoted `main` while keeping the external smoke release-blocking for Epic 6 and submission work.
+- Decision: (c) — isolate the independent validation lane without delaying evidence-first OpenCode integration or weakening either epic's close gate. Serves: Technological Implementation, Potential Impact, Quality of Idea.
+- By: human (explicit sequencing approval) and agent (dependency and branch execution)

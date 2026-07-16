@@ -1,0 +1,11 @@
+{
+  "info": {
+    "id": "ses_tang_malformed",
+    "directory": "/work/tang-opencode",
+    "time": {
+      "created": 1784224800000,
+      "updated": 1784224800000
+    }
+  },
+  "messages": "not-an-array"
+}

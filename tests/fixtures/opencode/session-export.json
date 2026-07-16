@@ -1,0 +1,132 @@
+{
+  "info": {
+    "id": "ses_tang00000000000000000000001",
+    "slug": "tang-synthetic-proof",
+    "projectID": "project_tang_synthetic",
+    "directory": "/work/tang-opencode",
+    "path": "work/tang-opencode",
+    "title": "Design deterministic OpenCode recovery",
+    "agent": "build",
+    "model": {
+      "id": "gpt-5.6",
+      "providerID": "openai",
+      "variant": "high"
+    },
+    "version": "1.17.20",
+    "cost": 0,
+    "tokens": {
+      "input": 0,
+      "output": 0,
+      "reasoning": 0,
+      "cache": {
+        "read": 0,
+        "write": 0
+      }
+    },
+    "time": {
+      "created": 1784224800000,
+      "updated": 1784224860000
+    }
+  },
+  "messages": [
+    {
+      "info": {
+        "role": "user",
+        "time": {
+          "created": 1784224801000
+        },
+        "agent": "build",
+        "model": {
+          "providerID": "openai",
+          "modelID": "gpt-5.6"
+        },
+        "id": "msg_tang_user_0001",
+        "sessionID": "ses_tang00000000000000000000001"
+      },
+      "parts": [
+        {
+          "type": "text",
+          "text": "Implement a source-cited OpenCode continuation adapter.",
+          "id": "prt_tang_user_text_0001",
+          "sessionID": "ses_tang00000000000000000000001",
+          "messageID": "msg_tang_user_0001"
+        }
+      ]
+    },
+    {
+      "info": {
+        "role": "assistant",
+        "time": {
+          "created": 1784224802000,
+          "completed": 1784224804000
+        },
+        "id": "msg_tang_assistant_0001",
+        "sessionID": "ses_tang00000000000000000000001",
+        "parentID": "msg_tang_user_0001",
+        "modelID": "gpt-5.6",
+        "providerID": "openai",
+        "mode": "build",
+        "path": {
+          "cwd": "/work/tang-opencode",
+          "root": "/work/tang-opencode"
+        },
+        "cost": 0,
+        "tokens": {
+          "input": 0,
+          "output": 0,
+          "reasoning": 0,
+          "cache": {
+            "read": 0,
+            "write": 0
+          }
+        },
+        "finish": "stop"
+      },
+      "parts": [
+        {
+          "type": "reasoning",
+          "text": "HIDDEN_REASONING_CANARY",
+          "id": "prt_tang_reasoning_0001",
+          "sessionID": "ses_tang00000000000000000000001",
+          "messageID": "msg_tang_assistant_0001",
+          "time": {
+            "start": 1784224802000,
+            "end": 1784224803000
+          }
+        },
+        {
+          "type": "tool",
+          "callID": "call_tang_0001",
+          "tool": "read",
+          "state": {
+            "status": "completed",
+            "input": {
+              "secret": "TOOL_INPUT_CANARY"
+            },
+            "output": "TOOL_OUTPUT_CANARY",
+            "title": "Read synthetic fixture",
+            "metadata": {},
+            "time": {
+              "start": 1784224803000,
+              "end": 1784224803500
+            }
+          },
+          "id": "prt_tang_tool_0001",
+          "sessionID": "ses_tang00000000000000000000001",
+          "messageID": "msg_tang_assistant_0001"
+        },
+        {
+          "type": "text",
+          "text": "The supported source and destination seams are ready for focused tests.",
+          "id": "prt_tang_assistant_text_0001",
+          "sessionID": "ses_tang00000000000000000000001",
+          "messageID": "msg_tang_assistant_0001",
+          "time": {
+            "start": 1784224803500,
+            "end": 1784224804000
+          }
+        }
+      ]
+    }
+  ]
+}
