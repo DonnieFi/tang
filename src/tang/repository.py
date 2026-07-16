@@ -220,7 +220,7 @@ class TangRepository:
         if not token or token.strip() != token:
             raise ValueError("session token must be non-empty and trimmed")
         if ":" in token:
-            return token
+            return SessionIdentity.from_canonical(token).canonical
         normalized = token.upper()
         if (
             len(normalized) < 2

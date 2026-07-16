@@ -22,13 +22,13 @@ NOW = datetime(2026, 7, 15, tzinfo=timezone.utc)
 
 def source(native_id: str, adapter: str = "codex") -> SourceRecord:
     return SourceRecord(
-        SessionIdentity(adapter, "graph", native_id),
-        OpaqueSourceLocator(f"fixture:{native_id}"),
-        SourceFingerprint("sha256", f"digest-{native_id}"),
-        "/fixture/project",
-        NOW,
-        NOW,
-        SessionHealth.COMPLETE,
+        identity=SessionIdentity(adapter, "graph", native_id),
+        locator=OpaqueSourceLocator(f"fixture:{native_id}"),
+        fingerprint=SourceFingerprint("sha256", f"digest-{native_id}"),
+        project_hint="/fixture/project",
+        started_at=NOW,
+        updated_at=NOW,
+        health=SessionHealth.COMPLETE,
     )
 
 

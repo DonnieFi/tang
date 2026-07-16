@@ -29,13 +29,16 @@ def seeded(tmp_path: Path) -> tuple[object, TangRepository, dict[str, object]]:
             timestamp = datetime.fromisoformat(node["timestamp"].replace("Z", "+00:00"))
             repository.upsert_session(
                 SourceRecord(
-                    identity,
-                    OpaqueSourceLocator(f"fixture:{node['native_id']}"),
-                    SourceFingerprint("sha256", f"fixture-{node['native_id']}"),
-                    "/fixture/tang",
-                    timestamp,
-                    timestamp,
-                    SessionHealth(node["health"]),
+                    identity=identity,
+                    locator=OpaqueSourceLocator(f"fixture:{node['native_id']}"),
+                    fingerprint=SourceFingerprint(
+                        "sha256", f"fixture-{node['native_id']}"
+                    ),
+                    project_hint="/fixture/tang",
+                    started_at=timestamp,
+                    updated_at=timestamp,
+                    title=str(node["title"]),
+                    health=SessionHealth(node["health"]),
                 ),
                 document["project_key"],
                 timestamp,
@@ -78,6 +81,9 @@ def test_multiverse_component_preserves_every_branch_and_merge_path(tmp_path: Pa
         ]
         assert [node.native_id for node in graph.nodes if node.current] == ["g"]
         assert [node.native_id for node in graph.nodes if not node.native_available] == ["f"]
+        assert next(node for node in graph.nodes if node.native_id == "f").health == (
+            SessionHealth.POSSIBLY_INTERRUPTED
+        )
     finally:
         connection.close()
 

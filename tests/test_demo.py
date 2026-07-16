@@ -26,13 +26,18 @@ def test_demo_is_reproducible_and_cannot_touch_ambient_user_data(
     assert output.err == ""
     assert "TANG ISOLATED DEMO" in output.out
     assert "SEARCH:" in output.out
+    assert "INDEX: 2 indexed; status complete (0 warning(s))" in output.out
     assert "CONTEXT: 2 cited sources" in output.out
     assert "RESUME POINT:" in output.out
     assert "NEXT ACTION:" in output.out
     assert "[grok:019f6000-1234-7000-8000-000000000001" in output.out
-    assert "LINK: codex:multiverse:g -> codex:multiverse:h (confirmed)" in output.out
+    assert "SELECT:\n  G1 | grok |" in output.out
+    assert "MULTIVERSE: selected sources G1 + C1 merge into C2" in output.out
+    assert "LINK: C5 -> C6 (confirmed; inserted 1)" in output.out
     assert "TANG MULTIVERSE MAP" in output.out
     assert "BRANCH" in output.out and "MERGE" in output.out
+    assert "possibly_interrupted" in output.out
+    assert "codex:multiverse:" not in output.out
     workspace = Path(re.search(r"^Workspace: (.+)$", output.out, re.MULTILINE).group(1))
     assert not workspace.exists()
     for root in (data, codex, grok):
@@ -47,3 +52,11 @@ def test_demo_output_is_deterministic_except_for_workspace_path(capsys) -> None:
         rendered = capsys.readouterr().out
         outputs.append(re.sub(r"^Workspace: .+$", "Workspace: <temporary>", rendered, flags=re.MULTILINE))
     assert outputs[0] == outputs[1]
+
+
+def test_demo_wide_unicode_map_includes_the_woven_network(capsys) -> None:
+    assert main(["demo", "--width", "120"]) == 0
+
+    output = capsys.readouterr().out
+    assert "MULTIVERSE NETWORK · TIME FLOWS →" in output
+    assert "×G2" in output and "★C6" in output

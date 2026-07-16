@@ -31,13 +31,13 @@ class TtyBuffer(io.StringIO):
 
 def record(native_id: str, project: Path) -> SourceRecord:
     return SourceRecord(
-        SessionIdentity("codex", "graph", native_id),
-        OpaqueSourceLocator(f"fixture:{native_id}"),
-        SourceFingerprint("sha256", f"digest-{native_id}"),
-        str(project),
-        NOW,
-        NOW,
-        SessionHealth.COMPLETE,
+        identity=SessionIdentity("codex", "graph", native_id),
+        locator=OpaqueSourceLocator(f"fixture:{native_id}"),
+        fingerprint=SourceFingerprint("sha256", f"digest-{native_id}"),
+        project_hint=str(project),
+        started_at=NOW,
+        updated_at=NOW,
+        health=SessionHealth.COMPLETE,
     )
 
 

@@ -8,17 +8,11 @@ Bring one session or many from Grok and Codex into the Codex session you are in.
 
 **From Grok to Codex today; from handle to handle as support expands.**
 
-<!--
-HERO IMAGE — release blocking
+![The real Tang isolated demo showing a woven network plus five timeline lanes, explicit branches and merges, an unavailable source, and active Codex handle C6.](docs/assets/tang-multiverse-demo.svg)
 
-Replace this comment with the real terminal Multiverse Map capture after the
-canonical demo and accessibility snapshots pass. The capture must:
-- be the first image in the README;
-- show plain-text Grok and Codex labels, not third-party logos;
-- show a branch or merge and highlight the current Codex session;
-- use the forge-black / hot-steel amber / oxidized-teal Tang palette;
-- come from real `tang demo` output, not a mockup.
--->
+This capture comes from the real isolated `tang demo` output. From a development
+checkout, regenerate it with `python scripts/capture_demo_hero.py --tang
+.venv/bin/tang --output docs/assets/tang-multiverse-demo.svg`.
 
 ## The Multiverse Map
 
@@ -34,7 +28,9 @@ The graph is the product's proof, not decoration. Every edge means recovered con
 
 The final terminal view highlights the active handle and remains understandable with `NO_COLOR`, narrow terminals, and ASCII-only connectors.
 
-> **Pre-release:** Tang is being built for OpenAI Build Week. The commands and support claims marked as release targets below are not final until their verification gates pass.
+> **Release candidate:** the Linux wheel and complete demo path are verified.
+> The public `v0.1.0` URL becomes live only after the manual release gate and
+> tag; until then, use the local-wheel command below.
 
 ## The work should outlive the tool
 
@@ -62,34 +58,38 @@ The Build Week demonstration proves one concrete path without limiting the graph
 4. Select it and build a compact, source-cited Context Pack.
 5. Let GPT-5.6 state the evidence-backed **Resume point** and **Next action**.
 6. Confirm the continuation and reveal it in the Multiverse Map.
-7. Continue C into D and E, merge another source F into E, and watch the many-to-many graph grow.
+7. Continue C into D and E, merge E with another source F into G, and watch the many-to-many graph grow.
 
 No transcript copy-and-paste. No pretending that a generic summary is provenance. No edge until the continuation is confirmed.
 
 ## Install on Linux
 
-<!-- TODO(release): Replace <owner>, verify the public wheel URL in a clean Linux environment, and remove the pre-release warning only after tang-2be.6 passes. -->
-
-Release target for Tang `v0.1.0`:
+After `v0.1.0` is published, install its immutable, version-pinned wheel:
 
 ```bash
-uv tool install https://github.com/<owner>/tang/releases/download/v0.1.0/tang_multiverse-0.1.0-py3-none-any.whl
+uv tool install https://github.com/DonnieFi/tang/releases/download/v0.1.0/tang_multiverse-0.1.0-py3-none-any.whl
 tang skill install codex
-tang doctor
+tang --help
 ```
 
 Requirements: Linux and Python 3.11 or later. The hackathon release makes no macOS or Windows compatibility claim.
 
-For the current local-wheel testing procedure, a plain-English walkthrough,
-and early usage FAQs, see [`docs/getting-started.md`](docs/getting-started.md).
-
-The skill-only installation path will also be available:
+Before publication, install the reviewed local artifact instead:
 
 ```bash
-npx skills@latest add <owner>/tang
+uv tool install ./tang_multiverse-0.1.0-py3-none-any.whl
+tang skill install codex
+tang --help
 ```
 
-That installs the Codex skill, not the `tang` executable. Install the wheel as well before using the workflow.
+The clean-wheel path is tested on Linux x86-64 with Python 3.11.11 and 3.12.8.
+The skill is bundled with the wheel so its instructions and CLI contract stay
+on the same version. Start a new Codex session, invoke `$tang`, or ask Codex in
+plain English to use Tang. Tang is a Codex skill, not a `/tang` slash command;
+the slash-command picker is not expected to list it.
+
+For download verification, uninstall instructions, a plain-English
+walkthrough, and FAQs, see [`docs/getting-started.md`](docs/getting-started.md).
 
 ## Three moves
 
@@ -109,14 +109,15 @@ Confirm the continuation. Tang records explicit, cycle-free edges. Repeated many
 
 | Harness or platform | Hackathon release | Claim |
 |---|---:|---|
-| Codex | Release target | Read-only local session adapter and current continuation target |
-| Grok | Release target | Read-only source adapter for the demonstrated Grok-to-Codex path |
+| Codex CLI 0.144.4 | Supported on Linux | Representative local store live-verified; read-only source adapter and current continuation target |
+| Grok 0.2.99 | Supported on Linux | Representative local store live-verified; read-only source adapter |
 | Cursor | Post-hackathon | Origin story and roadmap only; no v0.1 support claim |
-| Linux | Supported target | Live-tested release platform |
+| Linux x86-64 | Supported | Clean-wheel acceptance on Python 3.11.11 and 3.12.8; synthetic fixture coverage in CI |
 | macOS | Unsupported | No compatibility or CI claim |
 | Windows | Unsupported | No native compatibility claim |
 
-Final adapter claims will distinguish representative live verification from fixture verification.
+Other Codex and Grok versions may share a compatible format, but v0.1.0 does
+not claim them without separate live evidence.
 
 The longer-term product direction is symmetrical continuity: any supported handle should be able to receive the blade. The focused v0.1 release proves a many-to-many session graph through repeated, multi-source continuation into Codex; it does not claim that Tang can write into or resume Grok, Cursor, or another target harness yet.
 
@@ -138,7 +139,8 @@ Native harness logs remain the source of truth. Tang stores only derived continu
 - Selected native sources are reread and redacted when a Context Pack is created.
 - Recovered content is wrapped as untrusted historical evidence, never executable instruction.
 - `tang purge --all` removes all Tang-derived records for the current project, including stored source paths;
-  it never deletes or rewrites the native harness logs that remain the source of truth.
+  it leaves an empty secure SQLite container for reuse and never deletes or
+  rewrites the native harness logs that remain the source of truth.
 - `tang demo` uses a temporary data directory and must not touch native logs or the user's normal project Tang database.
 
 Redaction reduces accidental disclosure; it is not encryption and does not promise protection against forensic recovery.
@@ -168,6 +170,10 @@ Redaction reduces accidental disclosure; it is not encryption and does not promi
 ```
 
 Adapters own native parsing and expose two deep operations: scan for discoverable sessions, and reread a selected session. Tang's core owns project boundaries, redaction, search, context budgets, continuation rules, and presentation.
+
+The concise architecture decisions and their consequences live in
+[`CONTEXT.md`](CONTEXT.md); the approved product contract remains
+[`docs/tangspec.md`](docs/tangspec.md).
 
 ## Command line
 
@@ -210,16 +216,24 @@ points you to `tang link --help` instead of registering a second workflow.
 
 ## Judge path
 
-<!-- TODO(release): Replace this section with the exact clean-wheel commands and recorded timings from tang-2be.6. -->
-
-After installing the tagged wheel:
+After installing either the reviewed local wheel or the published tagged wheel:
 
 ```bash
-tang doctor
 tang demo
 ```
 
-The finished demo will provide a safe, synthetic Grok-to-Codex branch-and-merge corpus and complete the core recovery-to-continuation flow in under 75 seconds.
+Run `tang doctor` separately when you want component-by-component readiness.
+Before the first real project index, its expected `database: not_initialized`
+result is informative rather than a demo failure.
+
+The demo copies only bundled synthetic Codex and Grok fixtures into a temporary
+workspace, indexes and searches them, builds a two-source cited Context Pack,
+maps those exact sources into a branch-and-merge DAG, confirms one new link,
+renders the active Multiverse, and deletes the workspace. On the clean-wheel
+Linux gate runs kept search and Context Pack generation under 0.2 seconds each,
+the search/context/link/graph core under 0.6 seconds, and the complete isolated
+demo under 0.2 seconds. These are observed release-host timings, not universal
+performance guarantees.
 
 Release-candidate reviewers can run the isolated clean-wheel acceptance script
 from a matching source checkout. It records the wheel hash, environment, exit
@@ -240,7 +254,18 @@ GPT-5.6 has two visible roles:
 - **Building Tang:** the majority of core implementation is developed in one recorded Codex project thread, with dated commits and a submitted `/feedback` session ID.
 - **Inside Tang:** GPT-5.6 turns a deterministic, source-cited Context Pack into the concise resume point and next action a developer needs after changing harnesses. Tang keeps retrieval, redaction, citations, and graph edges deterministic.
 
-<!-- TODO(submission): Add concrete implementation examples, the majority-core /feedback ID, and final human decisions from decision.md. -->
+Majority-core Codex thread and `/feedback` evidence ID:
+`019f62b2-5a7d-75c3-922d-969b182ec9a2`.
+
+Concrete collaboration examples include turning live native-store observations
+into two tested read-only adapters, using adversarial review to harden poisoned
+checkpoints and fair multi-source allocation, and converting functional-host
+feedback into project-local storage, faster unchanged refresh, paged discovery,
+and short linkable session handles. Humans made the material calls: prove the
+Grok-to-Codex wedge before broader adapters, never infer continuation edges,
+keep native logs authoritative, move derived storage into each project, and
+require a manual gate before every epic promotion. Those choices are dated in
+[`decision.md`](decision.md).
 
 ## Why not ordinary session resume?
 
@@ -255,20 +280,26 @@ Tang does not launch or remote-control another harness, infer edges, or claim to
 
 ## Roadmap
 
-After the hackathon path is proven:
+After the v0.1 path is proven:
 
+- OpenCode as a read-only source and confirmed destination, gated on live-store evidence
 - Cursor support, gated on repeatable live recovery and failure tests
-- OpenCode adapter
 - opt-in cross-project discovery
 - custom Context Pack budgets
 - richer graph exports and themes
-- broader diagnostics and purge scopes
+- compatibility-preserving architectural hardening already tracked for Epic 8
 
 ## Contributing and license
 
-Tang is a focused Build Week project. Contribution guidance will land with the public release; until then, the approved scope in [`docs/tangspec.md`](docs/tangspec.md) is authoritative.
+Issues and focused pull requests are welcome. Set up a development checkout
+with `uv sync --group dev`, run `uv run pytest -q`, and keep changes inside the
+approved scope in [`docs/tangspec.md`](docs/tangspec.md). New adapter or
+platform claims require representative live evidence, sanitized fixtures, and
+failure-path tests. Never contribute native transcripts, credentials, private
+paths, third-party logos, or a database built from real user history.
 
-Tang will be released under the MIT License with `v0.1.0`.
+Tang is licensed under the [`MIT License`](LICENSE). The verified release
+candidate becomes `v0.1.0` only after its manual review gate and matching tag.
 
 ---
 

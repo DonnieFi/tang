@@ -211,7 +211,7 @@ The distribution name is `tang-multiverse`; the installed command is `tang`. The
 Publish a tagged wheel so judges can install Tang without rebuilding it from source. The README leads with a version-pinned command after the public repository owner is known:
 
 ```bash
-uv tool install https://github.com/<owner>/tang/releases/download/v0.1.0/tang_multiverse-0.1.0-py3-none-any.whl
+uv tool install https://github.com/DonnieFi/tang/releases/download/v0.1.0/tang_multiverse-0.1.0-py3-none-any.whl
 tang skill install codex
 ```
 
@@ -220,14 +220,7 @@ The release does not include a custom shell installer. `uv` supplies the isolate
 ### Standard Alternatives
 
 If the package is also published to PyPI, document `uv tool install tang-multiverse==0.1.0` as a convenience rather than making PyPI publication part of the critical path.
-
-Keep the repository compatible with the Agent Skills installer for users who only want the skill package:
-
-```bash
-npx skills@latest add <owner>/tang
-```
-
-The skill-only path clearly reports that the `tang` CLI must also be installed. Publish a tagged wheel or equivalent release artifact so judges do not need to reconstruct the package from source.
+Publish a tagged wheel or equivalent release artifact so judges do not need to reconstruct the package from source. Tang's supported Codex installation path is `tang skill install codex`, using the skill bundled in that exact wheel.
 
 ## README
 

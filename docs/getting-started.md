@@ -121,9 +121,14 @@ uv tool install ./tang_multiverse-0.1.0-py3-none-any.whl
 tang skill install codex
 ```
 
-Once v0.1.0 is approved and published, this section will replace the local path
-with the exact version-pinned GitHub release URL. Do not install an unversioned
-development build when verifying the release.
+Once v0.1.0 is approved and published, install the exact version-pinned GitHub
+release instead. Do not install an unversioned development build when verifying
+the release:
+
+```bash
+uv tool install https://github.com/DonnieFi/tang/releases/download/v0.1.0/tang_multiverse-0.1.0-py3-none-any.whl
+tang skill install codex
+```
 
 Check the installation:
 
@@ -131,6 +136,10 @@ Check the installation:
 tang --help
 tang doctor
 ```
+
+Start a new Codex session after installing the skill. Invoke `$tang` or ask
+Codex in plain English to use Tang. Tang v0.1.0 installs a Codex skill, not a
+`/tang` slash command, so it might not appear in a slash-command picker.
 
 `tang doctor` is a readiness check. Before your first index it can report that
 the derived database is not initialized. An adapter can also be empty or
@@ -267,7 +276,9 @@ tang purge --all
 ```
 
 Tang asks for confirmation. In a deliberate non-interactive script, use
-`tang purge --all --yes`.
+`tang purge --all --yes`. Purge removes every Tang-derived row but leaves the
+empty `.tang/tang.db` SQLite container in place so its secure permissions,
+schema, and WAL configuration can be reused. Native history is never removed.
 
 ## Where Tang keeps data
 
@@ -286,6 +297,12 @@ Tang never silently falls back to a temporary or user-global database; use
 test database. Add `.tang/` to a project `.gitignore` if that project does not
 already ignore it; Tang does not edit your project files for you.
 
+Early Tang release candidates used `~/.local/share/tang/tang.db`. v0.1.0 does
+not import that experimental global database because its rows cannot be safely
+assigned to one canonical project. Run `tang index` in each project to rebuild
+the authoritative local data, verify the results, and then remove the obsolete
+global file manually if you no longer need it.
+
 The database contains project-scoped session metadata, small redacted Discovery
 Capsules, adapter checkpoints, search rows, and explicitly confirmed graph
 edges. It does not store Codex's generated Continuation Brief.
@@ -297,6 +314,14 @@ edges. It does not store Codex's generated Continuation Brief.
 Make sure you ran `tang index` from the same project. Tang v0.1.0 deliberately
 does not search across unrelated projects. Try another memorable keyword or a
 quoted phrase and inspect indexing warnings.
+
+### Why is `/tang` missing from Codex?
+
+Tang installs a skill rather than a slash command. Start a new Codex session,
+invoke `$tang`, or ask Codex to use Tang for recovering earlier work. If Codex
+still cannot find it, rerun `tang skill install codex --force`, start another
+new session, and confirm that the `tang` CLI itself is available with
+`tang --help`.
 
 ### Does Tang modify my Codex or Grok sessions?
 

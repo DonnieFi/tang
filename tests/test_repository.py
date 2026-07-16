@@ -163,6 +163,8 @@ def test_project_handles_are_short_stable_and_case_insensitive(tmp_path: Path) -
             repository.resolve_session_token("C99", "project-a")
         with pytest.raises(ValueError, match="letter followed by a number"):
             repository.resolve_session_token("C-1", "project-a")
+        with pytest.raises(ValueError, match="adapter:namespace:native-id"):
+            repository.resolve_session_token("C:1", "project-a")
     finally:
         connection.close()
 

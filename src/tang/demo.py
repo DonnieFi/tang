@@ -18,10 +18,11 @@ from tang.adapters import (
     SourceFingerprint,
     SourceRecord,
 )
+from tang.continuation import ContinuationService
 from tang.graph import GraphService
 from tang.project import resolve_project
 from tang.render import render_multiverse
-from tang.repository import StoredCapsule, StoredContinuation, TangRepository
+from tang.repository import StoredCapsule, TangRepository
 from tang.storage import open_database
 
 
@@ -47,9 +48,6 @@ def _prepare_native_corpus(root: Path, project: Path) -> tuple[Path, Path]:
     grok_home = root / "grok"
     shutil.copytree(fixtures / "codex", codex_home)
     shutil.copytree(fixtures / "grok", grok_home)
-    destination = codex_home / "sessions" / "2026" / "07" / "14"
-    for template in sorted((fixtures / "discovery" / "codex-extra").iterdir()):
-        shutil.copy2(template, destination / template.name.removesuffix(".partial"))
 
     for path in (codex_home / "sessions").rglob("*.jsonl"):
         lines = path.read_text(encoding="utf-8").splitlines()
@@ -74,29 +72,46 @@ def _call_cli(arguments: list[str]) -> tuple[int, str, str]:
     return code, stdout.getvalue(), stderr.getvalue()
 
 
-def _seed_graph(database: Path, project: Path) -> tuple[str, str]:
+def _seed_graph(
+    database: Path, project: Path, selected: tuple[str, str]
+) -> tuple[str, str, dict[str, str]]:
+    """Extend selected recovery sources through the validated fixture DAG."""
+
     document = json.loads(
         (_fixture_root() / "graph" / "multiverse.json").read_text(encoding="utf-8")
     )
+    replacements = {
+        "grok:multiverse:a": selected[0],
+        "codex:multiverse:b": selected[1],
+    }
+
+    def mapped(source_id: str) -> str:
+        return replacements.get(source_id, source_id)
+
     project_key = resolve_project(project).key
     connection = open_database(database)
     repository = TangRepository(connection)
     try:
         with repository.transaction():
             for node in document["nodes"]:
+                if node["source_id"] in replacements:
+                    continue
                 identity = SessionIdentity.from_canonical(node["source_id"])
                 timestamp = datetime.fromisoformat(
                     node["timestamp"].replace("Z", "+00:00")
                 )
                 repository.upsert_session(
                     SourceRecord(
-                        identity,
-                        OpaqueSourceLocator(f"demo:{node['native_id']}"),
-                        SourceFingerprint("sha256", f"demo-{node['native_id']}"),
-                        str(project),
-                        timestamp,
-                        timestamp,
-                        SessionHealth(node["health"]),
+                        identity=identity,
+                        locator=OpaqueSourceLocator(f"demo:{node['native_id']}"),
+                        fingerprint=SourceFingerprint(
+                            "sha256", f"demo-{node['native_id']}"
+                        ),
+                        project_hint=str(project),
+                        started_at=timestamp,
+                        updated_at=timestamp,
+                        title=str(node["title"]),
+                        health=SessionHealth(node["health"]),
                     ),
                     project_key,
                     timestamp,
@@ -115,27 +130,37 @@ def _seed_graph(database: Path, project: Path) -> tuple[str, str]:
                         timestamp,
                     )
                 )
-            for edge in document["edges"]:
-                repository.put_continuation(
-                    StoredContinuation(
-                        edge["source_id"],
-                        edge["target_id"],
-                        project_key,
-                        edge["confirmation_mode"],
-                        datetime.fromisoformat(
-                            edge["confirmed_at"].replace("Z", "+00:00")
-                        ),
-                    )
-                )
+        grouped: dict[tuple[str, str, datetime], list[str]] = {}
+        for edge in document["edges"]:
+            key = (
+                mapped(edge["target_id"]),
+                edge["confirmation_mode"],
+                datetime.fromisoformat(edge["confirmed_at"].replace("Z", "+00:00")),
+            )
+            grouped.setdefault(key, []).append(mapped(edge["source_id"]))
+        continuation = ContinuationService(repository)
+        for (target_id, mode, confirmed_at), source_ids in grouped.items():
+            continuation.link(
+                tuple(source_ids), target_id, project_key, mode, confirmed_at
+            )
+        with repository.transaction():
             unavailable = next(
-                node["source_id"]
+                mapped(node["source_id"])
                 for node in document["nodes"]
                 if not node["native_available"]
             )
             repository.delete_session(unavailable)
+        graph_ids = {
+            mapped(node["source_id"])
+            for node in document["nodes"]
+        }
+        handles = {
+            source_id: repository.handle_for_source_id(source_id)
+            for source_id in graph_ids
+        }
     finally:
         connection.close()
-    return "codex:multiverse:g", "codex:multiverse:h"
+    return "codex:multiverse:g", "codex:multiverse:h", handles
 
 
 def run_demo(*, width: int, color: bool, ascii_only: bool) -> int:
@@ -177,9 +202,17 @@ def run_demo(*, width: int, color: bool, ascii_only: bool) -> int:
         context_document = json.loads(context_output)
         context = context_document["untrusted_data_envelope"]
 
-        source, target = _seed_graph(database, project)
+        source, target, handles = _seed_graph(database, project, selected)
         link_code, link_output, _ = _call_cli(
-            ["link", "--from", source, "--to", target, *common, "--json"]
+            [
+                "link",
+                "--from",
+                handles[source],
+                "--to",
+                handles[target],
+                *common,
+                "--json",
+            ]
         )
         if link_code != 0:
             return 2
@@ -197,13 +230,16 @@ def run_demo(*, width: int, color: bool, ascii_only: bool) -> int:
         print("Isolation: temporary database + copied synthetic native fixtures")
         print(
             f"INDEX: {index['indexed']} indexed; status {index['status']} "
-            f"({index['warning_count']} synthetic-fixture warning(s))"
+            f"({index['warning_count']} warning(s))"
         )
         print(f"SEARCH: {len(results)} checkpoint matches across Codex and Grok")
         print("SELECT:")
         for source_id in selected:
             item = next(result for result in results if result["source_id"] == source_id)
-            print(f"  {item['harness']}:{source_id.rsplit(':', 1)[-1]}")
+            print(
+                f"  {item['session_handle']} | {item['harness']} | "
+                f"{item['display_name']}"
+            )
         print(
             f"CONTEXT: {len(context['sources'])} cited sources; "
             f"estimated tokens {context_document['estimated_tokens']}"
@@ -230,8 +266,16 @@ def run_demo(*, width: int, color: bool, ascii_only: bool) -> int:
             f"checkpoint invariant {cited}"
         )
         print(
-            f"LINK: {', '.join(linked['source_ids'])} -> {linked['target_id']} "
-            "(confirmed)"
+            "MULTIVERSE: selected sources "
+            f"{handles[selected[0]]} + {handles[selected[1]]} merge into "
+            f"{handles['codex:multiverse:c']}; that work branches to "
+            f"{handles['codex:multiverse:d']} and {handles['codex:multiverse:e']}, "
+            f"then {handles['codex:multiverse:e']} + "
+            f"{handles['grok:multiverse:f']} merge into {handles[source]}."
+        )
+        print(
+            f"LINK: {handles[source]} -> {handles[target]} "
+            f"(confirmed; inserted {linked['inserted']})"
         )
         print(render_multiverse(graph, width=width, color=color, ascii_only=ascii_only), end="")
         print("Demo complete; temporary data will now be removed.")

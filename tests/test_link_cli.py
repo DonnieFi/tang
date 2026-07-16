@@ -24,13 +24,13 @@ NOW = datetime(2026, 7, 15, tzinfo=timezone.utc)
 
 def record(adapter: str, native_id: str, project: Path) -> SourceRecord:
     return SourceRecord(
-        SessionIdentity(adapter, "cli", native_id),
-        OpaqueSourceLocator(f"fixture:{native_id}"),
-        SourceFingerprint("sha256", f"digest-{native_id}"),
-        str(project),
-        NOW,
-        NOW,
-        SessionHealth.COMPLETE,
+        identity=SessionIdentity(adapter, "cli", native_id),
+        locator=OpaqueSourceLocator(f"fixture:{native_id}"),
+        fingerprint=SourceFingerprint("sha256", f"digest-{native_id}"),
+        project_hint=str(project),
+        started_at=NOW,
+        updated_at=NOW,
+        health=SessionHealth.COMPLETE,
     )
 
 

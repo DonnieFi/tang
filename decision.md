@@ -204,3 +204,21 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) accept page-local numbers that become stale when results change; (b) expose a shortened UUID/hash; (c) persist simple harness-qualified project ordinals such as `C1` and `G1` while retaining canonical identities internally.
 - Decision: (c) — allocate handles transactionally in the authoritative project database, accept them case-insensitively at CLI session boundaries, show them on human browse/link/graph surfaces, migrate existing sessions, and preserve exact canonical IDs in JSON, citations, and graph storage. `purge --all` intentionally resets handles with all other derived data. Serves: Design, Technological Implementation, Potential Impact.
 - By: human (handle simplicity requirements) and agent (storage/resolution design and implementation)
+
+## 2026-07-16T12:00:07Z · tang-2be.21 · Make the isolated demo exercise production continuation policy
+- Context: Release review found that the demo mis-bound health as a positional title, inserted fixture edges beneath continuation validation, and narrated recovered sources separately from the Multiverse extension.
+- Options: (a) fix only the positional argument; (b) retain a privileged raw fixture importer; (c) map the real synthetic search selections into the fixture DAG and seed every confirmed edge through `ContinuationService` before extending it with short handles.
+- Decision: (c) — the filmed story now recovers Grok and Codex evidence, uses those exact sessions as the graph roots, preserves fixture health with keyword construction, and demonstrates the same project, availability, identity, and cycle policy as normal links. Serves: Technological Implementation, Design, Quality of Idea.
+- By: agent, applying human-requested release review feedback
+
+## 2026-07-16T12:06:20Z · tang-2be.4 · Ship one version-coupled Codex skill installer
+- Context: The approved specification carried an unreviewed optional `npx skills` path that installs only instructions, adds a third-party installer, and can drift from the required Tang CLI version.
+- Options: (a) retain and promote both installers; (b) document `npx` as an unsupported alternative; (c) remove it and support only the skill bundled with the verified wheel through `tang skill install codex`.
+- Decision: (c) — keep installation short, deterministic, and version-coupled to the CLI artifact judges actually test. Serves: Design, Technological Implementation, Quality of Idea.
+- By: human (explicit approval to remove `npx`) and agent (documentation/spec implementation)
+
+## 2026-07-16T12:20:32Z · tang-2be.22 · Add an original woven network to the hero map
+- Context: The verified Timeline lanes were accurate but repeated complete paths; human visual review requested a git-graph-like network with actual connected lines, informed by the general branching-strand language of multiverse imagery.
+- Options: (a) retain lanes only; (b) replace them with a franchise-inspired illustration; (c) add a Tang-owned deterministic layered rail map above the lanes while preserving narrow and ASCII fallbacks.
+- Decision: (c) — wide Unicode output now makes merges and branches spatially immediate through left-to-right rails, junctions, unavailable-source marks, and the active handle; it copies no Marvel artwork, names, logos, palette, or proprietary styling. Serves: Design, Technological Implementation, Quality of Idea.
+- By: human (requested the network direction) and agent (original terminal layout and accessibility boundaries)

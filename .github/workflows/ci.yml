@@ -52,6 +52,8 @@ jobs:
           tang demo --ascii --width 100 > demo-output.txt
           grep -q "Demo complete" demo-output.txt
           test ! -e "$HOME/.local/share/tang/tang.db"
+          test ! -e "$HOME/.tang/tang.db"
+          test ! -e "$GITHUB_WORKSPACE/.tang/tang.db"
       - name: Upload demo output on failure
         if: failure()
         uses: actions/upload-artifact@v4

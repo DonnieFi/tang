@@ -43,6 +43,11 @@ def test_hero_renderer_shows_connected_branch_merge_and_active_handle() -> None:
     rendered = render_multiverse(hero(), width=120, color=False)
     assert rendered == render_multiverse(hero(), width=120, color=False)
     assert "TANG MULTIVERSE MAP" in rendered
+    assert "MULTIVERSE NETWORK · TIME FLOWS →" in rendered
+    assert "G97 ────────────────┐" in rendered
+    assert "├─▶ C99" in rendered
+    assert "└─▶ C101" in rendered
+    assert "├─▶ ★C103" in rendered
     assert "TIMELINE LANES · 5 ROOT-TO-LEAF PATHS" in rendered
     assert rendered.count("LANE ") == 5
     assert rendered.count("──▶") == 11
@@ -87,6 +92,7 @@ def test_color_no_color_narrow_and_ascii_snapshots() -> None:
 
     assert "\x1b[" in color
     assert "\x1b[" not in no_color
+    assert "MULTIVERSE NETWORK" in no_color
     assert color == render_multiverse(graph, width=100, color=True)
     assert no_color == render_multiverse(graph, width=100, color=False)
     assert narrow == render_multiverse(graph, width=48, color=False)
@@ -95,9 +101,11 @@ def test_color_no_color_narrow_and_ascii_snapshots() -> None:
         for label in ("HANDLE", "HARNESS", "UTC", "HEALTH", "TITLE")
     )
     assert "[ACTIVE]" in narrow
+    assert "MULTIVERSE NETWORK" not in narrow
     assert ascii_rendered.isascii()
     assert "-->" in ascii_rendered
     assert "[ACTIVE]" in ascii_rendered
+    assert "MULTIVERSE NETWORK" not in ascii_rendered
     assert ascii_rendered == render_multiverse(
         graph, width=40, color=False, ascii_only=True
     )

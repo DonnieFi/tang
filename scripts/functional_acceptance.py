@@ -346,6 +346,36 @@ def run_acceptance(wheel: Path, work: Path, python: str) -> dict[str, Any]:
         (skill_home / "skills" / "tang" / "SKILL.md").is_file(),
         "installed skill is incomplete",
     )
+    installed_skill = (skill_home / "skills" / "tang" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+    _require(
+        "Keep the canonical `source_id` private" in installed_skill
+        and "`session_handle`" in installed_skill
+        and "Accept only integers visible on the current page" in installed_skill,
+        "installed skill did not preserve private IDs and human-sized selection",
+    )
+
+    database_before_demo = _sha256(database)
+    demo = runner.run(
+        "demo",
+        ["demo", "--ascii", "--width", "100"],
+        timeout=10,
+    )
+    _require(
+        "INDEX: 2 indexed; status complete (0 warning(s))" in demo.stdout,
+        "installed demo did not use the clean synthetic corpus",
+    )
+    _require(
+        "MULTIVERSE: selected sources G1 + C1 merge into C2" in demo.stdout
+        and "LINK: C5 -> C6 (confirmed; inserted 1)" in demo.stdout,
+        "installed demo did not present one handle-based continuation story",
+    )
+    _require("TANG MULTIVERSE MAP" in demo.stdout, "installed demo omitted the map")
+    _require(
+        _sha256(database) == database_before_demo,
+        "isolated demo modified the normal project database",
+    )
 
     target_suffix = TARGET_NATIVE_ID
     link = runner.run(
@@ -405,6 +435,10 @@ def run_acceptance(wheel: Path, work: Path, python: str) -> dict[str, Any]:
         ],
     )
     _require("TANG MULTIVERSE MAP" in graph.stdout, "wide graph omitted its title")
+    _require(
+        "MULTIVERSE NETWORK · TIME FLOWS →" in graph.stdout,
+        "wide graph omitted the woven network",
+    )
     _require(
         graph.stdout.count("──▶") == 2,
         "wide graph did not render both confirmed edges",
@@ -473,6 +507,11 @@ def run_acceptance(wheel: Path, work: Path, python: str) -> dict[str, Any]:
                 item["elapsed_seconds"]
                 for item in runner.results
                 if item["command"] == "search"
+            ),
+            "demo_seconds": next(
+                item["elapsed_seconds"]
+                for item in runner.results
+                if item["command"] == "demo"
             ),
         },
     }

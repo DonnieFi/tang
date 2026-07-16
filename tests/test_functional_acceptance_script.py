@@ -42,3 +42,19 @@ def test_functional_acceptance_prepares_only_copied_native_data(tmp_path: Path) 
     assert len(tuple((codex_home / "sessions").rglob("*.jsonl"))) == 4
     assert len(tuple((grok_home / "sessions").rglob("summary.json"))) == 1
     assert module._tree_hashes(module.FIXTURES) == fixture_hashes
+
+
+def test_functional_acceptance_covers_installed_skill_and_demo_contracts() -> None:
+    source = SCRIPT.read_text()
+
+    for required in (
+        '"Keep the canonical `source_id` private"',
+        '"`session_handle`"',
+        '["demo", "--ascii", "--width", "100"]',
+        '"INDEX: 2 indexed; status complete (0 warning(s))"',
+        '"MULTIVERSE: selected sources G1 + C1 merge into C2"',
+        '"isolated demo modified the normal project database"',
+        '"wide graph omitted the woven network"',
+        '"demo_seconds"',
+    ):
+        assert required in source

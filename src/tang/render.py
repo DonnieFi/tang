@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 from collections import Counter
+from heapq import heapify, heappop, heappush
 
 from rich import box
 from rich.console import Console
@@ -18,6 +19,20 @@ from tang.timeutil import rfc3339
 STEEL = "#ff9d3d"
 TEAL = "#2aa198"
 FORGE = "#171717"
+
+_JUNCTIONS = {
+    frozenset(("E", "W")): "─",
+    frozenset(("N", "S")): "│",
+    frozenset(("E", "S")): "┌",
+    frozenset(("W", "S")): "┐",
+    frozenset(("E", "N")): "└",
+    frozenset(("W", "N")): "┘",
+    frozenset(("E", "W", "S")): "┬",
+    frozenset(("E", "W", "N")): "┴",
+    frozenset(("N", "S", "E")): "├",
+    frozenset(("N", "S", "W")): "┤",
+    frozenset(("N", "S", "E", "W")): "┼",
+}
 
 
 def _safe(value: str, *, ascii_only: bool) -> str:
@@ -71,6 +86,139 @@ def _node_role(
     if outgoing[source_id] > 1:
         labels.append("BRANCH")
     return "/".join(labels) or None
+
+
+def _woven_network(graph: MultiverseGraph, *, width: int) -> Table | None:
+    """Lay out a small DAG as deterministic left-to-right terminal rails."""
+
+    nodes = {node.source_id: node for node in graph.nodes}
+    order = {node.source_id: index for index, node in enumerate(graph.nodes)}
+    parents = {source_id: [] for source_id in nodes}
+    children = {source_id: [] for source_id in nodes}
+    indegree = {source_id: 0 for source_id in nodes}
+    for edge in graph.edges:
+        parents[edge.target_id].append(edge.source_id)
+        children[edge.source_id].append(edge.target_id)
+        indegree[edge.target_id] += 1
+
+    depth = {source_id: 0 for source_id in nodes}
+    pending = [
+        (order[source_id], source_id)
+        for source_id, count in indegree.items()
+        if count == 0
+    ]
+    heapify(pending)
+    while pending:
+        _, source_id = heappop(pending)
+        for target_id in sorted(children[source_id], key=order.__getitem__):
+            depth[target_id] = max(depth[target_id], depth[source_id] + 1)
+            indegree[target_id] -= 1
+            if indegree[target_id] == 0:
+                heappush(pending, (order[target_id], target_id))
+
+    by_depth: dict[int, list[str]] = {}
+    for source_id in nodes:
+        by_depth.setdefault(depth[source_id], []).append(source_id)
+    y_position: dict[str, int] = {}
+    for level in sorted(by_depth):
+        group = by_depth[level]
+        if level == 0:
+            for index, source_id in enumerate(group):
+                y_position[source_id] = index * 4
+            continue
+        desired = {
+            source_id: sum(y_position[parent] for parent in parents[source_id])
+            / len(parents[source_id])
+            for source_id in group
+        }
+        group.sort(key=lambda source_id: (desired[source_id], order[source_id]))
+        target_mean = sum(desired.values()) / len(group)
+        base_mean = 2 * (len(group) - 1)
+        offset = max(0, round((target_mean - base_mean) / 2) * 2)
+        for index, source_id in enumerate(group):
+            y_position[source_id] = offset + index * 4
+
+    labels = {
+        source_id: (
+            f"★{node.handle}"
+            if node.current
+            else f"×{node.handle}"
+            if not node.native_available
+            else node.handle
+        )
+        for source_id, node in nodes.items()
+    }
+    max_depth = max(depth.values(), default=0)
+    canvas_width = max(40, width - 12)
+    max_label = max(map(len, labels.values()), default=2)
+    available_step = (canvas_width - max_label - 1) // max(1, max_depth)
+    if max_depth and available_step < max_label + 5:
+        return None
+    step = min(24, available_step)
+    x_position = {source_id: depth[source_id] * step for source_id in nodes}
+    connections: dict[tuple[int, int], set[str]] = {}
+
+    def join(
+        first: tuple[int, int],
+        second: tuple[int, int],
+        first_direction: str,
+        second_direction: str,
+    ) -> None:
+        connections.setdefault(first, set()).add(first_direction)
+        connections.setdefault(second, set()).add(second_direction)
+
+    def horizontal(start: int, end: int, y: int) -> None:
+        for x in range(start, end):
+            join((x, y), (x + 1, y), "E", "W")
+
+    def vertical(x: int, start: int, end: int) -> None:
+        low, high = sorted((start, end))
+        for y in range(low, high):
+            join((x, y), (x, y + 1), "S", "N")
+
+    arrows: set[tuple[int, int]] = set()
+    for edge in graph.edges:
+        source_x = x_position[edge.source_id] + len(labels[edge.source_id]) + 1
+        source_y = y_position[edge.source_id]
+        target_x = x_position[edge.target_id]
+        target_y = y_position[edge.target_id]
+        junction_x = target_x - 4
+        horizontal(source_x, junction_x, source_y)
+        vertical(junction_x, source_y, target_y)
+        horizontal(junction_x, target_x - 2, target_y)
+        arrows.add((target_x - 2, target_y))
+
+    height = max(y_position.values(), default=0) + 1
+    grid = [[" " for _ in range(canvas_width)] for _ in range(height)]
+    for (x, y), directions in connections.items():
+        if 0 <= x < canvas_width:
+            grid[y][x] = _JUNCTIONS.get(frozenset(directions), "─")
+    for x, y in arrows:
+        if 0 <= x < canvas_width:
+            grid[y][x] = "▶"
+    for source_id, label in labels.items():
+        x = x_position[source_id]
+        y = y_position[source_id]
+        grid[y][x : x + len(label)] = label
+
+    network = Table.grid(expand=True)
+    network.add_column(overflow="crop", no_wrap=True)
+    placements = {
+        (y_position[source_id], x_position[source_id], labels[source_id]): nodes[
+            source_id
+        ]
+        for source_id in nodes
+    }
+    for y, cells in enumerate(grid):
+        line = "".join(cells).rstrip()
+        rendered = Text(line, style=STEEL)
+        for (node_y, node_x, label), node in placements.items():
+            if node_y != y:
+                continue
+            style = "bold red" if not node.native_available else f"bold {TEAL}"
+            rendered.stylize(style, node_x, node_x + len(label))
+        network.add_row(rendered)
+    return network
 
 
 def render_multiverse(
@@ -192,6 +340,17 @@ def render_multiverse(
             )
 
     body = Table.grid(expand=True)
+    if width >= 100 and not ascii_only and graph.edges:
+        woven = _woven_network(graph, width=width)
+        if woven is not None:
+            body.add_row(
+                Panel(
+                    woven,
+                    title="[bold]MULTIVERSE NETWORK · TIME FLOWS →[/bold]",
+                    border_style=STEEL,
+                    box=panel_box,
+                )
+            )
     body.add_row(
         Panel(
             network,
