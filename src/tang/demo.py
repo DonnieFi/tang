@@ -95,6 +95,32 @@ def _seed_graph(
         with repository.transaction():
             for node in document["nodes"]:
                 if node["source_id"] in replacements:
+                    source_id = mapped(node["source_id"])
+                    capsule = repository.get_capsule(source_id)
+                    if capsule is None:
+                        raise RuntimeError(
+                            f"selected demo source has no capsule: {source_id}"
+                        )
+                    display_name = capsule.content.get("display_name")
+                    if not isinstance(display_name, str) or not display_name.strip():
+                        raise RuntimeError(
+                            f"selected demo source has no display name: {source_id}"
+                        )
+                    content = dict(capsule.content)
+                    content["source_title"] = display_name
+                    content["source_title_truncated"] = bool(
+                        content.get("display_name_truncated", False)
+                    )
+                    repository.put_capsule(
+                        StoredCapsule(
+                            source_id=source_id,
+                            project_key=capsule.project_key,
+                            content=content,
+                            search_text=capsule.search_text,
+                            byte_count=len(_canonical_json(content)),
+                            updated_at=capsule.updated_at,
+                        )
+                    )
                     continue
                 identity = SessionIdentity.from_canonical(node["source_id"])
                 timestamp = datetime.fromisoformat(

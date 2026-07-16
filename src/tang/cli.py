@@ -136,7 +136,19 @@ def build_parser() -> argparse.ArgumentParser:
     graph.add_argument("--ascii", action="store_true", dest="ascii_only")
     demo = subparsers.add_parser("demo", help="run the isolated synthetic demo")
     demo.add_argument("--width", type=int, default=120)
-    demo.add_argument("--ascii", action="store_true", dest="ascii_only")
+    demo_layout = demo.add_mutually_exclusive_group()
+    demo_layout.add_argument(
+        "--ascii",
+        action="store_true",
+        dest="ascii_only",
+        help="force the narrow ASCII graph fallback",
+    )
+    demo_layout.add_argument(
+        "--unicode",
+        action="store_true",
+        dest="force_unicode",
+        help="force the woven Unicode graph when capturing redirected output",
+    )
     doctor = subparsers.add_parser("doctor", help="check Tang readiness")
     doctor.add_argument("--json", action="store_true", dest="as_json")
     doctor.add_argument("--database", type=Path)
@@ -721,7 +733,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             return run_demo(
                 width=max(args.width, 40),
                 color=sys.stdout.isatty() and "NO_COLOR" not in os.environ,
-                ascii_only=args.ascii_only or not _supports_unicode(sys.stdout),
+                ascii_only=args.ascii_only
+                or (
+                    not args.force_unicode
+                    and not _supports_unicode(sys.stdout)
+                ),
             )
     except DatabaseOpenError as error:
         print(f"error[storage-unavailable]: {error}", file=sys.stderr)

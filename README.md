@@ -222,6 +222,16 @@ After installing either the reviewed local wheel or the published tagged wheel:
 tang demo
 ```
 
+For a redirected text capture, force the wide woven layout explicitly:
+
+```bash
+tang demo --width 120 --unicode > tang-demo.txt
+```
+
+`--unicode` forces Unicode connectors but does not fabricate terminal color.
+Use a real TTY or `scripts/capture_demo_hero.py` when the capture needs the
+release palette as well as the network layout.
+
 Run `tang doctor` separately when you want component-by-component readiness.
 Before the first real project index, its expected `database: not_initialized`
 result is informative rather than a demo failure.

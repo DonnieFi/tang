@@ -60,3 +60,17 @@ def test_demo_wide_unicode_map_includes_the_woven_network(capsys) -> None:
     output = capsys.readouterr().out
     assert "MULTIVERSE NETWORK · TIME FLOWS →" in output
     assert "×G2" in output and "★C6" in output
+    assert "Implement deterministic checkpoint recovery" in output
+    assert re.search(r"│ C1\s+│ codex\s+│.*?│ Implement deterministic", output)
+
+
+def test_demo_unicode_override_preserves_network_when_detection_fails(
+    monkeypatch, capsys
+) -> None:
+    monkeypatch.setattr("tang.cli._supports_unicode", lambda _stream: False)
+
+    assert main(["demo", "--width", "120", "--unicode"]) == 0
+
+    output = capsys.readouterr().out
+    assert "MULTIVERSE NETWORK · TIME FLOWS →" in output
+    assert "TIMELINE LANES · 5 ROOT-TO-LEAF PATHS" in output
