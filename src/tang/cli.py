@@ -11,7 +11,8 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 
-from tang.adapters import CodexAdapter, GrokAdapter, SessionHealth, SessionIdentity
+from tang.adapter_registry import configured_adapters
+from tang.adapters import CodexAdapter, SessionHealth, SessionIdentity
 from tang.context_service import ContextGenerationError, ContextPackService
 from tang.continuation import ContinuationError, ContinuationService, LinkResult
 from tang.discovery import (
@@ -64,6 +65,7 @@ def build_parser() -> argparse.ArgumentParser:
     index.add_argument("--cwd", type=Path, default=Path.cwd())
     index.add_argument("--codex-home", type=Path)
     index.add_argument("--grok-home", type=Path)
+    index.add_argument("--opencode-executable", type=Path)
     browse = subparsers.add_parser("browse", help="list current-project sessions")
     _add_discovery_arguments(browse)
     search = subparsers.add_parser("search", help="search current-project capsules")
@@ -81,6 +83,7 @@ def build_parser() -> argparse.ArgumentParser:
     context.add_argument("--cwd", type=Path, default=Path.cwd())
     context.add_argument("--codex-home", type=Path)
     context.add_argument("--grok-home", type=Path)
+    context.add_argument("--opencode-executable", type=Path)
     purge = subparsers.add_parser("purge", help="remove Tang-derived data")
     purge.add_argument("--all", action="store_true", dest="purge_all")
     purge.add_argument("--yes", action="store_true", help="confirm without a prompt")
@@ -155,6 +158,7 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--cwd", type=Path, default=Path.cwd())
     doctor.add_argument("--codex-home", type=Path)
     doctor.add_argument("--grok-home", type=Path)
+    doctor.add_argument("--opencode-executable", type=Path)
     skill = subparsers.add_parser("skill", help="manage harness skills")
     skill_subparsers = skill.add_subparsers(dest="skill_command")
     install = skill_subparsers.add_parser("install", help="install a harness skill")
@@ -168,7 +172,7 @@ def _add_discovery_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--json", action="store_true", dest="as_json")
     parser.add_argument("--database", type=Path)
     parser.add_argument("--cwd", type=Path, default=Path.cwd())
-    parser.add_argument("--harness", choices=("codex", "grok"))
+    parser.add_argument("--harness", choices=("codex", "grok", "opencode"))
     parser.add_argument("--health", choices=tuple(health.value for health in SessionHealth))
     parser.add_argument("--since", type=_timestamp)
     parser.add_argument("--until", type=_timestamp)
@@ -318,9 +322,11 @@ def _run_index(args: argparse.Namespace) -> int:
     try:
         repository = TangRepository(connection)
         result = ProjectIndexer(repository).index(
-            (
-                CodexAdapter(args.codex_home),
-                GrokAdapter(args.grok_home),
+            configured_adapters(
+                args.cwd,
+                codex_home=args.codex_home,
+                grok_home=args.grok_home,
+                opencode_executable=args.opencode_executable,
             ),
             project,
         )
@@ -459,7 +465,12 @@ def _run_context(args: argparse.Namespace) -> int:
         repository = TangRepository(connection)
         service = ContextPackService(
             repository,
-            (CodexAdapter(args.codex_home), GrokAdapter(args.grok_home)),
+            configured_adapters(
+                args.cwd,
+                codex_home=args.codex_home,
+                grok_home=args.grok_home,
+                opencode_executable=args.opencode_executable,
+            ),
         )
         try:
             source_ids = tuple(
@@ -517,6 +528,8 @@ def _run_doctor(args: argparse.Namespace) -> int:
         _database_for(args, project),
         codex_home=args.codex_home,
         grok_home=args.grok_home,
+        opencode_executable=args.opencode_executable,
+        project_dir=args.cwd,
     )
     if args.as_json:
         print(

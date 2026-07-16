@@ -7,7 +7,7 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
-from tang.adapters import CodexAdapter, GrokAdapter
+from tang.adapter_registry import configured_adapters
 from tang.adapters.base import BatchStatus, ScanBatch
 from tang.storage import SCHEMA_VERSION
 
@@ -26,8 +26,10 @@ def run_doctor(
     *,
     codex_home: Path | None = None,
     grok_home: Path | None = None,
+    opencode_executable: Path | str | None = None,
+    project_dir: Path | str | None = None,
 ) -> tuple[DoctorCheck, ...]:
-    """Check the CLI, database, FTS5, and both release adapters."""
+    """Check the CLI, database, FTS5, and configured harness adapters."""
 
     executable = shutil.which("tang")
     checks = [
@@ -99,16 +101,28 @@ def run_doctor(
             DoctorCheck("fts5", "unavailable", "SQLite FTS5 is unavailable.")
         )
 
-    checks.extend(
-        _adapter_check("codex", CodexAdapter(codex_home).scan(None)),
-    )
-    checks.extend(
-        _adapter_check("grok", GrokAdapter(grok_home).scan(None)),
-    )
+    adapter_project = project_dir or Path.cwd()
+    for adapter in configured_adapters(
+        adapter_project,
+        codex_home=codex_home,
+        grok_home=grok_home,
+        opencode_executable=opencode_executable,
+        require_opencode=True,
+    ):
+        checks.extend(_adapter_check(adapter.adapter_key, adapter.scan(None)))
     return tuple(checks)
 
 
 def _adapter_check(component: str, batch: ScanBatch) -> tuple[DoctorCheck, ...]:
+    warning_codes = {warning.code for warning in batch.warnings}
+    if component == "opencode" and "missing-executable" in warning_codes:
+        return (
+            DoctorCheck(
+                component,
+                "missing",
+                "Install OpenCode 1.17.20 or configure --opencode-executable.",
+            ),
+        )
     if batch.status is BatchStatus.COMPLETE and not batch.records:
         return (
             DoctorCheck(
@@ -134,6 +148,14 @@ def _adapter_check(component: str, batch: ScanBatch) -> tuple[DoctorCheck, ...]:
                 "degraded",
                 f"The {component.title()} adapter found {len(batch.records)} "
                 "sessions with warnings.",
+            ),
+        )
+    if component == "opencode":
+        return (
+            DoctorCheck(
+                component,
+                "degraded",
+                "The OpenCode adapter could not read the supported session catalog.",
             ),
         )
     return (

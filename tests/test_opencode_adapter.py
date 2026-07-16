@@ -15,6 +15,10 @@ from tang.adapters import (
     TurnRole,
     TurnSelection,
 )
+from tang.cli import main
+from tang.project import resolve_project
+from tang.repository import TangRepository
+from tang.storage import open_database
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "opencode"
@@ -638,3 +642,167 @@ def test_checkpoint_with_malformed_or_foreign_identity_is_rejected(
 
         assert scan.status is BatchStatus.PARTIAL
         assert scan.warnings[0].code == "checkpoint-invalid"
+
+
+def test_cli_indexes_discovers_rereads_doctors_and_purges_opencode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    codex_home = tmp_path / "codex"
+    grok_home = tmp_path / "grok"
+    (codex_home / "sessions").mkdir(parents=True)
+    (grok_home / "sessions").mkdir(parents=True)
+    catalog, export = fixture_documents(project)
+    executable = fake_opencode(
+        tmp_path,
+        monkeypatch,
+        state={
+            "catalog": catalog,
+            "exports": {SESSION_ID: export},
+            "version": "1.17.20",
+        },
+    )
+    database = tmp_path / "data" / "tang.db"
+    adapter_flags = [
+        "--cwd",
+        str(project),
+        "--codex-home",
+        str(codex_home),
+        "--grok-home",
+        str(grok_home),
+        "--opencode-executable",
+        str(executable),
+    ]
+
+    assert main(["index", "--json", "--database", str(database), *adapter_flags]) == 0
+    indexed = json.loads(capsys.readouterr().out)
+    assert indexed["status"] == "complete"
+    assert indexed["indexed"] == 1
+
+    assert main(
+        [
+            "browse",
+            "--json",
+            "--database",
+            str(database),
+            "--cwd",
+            str(project),
+            "--harness",
+            "opencode",
+        ]
+    ) == 0
+    browsed = json.loads(capsys.readouterr().out)
+    assert len(browsed["results"]) == 1
+    assert browsed["results"][0]["harness"] == "opencode"
+    assert browsed["results"][0]["session_handle"] == "O1"
+
+    assert main(
+        [
+            "search",
+            "OpenCode",
+            "--json",
+            "--database",
+            str(database),
+            "--cwd",
+            str(project),
+            "--harness",
+            "opencode",
+        ]
+    ) == 0
+    searched = json.loads(capsys.readouterr().out)
+    assert searched["results"][0]["session_handle"] == "O1"
+
+    assert main(
+        [
+            "context",
+            "O1",
+            "--json",
+            "--database",
+            str(database),
+            *adapter_flags,
+        ]
+    ) == 0
+    context = json.loads(capsys.readouterr().out)
+    sources = context["untrusted_data_envelope"]["sources"]
+    assert sources[0]["harness"] == "opencode"
+    assert sources[0]["excerpts"]
+
+    monkeypatch.setattr("tang.doctor.shutil.which", lambda command: "/bin/tang")
+    assert main(
+        ["doctor", "--json", "--database", str(database), *adapter_flags]
+    ) == 1
+    doctor = json.loads(capsys.readouterr().out)
+    opencode = next(
+        check for check in doctor["checks"] if check["component"] == "opencode"
+    )
+    assert opencode["status"] == "ready"
+    assert "1 session" in opencode["message"]
+
+    state_before = (tmp_path / "opencode-state.json").read_bytes()
+    assert main(
+        [
+            "purge",
+            "--all",
+            "--yes",
+            "--database",
+            str(database),
+            "--cwd",
+            str(project),
+        ]
+    ) == 0
+    capsys.readouterr()
+    assert (tmp_path / "opencode-state.json").read_bytes() == state_before
+    connection = open_database(database)
+    try:
+        repository = TangRepository(connection)
+        assert repository.sessions_for_project(resolve_project(project).key) == ()
+    finally:
+        connection.close()
+
+
+def test_cli_partial_opencode_index_exits_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    codex_home = tmp_path / "codex"
+    grok_home = tmp_path / "grok"
+    (codex_home / "sessions").mkdir(parents=True)
+    (grok_home / "sessions").mkdir(parents=True)
+    catalog, export = fixture_documents(project)
+    executable = fake_opencode(
+        tmp_path,
+        monkeypatch,
+        state={
+            "catalog": ["poison", *catalog],
+            "exports": {SESSION_ID: export},
+            "version": "1.17.20",
+        },
+    )
+
+    result = main(
+        [
+            "index",
+            "--json",
+            "--database",
+            str(tmp_path / "tang.db"),
+            "--cwd",
+            str(project),
+            "--codex-home",
+            str(codex_home),
+            "--grok-home",
+            str(grok_home),
+            "--opencode-executable",
+            str(executable),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    document = json.loads(captured.out)
+    assert result == 1
+    assert document["status"] == "partial"
+    assert document["indexed"] == 1
+    assert [warning["code"] for warning in document["warnings"]] == [
+        "catalog-schema-drift"
+    ]

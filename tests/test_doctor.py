@@ -3,8 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from tang.adapters import AdapterWarning, BatchStatus, CodexAdapter, ScanBatch
 from tang.cli import main
-from tang.doctor import run_doctor
+from tang.doctor import _adapter_check, run_doctor
 from tang.storage import open_database
 
 
@@ -19,6 +20,23 @@ def test_doctor_reports_ready_components_deterministically(
         for path in database.parent.iterdir()
     }
     monkeypatch.setattr("tang.doctor.shutil.which", lambda command: "/bin/tang")
+    ready_batch = CodexAdapter(
+        codex_fixture_home, source_namespace="doctor-opencode"
+    ).scan(None)
+
+    class ReadyOpenCode:
+        adapter_key = "opencode"
+        source_namespace = "doctor-opencode"
+
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def scan(self, _checkpoint) -> ScanBatch:
+            return ready_batch
+
+    monkeypatch.setattr(
+        "tang.adapter_registry.OpenCodeAdapter", ReadyOpenCode
+    )
 
     result = main(
         [
@@ -45,6 +63,7 @@ def test_doctor_reports_ready_components_deterministically(
         "fts5",
         "codex",
         "grok",
+        "opencode",
     ]
     assert {check["status"] for check in document["checks"]} == {"ready"}
     after = {
@@ -81,6 +100,8 @@ def test_doctor_reports_missing_cli_and_adapters_actionably(
     assert "tang index will create it" in captured.out
     assert "codex: unavailable" in captured.out
     assert "grok: unavailable" in captured.out
+    assert "opencode: missing" in captured.out
+    assert "configure --opencode-executable" in captured.out
 
 
 def test_doctor_reports_empty_readable_adapter_stores(
@@ -165,3 +186,34 @@ def test_doctor_reads_existing_database_while_wal_writer_is_active(
     finally:
         writer.execute("ROLLBACK")
         writer.close()
+
+
+def test_opencode_doctor_distinguishes_empty_ready_and_degraded(
+    codex_fixture_home: Path,
+) -> None:
+    representative = CodexAdapter(
+        codex_fixture_home, source_namespace="doctor-state"
+    ).scan(None).records[0]
+    empty = _adapter_check("opencode", ScanBatch(BatchStatus.COMPLETE))[0]
+    ready = _adapter_check(
+        "opencode",
+        ScanBatch(BatchStatus.COMPLETE, records=(representative,)),
+    )[0]
+    degraded = _adapter_check(
+        "opencode",
+        ScanBatch(
+            BatchStatus.PARTIAL,
+            records=(representative,),
+            warnings=(
+                AdapterWarning(
+                    "catalog-limit", "The bounded catalog was incomplete."
+                ),
+            ),
+        ),
+    )[0]
+
+    assert (empty.status, ready.status, degraded.status) == (
+        "empty",
+        "ready",
+        "degraded",
+    )

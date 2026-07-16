@@ -131,6 +131,15 @@ user/agent turns with no warnings. Only counts, role classes, statuses, and
 fixed warning codes were observed; no IDs, paths, titles, transcript text,
 reasoning, tool data, hashes, or credentials were retained.
 
+Normal `tang index` and `tang context` add OpenCode when `opencode` is on
+`PATH`, `TANG_OPENCODE_EXECUTABLE` names the binary, or
+`--opencode-executable PATH` is supplied. If OpenCode is absent and was not
+configured, existing Codex/Grok indexing remains unchanged. `tang doctor`
+always checks the OpenCode surface and distinguishes `missing`, `empty`,
+`ready`, and `degraded` without creating an absent Tang database or modifying
+native sessions. Indexed OpenCode sessions use `O1`, `O2`, and later
+project-local handles and can be filtered with `--harness opencode`.
+
 On 2026-07-16, privacy-safe live reports passed from one direct OpenAI-backed
 session and one direct xAI/Grok-backed session on the pinned host. Both reports
 showed:
