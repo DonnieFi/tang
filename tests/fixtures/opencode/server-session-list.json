@@ -1,0 +1,13 @@
+[
+  {
+    "id": "ses_tang00000000000000000000001",
+    "projectID": "project_tang_synthetic",
+    "directory": "/work/tang-opencode",
+    "title": "Design deterministic OpenCode recovery",
+    "version": "1.17.20",
+    "time": {
+      "created": 1784224800000,
+      "updated": 1784224860000
+    }
+  }
+]

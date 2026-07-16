@@ -12,6 +12,9 @@ verified on Linux against OpenCode `1.17.20` on 2026-07-16:
 - `tool-context.json` is an invented host-context envelope used to verify exact,
   path-safe destination resolution. Tests replace its placeholder path with a
   temporary project; it contains no native user metadata.
+- `server-session-list.json` represents the supported directory-filtered
+  `/session` response used by the production adapter. Unlike the root-only CLI
+  list fixture, this catalog surface can include child sessions.
 
 The local proof used an isolated temporary OpenCode data/config/cache home,
 disabled model fetching and plugins, created one credential-free session via

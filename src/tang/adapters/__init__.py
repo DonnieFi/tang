@@ -18,6 +18,7 @@ from tang.adapters.base import (
 )
 from tang.adapters.codex import CodexAdapter
 from tang.adapters.grok import GrokAdapter
+from tang.adapters.opencode import OpenCodeAdapter
 
 __all__ = [
     "AdapterCheckpoint",
@@ -26,6 +27,7 @@ __all__ = [
     "CodexAdapter",
     "GrokAdapter",
     "OpaqueSourceLocator",
+    "OpenCodeAdapter",
     "ScanBatch",
     "SessionAdapter",
     "SessionHealth",

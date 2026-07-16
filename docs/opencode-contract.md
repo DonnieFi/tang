@@ -103,10 +103,16 @@ canonical active directory before export. The probe requests the upstream
 boundary explicitly, reports whether foreign-directory entries were excluded,
 sorts deterministically before capping exports, and fails visibly if all 100
 slots are occupied because truncation could hide local sessions. It does not
-claim a complete catalog or non-root discovery. The production adapter bead
-must validate the documented directory-filtered server catalog, include
-non-root sessions where supported, impose an explicit bound, and report partial
-when the bound is reached. It must not read OpenCode's private database.
+claim a complete catalog or non-root discovery.
+
+The production adapter uses OpenCode `1.17.20`'s documented `/session` server
+endpoint with the exact active directory, `roots` unset, and an explicit
+`500 + 1` bound. This includes root and child sessions. Tang starts the server
+on direct localhost with a random per-run Basic Auth credential, disables proxy
+and redirect handling for the private directory query, stops the server after
+the bounded response, and reports saturation as partial. It never reads
+OpenCode's private database or cache. Selected rereads use the supported raw
+`opencode export SESSION_ID` command.
 
 The active tool-context session is exported directly even when it is absent
 from the root catalog. Each command has a 30-second deadline and the complete
@@ -115,10 +121,15 @@ subprocess. Failures expose only allow-listed error codes, never stderr.
 
 The production ordering contract is created milliseconds followed by stable
 message ID. The probe verifies that both inputs are present and that source
-timestamps are non-decreasing; the adapter will apply the deterministic
-tie-break. Missing timestamps or IDs qualify the source as incomplete rather
-than inviting Tang to guess. Only non-ignored user/assistant text parts are
-visible content.
+timestamps are non-decreasing; the adapter applies the deterministic tie-break.
+Missing timestamps or IDs qualify the source as incomplete rather than inviting
+Tang to guess. Only non-ignored user/assistant text parts are visible content.
+
+A privacy-safe live adapter smoke on 2026-07-16 scanned six exact-directory
+sessions completely and reread one representative session as four visible
+user/agent turns with no warnings. Only counts, role classes, statuses, and
+fixed warning codes were observed; no IDs, paths, titles, transcript text,
+reasoning, tool data, hashes, or credentials were retained.
 
 On 2026-07-16, privacy-safe live reports passed from one direct OpenAI-backed
 session and one direct xAI/Grok-backed session on the pinned host. Both reports
