@@ -36,6 +36,122 @@ def codex_skill_root(codex_home: Path | None = None) -> Path:
     return configured.expanduser().resolve() / "skills"
 
 
+def bundled_opencode_paths() -> tuple[tuple[Path, Path], ...]:
+    """Return bundled OpenCode origins paired with install-relative paths."""
+
+    development = Path(__file__).resolve().parents[2]
+    if (development / "skills" / "opencode" / "tang" / "SKILL.md").is_file():
+        return (
+            (development / "skills" / "opencode" / "tang", Path("skills/tang")),
+            (
+                development / ".opencode" / "commands" / "tang.md",
+                Path("commands/tang.md"),
+            ),
+            (
+                development / ".opencode" / "tools" / "tang_current_target.ts",
+                Path("tools/tang_current_target.ts"),
+            ),
+        )
+    installed = Path(sys.prefix) / "share" / "tang" / "opencode"
+    return (
+        (installed / "skills" / "tang", Path("skills/tang")),
+        (installed / "commands" / "tang.md", Path("commands/tang.md")),
+        (
+            installed / "tools" / "tang_current_target.ts",
+            Path("tools/tang_current_target.ts"),
+        ),
+    )
+
+
+def install_opencode_skill(
+    project_root: Path,
+    *,
+    force: bool = False,
+    sources: tuple[tuple[Path, Path], ...] | None = None,
+) -> SkillInstallResult:
+    """Install OpenCode skill assets atomically and preserve unrelated config."""
+
+    bundle = sources or bundled_opencode_paths()
+    if any(not origin.exists() for origin, _relative in bundle):
+        raise FileNotFoundError("the bundled OpenCode Tang integration is unavailable")
+    for origin, _relative in bundle:
+        _reject_symlinks(origin)
+    root = project_root.expanduser().resolve(strict=True)
+    destination = root / ".opencode"
+    if destination.is_symlink():
+        raise OSError("refusing to install into a symlinked OpenCode directory")
+    destination.mkdir(mode=0o700, exist_ok=True)
+
+    targets = tuple(
+        (origin.resolve(), destination / relative) for origin, relative in bundle
+    )
+    for _origin, target in targets:
+        parent = target.parent
+        while parent != destination:
+            if parent.is_symlink():
+                raise OSError("OpenCode integration parents may not be symlinks")
+            parent = parent.parent
+        if target.is_symlink():
+            raise OSError("OpenCode integration destinations may not be symlinks")
+
+    matching = tuple(_same_content(origin, target) for origin, target in targets)
+    if all(matching):
+        for _origin, target in targets:
+            _harden_target(target)
+        return SkillInstallResult(
+            "unchanged", destination, "Tang OpenCode integration is already current."
+        )
+    if not force and any(
+        target.exists() and not matches
+        for (_origin, target), matches in zip(targets, matching, strict=True)
+    ):
+        raise FileExistsError(
+            "the installed OpenCode Tang integration differs; rerun with --force"
+        )
+
+    temporary = Path(tempfile.mkdtemp(prefix=".tang-opencode-", dir=root))
+    staged = temporary / "staged"
+    backups = temporary / "backups"
+    installed_targets: list[Path] = []
+    moved_backups: list[tuple[Path, Path]] = []
+    try:
+        for origin, target in targets:
+            relative = target.relative_to(destination)
+            staged_target = staged / relative
+            staged_target.parent.mkdir(parents=True, exist_ok=True)
+            if origin.is_dir():
+                shutil.copytree(origin, staged_target)
+            else:
+                shutil.copy2(origin, staged_target)
+        for _origin, target in targets:
+            relative = target.relative_to(destination)
+            staged_target = staged / relative
+            target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            if target.exists():
+                backup = backups / relative
+                backup.parent.mkdir(parents=True, exist_ok=True)
+                target.rename(backup)
+                moved_backups.append((backup, target))
+            staged_target.rename(target)
+            installed_targets.append(target)
+            _harden_target(target)
+    except BaseException:
+        for target in reversed(installed_targets):
+            if target.is_dir():
+                shutil.rmtree(target)
+            elif target.exists():
+                target.unlink()
+        for backup, target in reversed(moved_backups):
+            target.parent.mkdir(parents=True, exist_ok=True)
+            backup.rename(target)
+        raise
+    finally:
+        shutil.rmtree(temporary, ignore_errors=True)
+    return SkillInstallResult(
+        "installed", destination, "Tang OpenCode integration installed."
+    )
+
+
 def install_codex_skill(
     codex_home: Path | None = None,
     *,
@@ -92,3 +208,33 @@ def _tree_digest(root: Path) -> str:
         if path.is_file():
             digest.update(path.read_bytes())
     return digest.hexdigest()
+
+
+def _same_content(origin: Path, target: Path) -> bool:
+    if origin.is_dir():
+        return target.is_dir() and _tree_digest(origin) == _tree_digest(target)
+    return target.is_file() and origin.read_bytes() == target.read_bytes()
+
+
+def _harden_target(target: Path) -> None:
+    """Apply user-only modes to Tang-owned installed assets where supported."""
+
+    if os.name != "posix":
+        return
+    if target.is_dir():
+        target.chmod(0o700)
+        for path in target.rglob("*"):
+            path.chmod(0o700 if path.is_dir() else 0o600)
+    else:
+        target.chmod(0o600)
+
+
+def _reject_symlinks(origin: Path) -> None:
+    """Reject symlinks in bundled assets before following or copying them."""
+
+    if origin.is_symlink():
+        raise OSError("OpenCode integration sources may not be symlinks")
+    if origin.is_dir():
+        for path in origin.rglob("*"):
+            if path.is_symlink():
+                raise OSError("OpenCode integration sources may not contain symlinks")

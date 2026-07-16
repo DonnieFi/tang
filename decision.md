@@ -276,3 +276,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) retain Codex-only targets; (b) infer support from any indexed adapter; (c) declare the fixed destination policy `{codex, opencode}` and keep sources adapter-neutral.
 - Decision: (c) — authorization remains at the ContinuationService seam; OpenCode target proof remains in its host-context resolver; unsupported targets refuse before mutation. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
 - By: agent, under the human-approved Epic 7 scope
+
+## 2026-07-16T22:30:00Z · tang-09a.6 · Install one project-local OpenCode workflow
+- Context: OpenCode can discover Agent Skills and `/` commands from a project, but exact destination proof requires private host context that must not be copied into prompts or exposed as a native session ID.
+- Options: (a) require users to copy native IDs into the generic CLI; (b) create a separate interactive OpenCode selector; (c) install one Tang Agent Skill with a thin `/tang` loader and private custom-tool bridge that converts exact host context into a safe project-local handle.
+- Decision: (c) — keep one workflow, reuse Tang's deterministic JSON CLI and explicit confirmation policy, preserve unrelated OpenCode configuration, and package all version-coupled assets with the wheel. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: agent, applying the human-approved permanent OpenCode integration scope

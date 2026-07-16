@@ -114,6 +114,11 @@ the bounded response, and reports saturation as partial. It never reads
 OpenCode's private database or cache. Selected rereads use the supported raw
 `opencode export SESSION_ID` command.
 
+The incremental fingerprint is the documented per-session `updated` millisecond
+field (`opencode-updated-ms-v1`). Tang treats an unchanged value as unchanged
+native evidence; if a future OpenCode version can alter export content without
+updating that field, it requires a new adapter contract and live verification.
+
 The active tool-context session is exported directly even when it is absent
 from the root catalog. Each command has a 30-second deadline and the complete
 probe has a 120-second deadline. Cancelling the OpenCode tool terminates the
@@ -146,6 +151,30 @@ be sources. An OpenCode destination must come from the exact, fresh host
 context described above and receive explicit confirmation before Tang records
 any derived edge. Tang neither writes transcript content into OpenCode nor
 reads provider credentials.
+
+## Product workflow installation
+
+Install the version-coupled OpenCode integration from the Tang CLI at the
+project root:
+
+```bash
+tang skill install opencode --project-root "$PWD"
+```
+
+This change-safe installer adds only `.opencode/skills/tang`, the `/tang`
+custom command, and the private `tang_current_target` custom tool. It preserves
+unrelated OpenCode configuration, is idempotent, refuses divergent Tang-owned
+files unless `--force` is explicit, and applies user-only file modes on POSIX.
+The bridge is dependency-free and does not alter the project's package manifest.
+Start a new OpenCode process after installation so it discovers the assets.
+
+The installed-product path expects `tang` and OpenCode `1.17.20` on `PATH`.
+Source-checkout testing may instead set `TANG_EXECUTABLE` to the checkout's
+virtual-environment script and `TANG_OPENCODE_EXECUTABLE` to the pinned OpenCode
+binary before launching OpenCode. `/tang` loads the one Tang Agent Skill;
+the custom tool supplies exact active-session context privately and emits only
+a project-local handle or a fixed error code. The user must still approve the
+selected source handles and target handle before `tang link` records edges.
 
 On 2026-07-16, privacy-safe live reports passed from one direct OpenAI-backed
 session and one direct xAI/Grok-backed session on the pinned host. Both reports

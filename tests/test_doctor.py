@@ -77,6 +77,8 @@ def test_doctor_reports_missing_cli_and_adapters_actionably(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
     monkeypatch.setattr("tang.doctor.shutil.which", lambda command: None)
+    monkeypatch.setattr("tang.adapter_registry.shutil.which", lambda command: None)
+    missing_opencode = tmp_path / "missing-opencode"
 
     result = main(
         [
@@ -87,6 +89,8 @@ def test_doctor_reports_missing_cli_and_adapters_actionably(
             str(tmp_path / "missing-codex"),
             "--grok-home",
             str(tmp_path / "missing-grok"),
+            "--opencode-executable",
+            str(missing_opencode),
         ]
     )
 

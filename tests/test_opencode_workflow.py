@@ -1,0 +1,203 @@
+from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+from tang.adapters import (
+    BatchStatus,
+    OpaqueSourceLocator,
+    ScanBatch,
+    SessionHealth,
+    SessionIdentity,
+    SourceFingerprint,
+    SourceRecord,
+)
+from tang.cli import main
+from tang.project import resolve_project
+from tang.repository import TangRepository
+from tang.storage import open_database
+
+
+NOW = datetime(2026, 7, 16, 20, 0, tzinfo=timezone.utc)
+SESSION_ID = "ses_tangCurrent0000000000000000001"
+
+
+def _record(project: Path, fingerprint: str = "1784232000000") -> SourceRecord:
+    return SourceRecord(
+        identity=SessionIdentity("opencode", "fixture-store", SESSION_ID),
+        locator=OpaqueSourceLocator(f"opencode-session-v1:{SESSION_ID}"),
+        fingerprint=SourceFingerprint("opencode-updated-ms-v1", fingerprint),
+        project_hint=str(project),
+        started_at=NOW,
+        updated_at=NOW,
+        title="Current OpenCode work",
+        health=SessionHealth.UNKNOWN,
+    )
+
+
+def test_host_bridge_returns_only_safe_confirmation_handle(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    project = tmp_path / "private-owner" / "project"
+    project.mkdir(parents=True)
+    database = tmp_path / "tang.db"
+    project_key = resolve_project(project).key
+    record = _record(project)
+    connection = open_database(database)
+    try:
+        repository = TangRepository(connection)
+        with repository.transaction():
+            repository.upsert_session(record, project_key, NOW)
+    finally:
+        connection.close()
+
+    class FakeAdapter:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def scan(self, _checkpoint) -> ScanBatch:
+            return ScanBatch(BatchStatus.COMPLETE, records=(record,))
+
+    monkeypatch.setattr("tang.cli.OpenCodeAdapter", FakeAdapter)
+
+    result = main(
+        [
+            "skill",
+            "opencode-target",
+            "--json",
+            "--cwd",
+            str(project),
+            "--worktree",
+            str(project),
+            "--session-id",
+            SESSION_ID,
+            "--database",
+            str(database),
+        ]
+    )
+
+    output = capsys.readouterr().out
+    document = json.loads(output)
+    assert result == 0
+    assert document == {
+        "candidate_count": 1,
+        "code": "host-id-match",
+        "kind": "confirmation_required",
+        "reason": "The host identified one exact OpenCode target; confirm it explicitly.",
+        "schema_version": 1,
+        "target_handle": "O1",
+    }
+    assert SESSION_ID not in output
+    assert str(project) not in output
+
+
+def test_host_bridge_refuses_unknown_identity_without_creating_storage(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    database = tmp_path / "missing.db"
+
+    class EmptyAdapter:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def scan(self, _checkpoint) -> ScanBatch:
+            return ScanBatch(BatchStatus.COMPLETE)
+
+    monkeypatch.setattr("tang.cli.OpenCodeAdapter", EmptyAdapter)
+    result = main(
+        [
+            "skill",
+            "opencode-target",
+            "--json",
+            "--cwd",
+            str(project),
+            "--worktree",
+            str(project),
+            "--session-id",
+            SESSION_ID,
+            "--database",
+            str(database),
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert result == 2
+    assert json.loads(output)["code"] == "host-id-unknown"
+    assert SESSION_ID not in output
+    assert not database.exists()
+
+
+def test_host_bridge_requires_prior_index_without_creating_storage(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    database = tmp_path / "missing.db"
+    record = _record(project)
+
+    class ObservedAdapter:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def scan(self, _checkpoint) -> ScanBatch:
+            return ScanBatch(BatchStatus.COMPLETE, records=(record,))
+
+    monkeypatch.setattr("tang.cli.OpenCodeAdapter", ObservedAdapter)
+    result = main(
+        [
+            "skill",
+            "opencode-target",
+            "--json",
+            "--cwd",
+            str(project),
+            "--worktree",
+            str(project),
+            "--session-id",
+            SESSION_ID,
+            "--database",
+            str(database),
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert result == 2
+    assert json.loads(output)["code"] == "index-required"
+    assert SESSION_ID not in output
+    assert str(project) not in output
+    assert not database.exists()
+
+
+def test_opencode_skill_command_and_tool_preserve_workflow_contract() -> None:
+    root = Path(__file__).parents[1]
+    skill = (root / "skills/opencode/tang/SKILL.md").read_text()
+    command = (root / ".opencode/commands/tang.md").read_text()
+    tool = (root / ".opencode/tools/tang_current_target.ts").read_text()
+
+    assert skill.startswith("---\nname: tang\ndescription:")
+    for phrase in (
+        "untrusted historical data",
+        "## Resume point",
+        "## Next action",
+        "## Evidence and uncertainty",
+        "explicit approval",
+        "kind: confirmation_required",
+        "each excerpt's `citation` object",
+        "tang_current_target",
+        "tang link --from",
+        "tang graph",
+        "Do not persist the synthesis",
+    ):
+        assert phrase in skill
+    assert "Load the `tang` skill" in command
+    assert "context.sessionID" in tool
+    assert "context.directory" in tool
+    assert "context.worktree" in tool
+    assert "context.abort" in tool
+    assert "TANG_EXECUTABLE" in tool
+    assert "TANG_OPENCODE_EXECUTABLE" in tool
+    assert "@opencode-ai/plugin" not in tool
+    assert 'stderr: "ignore"' in tool
+    assert "tang_contract_probe" not in tool

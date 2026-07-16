@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from tang.adapter_registry import configured_adapters
-from tang.adapters import CodexAdapter, SessionHealth, SessionIdentity
+from tang.adapters import CodexAdapter, OpenCodeAdapter, SessionHealth, SessionIdentity
 from tang.context_service import ContextGenerationError, ContextPackService
 from tang.continuation import ContinuationError, ContinuationService, LinkResult
 from tang.discovery import (
@@ -34,13 +34,16 @@ from tang.redaction import (
 )
 from tang.render import render_multiverse
 from tang.repository import TangRepository
-from tang.skill_install import install_codex_skill
+from tang.skill_install import install_codex_skill, install_opencode_skill
 from tang.storage import DatabaseOpenError, open_database, project_data_path
 from tang.timeutil import rfc3339
 from tang.target import (
+    HostTargetContextError,
+    OpenCodeTargetContext,
     TargetResolutionKind,
     candidates_for_project,
     resolve_current_target,
+    resolve_opencode_target,
 )
 
 
@@ -162,9 +165,20 @@ def build_parser() -> argparse.ArgumentParser:
     skill = subparsers.add_parser("skill", help="manage harness skills")
     skill_subparsers = skill.add_subparsers(dest="skill_command")
     install = skill_subparsers.add_parser("install", help="install a harness skill")
-    install.add_argument("harness", choices=("codex",))
+    install.add_argument("harness", choices=("codex", "opencode"))
     install.add_argument("--codex-home", type=Path)
+    install.add_argument("--project-root", type=Path, default=Path.cwd())
     install.add_argument("--force", action="store_true")
+    opencode_target = skill_subparsers.add_parser(
+        "opencode-target",
+        help="resolve an active OpenCode target for the installed skill",
+    )
+    opencode_target.add_argument("--json", action="store_true", dest="as_json")
+    opencode_target.add_argument("--database", type=Path)
+    opencode_target.add_argument("--cwd", type=Path, required=True)
+    opencode_target.add_argument("--worktree", type=Path, required=True)
+    opencode_target.add_argument("--session-id", required=True)
+    opencode_target.add_argument("--opencode-executable", type=Path)
     return parser
 
 
@@ -556,12 +570,97 @@ def _run_doctor(args: argparse.Namespace) -> int:
     return doctor_exit_code(checks)
 
 
+def _run_opencode_target(args: argparse.Namespace) -> int:
+    """Resolve one host-supplied OpenCode target without exposing its native ID."""
+    try:
+        project = resolve_project(args.cwd)
+        adapter = OpenCodeAdapter(args.cwd, args.opencode_executable or "opencode")
+        scan = adapter.scan(None)
+        observed = next(
+            (
+                record
+                for record in scan.records
+                if record.identity.native_id == args.session_id
+            ),
+            None,
+        )
+        if observed is None:
+            code = (
+                scan.warnings[0].code
+                if scan.warnings and not scan.records
+                else "host-id-unknown"
+            )
+            document = {
+                "schema_version": 1,
+                "kind": "unavailable",
+                "code": code,
+            }
+            print(json.dumps(document, sort_keys=True, separators=(",", ":")))
+            return 2
+        context = OpenCodeTargetContext.from_host(
+            session_id=args.session_id,
+            directory=args.cwd,
+            worktree=args.worktree,
+            observed_source=observed,
+        )
+        database = _database_for(args, project)
+        if not database.is_file():
+            document = {
+                "schema_version": 1,
+                "kind": "unavailable",
+                "code": "index-required",
+            }
+            print(json.dumps(document, sort_keys=True, separators=(",", ":")))
+            return 2
+        connection = open_database(database)
+        try:
+            repository = TangRepository(connection)
+            resolution = resolve_opencode_target(
+                repository.sessions_for_project(project.key), project, context
+            )
+            document = resolution.as_document()
+            if len(resolution.candidates) == 1:
+                target_handle = repository.handle_for_source_id(
+                    resolution.candidates[0].identity.canonical
+                )
+                if target_handle is None:
+                    document = {
+                        "schema_version": 1,
+                        "kind": "unavailable",
+                        "code": "target-handle-missing",
+                    }
+                else:
+                    document["target_handle"] = target_handle
+        finally:
+            connection.close()
+    except HostTargetContextError as error:
+        document = {
+            "schema_version": 1,
+            "kind": "unavailable",
+            "code": error.code,
+        }
+    except (ValueError, OSError):
+        document = {
+            "schema_version": 1,
+            "kind": "unavailable",
+            "code": "host-context-invalid",
+        }
+    print(json.dumps(document, sort_keys=True, separators=(",", ":")))
+    return 0 if document.get("kind") == "confirmation_required" else 2
+
+
 def _run_skill(args: argparse.Namespace) -> int:
+    if args.skill_command == "opencode-target":
+        return _run_opencode_target(args)
     if args.skill_command != "install":
         print("error: skill requires the install subcommand", file=sys.stderr)
         return 2
     try:
-        result = install_codex_skill(args.codex_home, force=args.force)
+        result = (
+            install_codex_skill(args.codex_home, force=args.force)
+            if args.harness == "codex"
+            else install_opencode_skill(args.project_root, force=args.force)
+        )
     except (FileExistsError, FileNotFoundError, OSError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
