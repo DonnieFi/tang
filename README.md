@@ -1,34 +1,31 @@
 # Tang Multiverse
 
-> **Keep the blade, switch the handle.**
-
-**Continue one coding agent's work inside another, with the original sources cited.**
-
+<table>
+<tr>
+<td width="68%" valign="top">
+<strong>Keep the blade, switch the handle.</strong><br><br>
+<strong>Continue one coding agent's work inside another, with the original sources cited.</strong><br><br>
 Bring one session or many from Grok, Codex, and OpenCode into the Codex or
 OpenCode session you are in. Then let that session feed one future session or
 many, merge in other sources, and repeat as often as the work changes handles.
 Tang preserves the resulting many-to-many history in a terminal-native
-Multiverse Map.
-
-**Across Grok, Codex, and OpenCode today—with every continuation explicitly
-confirmed.**
+Multiverse Map.<br><br>
+<strong>Across Grok, Codex, and OpenCode today—with every continuation explicitly confirmed.</strong>
+</td>
+<td width="32%" align="right" valign="top">
+<img src="docs/assets/tang-mascot-concept.png" width="280" alt="Tang samurai holding the blade as the work changes handles">
+</td>
+</tr>
+</table>
 
 ## The Multiverse Map
 
-<table>
-<tr>
-<td width="68%" valign="top">
-<strong>The graph is the product's proof, not decoration.</strong><br><br>
+**The graph is the product's proof, not decoration.**
+
 Every edge means recovered context actually continued into another session.
 Several sources can merge into a target; any session can later branch into
 several targets. Across repeated continuations, that creates a many-to-many
 directed graph. Tang does not invent relationships.
-</td>
-<td width="32%" align="right" valign="top">
-<img src="docs/assets/tang-samurai.webp" width="240" alt="Tang samurai holding a blade and handle against an orange and cyan multiverse">
-</td>
-</tr>
-</table>
 
 ```text
   A · Grok research ──┐                    ┌──▶ D · Codex API
