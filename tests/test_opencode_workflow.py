@@ -246,6 +246,7 @@ def test_opencode_skill_command_and_tool_preserve_workflow_contract() -> None:
         "omitted sessions are absent",
         "tang link --from",
         "tang graph",
+        "An isolated current node is a valid map",
         "Do not persist the synthesis",
     ):
         assert phrase in skill
