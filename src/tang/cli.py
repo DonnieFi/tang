@@ -623,6 +623,18 @@ def _run_opencode_target(args: argparse.Namespace) -> int:
         connection = open_database(database)
         try:
             repository = TangRepository(connection)
+            stored_target = repository.get_session(observed.identity.canonical)
+            if (
+                stored_target is not None
+                and stored_target.project_key == project.key
+            ):
+                # The active session advances while this workflow is running.
+                # Refresh only its derived identity metadata from the exact,
+                # freshly observed host record; no transcript content is read.
+                with repository.transaction():
+                    repository.upsert_session(
+                        observed, project.key, datetime.now(timezone.utc)
+                    )
             resolution = resolve_opencode_target(
                 repository.sessions_for_project(project.key), project, context
             )

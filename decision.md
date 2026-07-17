@@ -294,3 +294,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) keep treating affected sessions as unreadable; (b) persist raw exports in the project; (c) capture stdout in a bounded, user-only anonymous temporary file, parse it locally, close it immediately, and continue persisting only redacted Tang data.
 - Decision: (c) — work around the pinned upstream pipe-flush bug without writing raw transcripts into the project or Tang database; cap transient output at 8 MiB and preserve fail-closed validation. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
 - By: human (explicit local-privacy tradeoff approval) and agent (live diagnosis and bounded implementation)
+
+## 2026-07-17T00:51:02Z · tang-09a.7 · Refresh exact active-target metadata at the host bridge
+- Context: Live graph and link preparation repeatedly returned `stale-index` because the active OpenCode session's documented updated fingerprint advances during the recovery conversation after the initial index. The host bridge already performs an exact-ID, exact-project fresh native scan before target resolution.
+- Options: (a) require users to race a manual re-index before every target operation; (b) ignore fingerprint drift; (c) update only the already-indexed exact target's derived identity metadata from the fresh host observation, then retain the resolver's strict equality and explicit-confirmation checks.
+- Decision: (c) — eliminate the unavoidable active-session race without creating unindexed targets, rereading transcript content, guessing identity, or weakening link approval. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: agent, based on repeated human live-test evidence and the approved exact-host target policy

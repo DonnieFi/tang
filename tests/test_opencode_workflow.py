@@ -92,6 +92,64 @@ def test_host_bridge_returns_only_safe_confirmation_handle(
     assert str(project) not in output
 
 
+def test_host_bridge_refreshes_exact_active_session_fingerprint(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    project = tmp_path / "private-owner" / "project"
+    project.mkdir(parents=True)
+    database = tmp_path / "tang.db"
+    project_key = resolve_project(project).key
+    indexed = _record(project, "1784232000000")
+    observed = _record(project, "1784232000001")
+    connection = open_database(database)
+    try:
+        repository = TangRepository(connection)
+        with repository.transaction():
+            repository.upsert_session(indexed, project_key, NOW)
+    finally:
+        connection.close()
+
+    class FreshAdapter:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def scan(self, _checkpoint) -> ScanBatch:
+            return ScanBatch(BatchStatus.COMPLETE, records=(observed,))
+
+    monkeypatch.setattr("tang.cli.OpenCodeAdapter", FreshAdapter)
+    result = main(
+        [
+            "skill",
+            "opencode-target",
+            "--json",
+            "--cwd",
+            str(project),
+            "--worktree",
+            str(project),
+            "--session-id",
+            SESSION_ID,
+            "--database",
+            str(database),
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert result == 0
+    assert json.loads(output)["target_handle"] == "O1"
+    connection = open_database(database)
+    try:
+        refreshed = TangRepository(connection).get_session(
+            observed.identity.canonical
+        )
+        assert refreshed is not None
+        assert refreshed.source.fingerprint == observed.fingerprint
+        assert refreshed.handle == "O1"
+    finally:
+        connection.close()
+    assert SESSION_ID not in output
+    assert str(project) not in output
+
+
 def test_host_bridge_classifies_missing_safe_handle(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
