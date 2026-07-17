@@ -7,6 +7,7 @@ include docs/getting-started.md
 include docs/tangspec.md
 include docs/assets/README.md
 include docs/assets/tang-multiverse-demo.svg
+include docs/assets/tang-samurai.webp
 include skills/tang/SKILL.md
 include skills/tang/agents/openai.yaml
 recursive-include scripts *.py

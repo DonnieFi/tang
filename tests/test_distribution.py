@@ -15,7 +15,7 @@ def test_release_metadata_and_manifest_are_explicit() -> None:
     manifest = (ROOT / "MANIFEST.in").read_text()
 
     assert project["name"] == "tang-multiverse"
-    assert project["version"] == "0.1.0"
+    assert project["version"] == "0.2.0"
     assert project["requires-python"] == ">=3.11"
     assert project["license"] == "MIT"
     assert project["scripts"] == {"tang": "tang.cli:main"}
@@ -24,6 +24,7 @@ def test_release_metadata_and_manifest_are_explicit() -> None:
     assert "include CONTEXT.md" in manifest
     assert "include docs/getting-started.md" in manifest
     assert "include docs/assets/tang-multiverse-demo.svg" in manifest
+    assert "include docs/assets/tang-samurai.webp" in manifest
     assert "include skills/tang/SKILL.md" in manifest
     assert "exclude docs/assets/tang-mascot-concept.png" in manifest
     assert "prune plan" in manifest
@@ -41,7 +42,7 @@ def test_sdist_normalization_is_reproducible(tmp_path: Path) -> None:
     source = tmp_path / "source.tar.gz"
     with tarfile.open(source, "w:gz") as archive:
         payload = b"release input"
-        member = tarfile.TarInfo("tang_multiverse-0.1.0/input.txt")
+        member = tarfile.TarInfo("tang_multiverse-0.2.0/input.txt")
         member.size = len(payload)
         member.mtime = 123456
         archive.addfile(member, BytesIO(payload))

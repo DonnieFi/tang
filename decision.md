@@ -306,3 +306,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) retain the reviewed milestone only on the epic branch; (b) fast-forward the reviewed branch into main; (c) create an unnecessary merge commit over a linear branch.
 - Decision: (b) — push milestone `4e039ff0fb0708010edcfa42e34bcf4faa6a23a7` and fast-forward `main` from `7a26cb084faf5f40465615ffc0112104fccb71e6` to the same reviewed SHA. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
 - By: human (explicit promotion approval) and agent (gate execution)
+
+## 2026-07-17T01:28:12Z · tang-a9z · Version the completed OpenCode product as v0.2.0
+- Context: The private v0.1.0 milestone predates the completed, live-verified OpenCode source and destination integration; publishing another 0.1.0 wheel would make materially different products indistinguishable.
+- Options: (a) retain 0.1.0; (b) use a patch version; (c) assign v0.2.0 and present the earlier v0.1.0 behavior only as history.
+- Decision: (c) — OpenCode is a backward-compatible new capability, so a semantic-versioning minor bump accurately distinguishes its package, wheel, installation contract, and README story. The supporting samurai asset is a clean derivative with all product names and third-party marks removed. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: human (version and README direction) and agent (release-contract implementation)

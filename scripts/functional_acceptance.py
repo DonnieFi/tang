@@ -178,12 +178,12 @@ class Runner:
 
 
 def run_acceptance(wheel: Path, work: Path, python: str) -> dict[str, Any]:
-    _require(platform.system() == "Linux", "the v0.1.0 acceptance host must be Linux")
+    _require(platform.system() == "Linux", "the v0.2.0 acceptance host must be Linux")
     _require(sys.version_info >= (3, 11), "the driver requires Python 3.11 or newer")
     _require(wheel.is_file(), f"wheel not found: {wheel}")
     _require(
-        wheel.name == "tang_multiverse-0.1.0-py3-none-any.whl",
-        "expected the version-pinned v0.1.0 wheel filename",
+        wheel.name == "tang_multiverse-0.2.0-py3-none-any.whl",
+        "expected the version-pinned v0.2.0 wheel filename",
     )
 
     current, _foreign, codex_home, grok_home = _prepare_corpus(work)
@@ -519,9 +519,9 @@ def run_acceptance(wheel: Path, work: Path, python: str) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Install a Tang v0.1.0 wheel and run isolated Linux functional acceptance."
+        description="Install a Tang v0.2.0 wheel and run isolated Linux functional acceptance."
     )
-    parser.add_argument("wheel", type=Path, help="path to tang_multiverse-0.1.0-py3-none-any.whl")
+    parser.add_argument("wheel", type=Path, help="path to tang_multiverse-0.2.0-py3-none-any.whl")
     parser.add_argument(
         "--python",
         default=sys.executable,

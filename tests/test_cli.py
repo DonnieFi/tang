@@ -12,7 +12,7 @@ from tang.storage import DatabaseOpenError
 
 
 def test_package_name_and_version_are_importable() -> None:
-    assert tang.__version__ == "0.1.0"
+    assert tang.__version__ == "0.2.0"
 
 
 def test_main_prints_concise_help(capsys) -> None:

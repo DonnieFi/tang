@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tang-multiverse"
-version = "0.1.0"
+version = "0.2.0"
 description = "Continue coding-agent work across harnesses with source-cited context."
 readme = "README.md"
 requires-python = ">=3.11"

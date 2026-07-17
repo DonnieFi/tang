@@ -43,7 +43,7 @@ jobs:
       - name: Install wheel without rebuilding source
         run: |
           uv venv --python 3.12 /tmp/tang-wheel
-          uv pip install --python /tmp/tang-wheel/bin/python dist/tang_multiverse-0.1.0-py3-none-any.whl
+          uv pip install --python /tmp/tang-wheel/bin/python dist/tang_multiverse-0.2.0-py3-none-any.whl
       - name: Smoke CLI, skill, and isolated demo
         run: |
           export PATH="/tmp/tang-wheel/bin:$PATH"
