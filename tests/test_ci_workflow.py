@@ -7,6 +7,7 @@ def test_ci_is_linux_only_and_covers_the_release_path() -> None:
     assert workflow.count("runs-on: ubuntu-24.04") == 2
     assert "macos" not in workflow.lower()
     assert "windows" not in workflow.lower()
+    assert 'branches: [main, "epic/**", "bugs/**"]' in workflow
     for required in (
         "uv sync --locked",
         "pytest -q",

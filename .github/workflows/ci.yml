@@ -2,7 +2,7 @@ name: Linux release path
 
 on:
   push:
-    branches: [main, "epic/**"]
+    branches: [main, "epic/**", "bugs/**"]
   pull_request:
 
 permissions:
