@@ -12,8 +12,9 @@ The source adapter is based on documented, non-interactive CLI contracts:
   project directory, title, and millisecond created/updated evidence;
 - `opencode export SESSION_ID` returns session metadata and chronological
   message envelopes with typed parts; and
-- Tang parses raw export JSON only in memory because the `--sanitize` form
-  deliberately removes the visible text needed for source-cited continuation.
+- Tang handles raw export JSON only in a bounded, user-only transient because
+  the `--sanitize` form deliberately removes the visible text needed for
+  source-cited continuation; unredacted exports never enter durable Tang data.
 
 The destination integration uses OpenCode's documented custom-tool context.
 The context supplies the exact active `sessionID`, invoking `messageID`,
