@@ -360,3 +360,15 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) retain delimiter lines; (b) render full snippets in a tall table; (c) show a responsive table with selection number, simple handle, bounded session name, compact capability labels, harness, seconds-level UTC, and health while retaining full snippets in JSON.
 - Decision: (c) — keep five-result paging compact and readable at wide and narrow widths without altering the deterministic JSON/skill contract. Serves: Design, Potential Impact, Technological Implementation.
 - By: human (requested a CLI table) and agent (responsive compact presentation)
+
+## 2026-07-17T22:51:23Z · tang-2be.24 · Reconcile the approved v0.2.2 OpenCode extension
+- Context: The human approved and promoted OpenCode source/destination support, but the original v0.1 specification still listed it as stretch scope while the shipped README and wheel documented it as supported.
+- Options: (a) leave the source-of-truth contradiction; (b) rewrite the original Grok-to-Codex demonstration narrative; (c) retain Codex as the primary judged path and record a concise approved v0.2.2 extension with bounded OpenCode Linux support and the same privacy/confirmation protocol.
+- Decision: (c) — reconcile the approved extension without broadening Cursor or arbitrary-target claims. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: human (explicit approval to implement review items) and agent (documentation reconciliation)
+
+## 2026-07-17T22:54:48Z · tang-2be.24 · Issue the cumulative safety and capture polish as v0.2.3
+- Context: v0.2.2 already names an immutable reviewed wheel, while this approved pass changes CLI JSON, optional readiness semantics, graph capture controls, native deletion behavior, and bundled documentation.
+- Options: (a) rebuild v0.2.2 with different contents; (b) defer this pass; (c) issue a patch-level v0.2.3 candidate.
+- Decision: (c) — keep every wheel and functional-test report unambiguous while delivering backward-compatible polish through a distinct artifact. Serves: Technological Implementation, Design, Quality of Idea.
+- By: human (approved the complete refinement pass) and agent (semantic versioning and release-contract update)

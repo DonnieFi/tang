@@ -14,12 +14,17 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 from pathlib import Path
 from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures"
+PROJECT_VERSION = tomllib.loads(
+    (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+)["project"]["version"]
+EXPECTED_WHEEL_FILENAME = f"tang_multiverse-{PROJECT_VERSION}-py3-none-any.whl"
 TARGET_NATIVE_ID = "019f6000-5678-7000-8000-000000000005"
 PRIVATE_SENTINELS = (
     "preview-secret",
@@ -178,12 +183,15 @@ class Runner:
 
 
 def run_acceptance(wheel: Path, work: Path, python: str) -> dict[str, Any]:
-    _require(platform.system() == "Linux", "the v0.2.2 acceptance host must be Linux")
+    _require(
+        platform.system() == "Linux",
+        f"the v{PROJECT_VERSION} acceptance host must be Linux",
+    )
     _require(sys.version_info >= (3, 11), "the driver requires Python 3.11 or newer")
     _require(wheel.is_file(), f"wheel not found: {wheel}")
     _require(
-        wheel.name == "tang_multiverse-0.2.2-py3-none-any.whl",
-        "expected the version-pinned v0.2.2 wheel filename",
+        wheel.name == EXPECTED_WHEEL_FILENAME,
+        f"expected the version-pinned v{PROJECT_VERSION} wheel filename",
     )
 
     current, _foreign, codex_home, grok_home = _prepare_corpus(work)
@@ -519,9 +527,12 @@ def run_acceptance(wheel: Path, work: Path, python: str) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Install a Tang v0.2.2 wheel and run isolated Linux functional acceptance."
+        description=(
+            f"Install a Tang v{PROJECT_VERSION} wheel and run isolated Linux "
+            "functional acceptance."
+        )
     )
-    parser.add_argument("wheel", type=Path, help="path to tang_multiverse-0.2.2-py3-none-any.whl")
+    parser.add_argument("wheel", type=Path, help=f"path to {EXPECTED_WHEEL_FILENAME}")
     parser.add_argument(
         "--python",
         default=sys.executable,

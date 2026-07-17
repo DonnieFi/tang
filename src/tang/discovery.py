@@ -146,6 +146,7 @@ class DiscoveryService:
         query: str,
         filters: DiscoveryFilter = DiscoveryFilter(),
         *,
+        limit: int = 20,
         exclude_source_ids: tuple[str, ...] = (),
     ) -> tuple[DiscoveryItem, ...]:
         return self._items(
@@ -156,6 +157,7 @@ class DiscoveryService:
                 health=filters.health,
                 since=filters.since,
                 until=filters.until,
+                limit=limit,
                 exclude_source_ids=exclude_source_ids,
             )
         )

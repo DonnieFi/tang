@@ -42,6 +42,20 @@ The hackathon release proves one complete Grok-to-Codex workflow. Cursor remains
 - The Codex skill as the primary selection and continuation experience; the standalone CLI remains non-interactive and scriptable.
 - An isolated synthetic demo, a tagged installable wheel, Linux verification, focused demo-path tests, a public README, and submission assets.
 
+### Approved v0.2.2 Extension
+
+- **OpenCode:** Linux support for stable OpenCode `>=1.17.18,<2.0.0` as a
+  read-only source and an explicitly confirmed active destination. Tang validates
+  the supported catalog and export contracts on every use, and makes no claim
+  outside that range or for a closed or guessed target.
+- `tang skill install opencode --project-root PATH` installs one project-local
+  OpenCode skill, `/tang` loader, and private current-target bridge. It follows
+  the same discovery, untrusted-evidence, explicit-confirmation, and
+  handle-only presentation rules as the primary Codex workflow; it is not a
+  second terminal selector.
+- Codex remains the primary judged Grok-to-Codex demonstration path. OpenCode
+  support is an approved completed extension, not a Cursor support claim.
+
 ### Stretch
 
 - Explicit opt-in to global cross-project discovery.
@@ -49,7 +63,6 @@ The hackathon release proves one complete Grok-to-Codex workflow. Cursor remains
 - A richer interactive standalone browser.
 - Additional purge scopes and broader diagnostics.
 - Cursor read-only adapter only after repeatable recovery from real Cursor data plus fixture and failure tests.
-- OpenCode adapter.
 - SVG export, advanced graph-card themes, fuzzy navigation, or a full-screen TUI.
 
 ### Not In V1
@@ -119,6 +132,10 @@ Adapters return partial results with warnings for malformed or truncated data. A
 
 - **Codex:** Read local JSONL session logs, visible user/agent turns, timestamps, project metadata, and terminal event signals.
 - **Grok:** Read documented local session or export data. The release claim requires an end-to-end read from representative real data and a fixture derived from the verified shape.
+- **OpenCode:** Read visible user and assistant turns only through the supported
+  server catalog and native export contracts. Tang can resolve only the exact
+  active OpenCode session supplied privately by the host, then requires an
+  explicit user confirmation before it becomes a continuation target.
 - **Cursor stretch:** Read only through a separately isolated adapter. Do not claim support until live recovery, fixture, and failure tests pass.
 
 Release documentation names the adapter versions used for fixtures and distinguishes live-verified from fixture-verified behavior.
@@ -140,7 +157,9 @@ Build the differentiating path first:
 5. Add explicit continuation links and build the terminal Multiverse Map against deterministic demo fixtures early enough to polish it as the hero surface.
 6. Finish the isolated demo, tagged wheel, README, focused Linux CI, and submission assets.
 
-Each slice includes focused tests before the next slice starts. Do not create a second interactive workflow outside the Codex skill during the hackathon release.
+Each slice includes focused tests before the next slice starts. Do not create a
+second interactive terminal workflow during the hackathon release; harness-native
+skills may use the same non-interactive Tang CLI and confirmation protocol.
 
 ## Storage, Search, And Privacy
 
@@ -187,7 +206,12 @@ The visual should feel like a multiverse of possible timelines without adding in
 
 ## Skill Experience
 
-The Codex skill is the primary harness integration. It uses `tang browse --json` and host-native questions when available. Standalone commands provide scriptable line and JSON output; an interactive Rich selector is not part of the hackathon release.
+The Codex skill is the primary harness integration. It uses `tang browse --json`
+and host-native questions when available. The approved OpenCode extension uses a
+project-local skill plus a private host-context bridge only to resolve the exact
+current target; it reuses the same CLI, selection, evidence, and confirmation
+protocol. Standalone commands provide scriptable line and JSON output; an
+interactive Rich selector is not part of the hackathon release.
 
 The skill workflow:
 

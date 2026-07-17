@@ -76,7 +76,9 @@ def test_explicit_link_json_is_deterministic(tmp_path: Path, capsys) -> None:
         "existing": 0,
         "inserted": 2,
         "schema_version": 1,
+        "source_handles": ["G1", "C1"],
         "source_ids": [first.identity.canonical, second.identity.canonical],
+        "target_handle": "C2",
         "target_id": target.identity.canonical,
     }
 

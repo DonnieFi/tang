@@ -16,6 +16,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
+from tang import __version__
 from tang.adapter_registry import configured_adapters
 from tang.adapters import OpenCodeAdapter, SessionHealth, SessionIdentity
 from tang.context_service import ContextGenerationError, ContextPackService
@@ -29,6 +30,7 @@ from tang.discovery import (
 )
 from tang.doctor import doctor_exit_code, run_doctor
 from tang.graph import GraphService
+from tang.health import health_style
 from tang.indexing import IndexResult, ProjectIndexer
 from tang.project import ProjectIdentity, resolve_project
 from tang.redaction import (
@@ -67,6 +69,11 @@ def build_parser() -> argparse.ArgumentParser:
             "connect, use tang link --help."
         ),
     )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"tang-multiverse {__version__}",
+    )
     subparsers = parser.add_subparsers(dest="command")
     index = subparsers.add_parser("index", help="index the current project")
     index.add_argument("--json", action="store_true", dest="as_json")
@@ -83,6 +90,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="FTS5 query; simple keywords or quoted phrases are recommended",
     )
     _add_discovery_arguments(search)
+    search.add_argument(
+        "--limit",
+        type=_search_limit,
+        default=20,
+        help="maximum search results to return (1-100; default: 20)",
+    )
     context = subparsers.add_parser("context", help="build a cited Context Pack")
     context.add_argument(
         "sessions", nargs="+", help="project handles or exact IDs from JSON"
@@ -145,7 +158,20 @@ def build_parser() -> argparse.ArgumentParser:
     graph.add_argument("--codex-home", type=Path)
     graph.add_argument("--current-native-id")
     graph.add_argument("--width", type=int)
-    graph.add_argument("--ascii", action="store_true", dest="ascii_only")
+    graph.add_argument(
+        "--color",
+        choices=("auto", "always", "never"),
+        default="auto",
+        help="terminal color policy (default: auto)",
+    )
+    graph_layout = graph.add_mutually_exclusive_group()
+    graph_layout.add_argument("--ascii", action="store_true", dest="ascii_only")
+    graph_layout.add_argument(
+        "--unicode",
+        action="store_true",
+        dest="force_unicode",
+        help="force the woven Unicode graph when capturing redirected output",
+    )
     demo = subparsers.add_parser("demo", help="run the isolated synthetic demo")
     demo.add_argument("--width", type=int, default=120)
     demo_layout = demo.add_mutually_exclusive_group()
@@ -168,6 +194,11 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--codex-home", type=Path)
     doctor.add_argument("--grok-home", type=Path)
     doctor.add_argument("--opencode-executable", type=Path)
+    doctor.add_argument(
+        "--require-opencode",
+        action="store_true",
+        help="treat OpenCode readiness as required rather than optional",
+    )
     skill = subparsers.add_parser("skill", help="manage harness skills")
     skill_subparsers = skill.add_subparsers(dest="skill_command")
     install = skill_subparsers.add_parser("install", help="install a harness skill")
@@ -218,6 +249,16 @@ def _add_discovery_arguments(parser: argparse.ArgumentParser) -> None:
         "--current-native-id",
         help="host-supplied native Codex session ID used with --exclude-current",
     )
+
+
+def _search_limit(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("search limit must be an integer") from error
+    if not 1 <= parsed <= 100:
+        raise argparse.ArgumentTypeError("search limit must be between 1 and 100")
+    return parsed
 
 
 def _timestamp(value: str) -> datetime:
@@ -494,13 +535,14 @@ def _show_discovery_page(page: DiscoveryPage) -> None:
                 session,
                 item.harness,
                 updated,
-                item.health.value,
+                Text(item.health.value, style=health_style(item.health)),
             )
         else:
             session.append(
-                f"\n{item.harness} · {updated} · {item.health.value}",
+                f"\n{item.harness} · {updated} · ",
                 style="dim",
             )
+            session.append(item.health.value, style=health_style(item.health))
             table.add_row(f"[{choice.number}]", item.handle, session)
     console.print(table)
     print(f"Page {page.number} of {page.page_count} ({page.result_count} results).")
@@ -535,6 +577,7 @@ def _run_discovery(args: argparse.Namespace) -> int:
                     project_key,
                     args.query,
                     filters,
+                    limit=args.limit,
                     exclude_source_ids=excluded_source_ids,
                 )
                 if args.command == "search"
@@ -661,6 +704,9 @@ def _run_doctor(args: argparse.Namespace) -> int:
         grok_home=args.grok_home,
         opencode_executable=args.opencode_executable,
         project_dir=args.cwd,
+        require_opencode=(
+            args.require_opencode or args.opencode_executable is not None
+        ),
     )
     if args.as_json:
         print(
@@ -801,12 +847,18 @@ def _run_skill(args: argparse.Namespace) -> int:
     return 0
 
 
-def _link_document(result: LinkResult) -> dict[str, object]:
+def _link_document(
+    result: LinkResult,
+    source_handles: tuple[str, ...],
+    target_handle: str,
+) -> dict[str, object]:
     return {
         "existing": result.existing,
         "inserted": result.inserted,
         "schema_version": 1,
+        "source_handles": list(source_handles),
         "source_ids": list(result.source_ids),
+        "target_handle": target_handle,
         "target_id": result.target_id,
     }
 
@@ -869,7 +921,13 @@ def _run_link(args: argparse.Namespace) -> int:
         connection.close()
 
     if args.as_json:
-        print(json.dumps(_link_document(result), sort_keys=True, separators=(",", ":")))
+        print(
+            json.dumps(
+                _link_document(result, source_handles, target_handle),
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
     else:
         print(
             f"Linked {', '.join(source_handles)} to {target_handle}; "
@@ -914,6 +972,9 @@ def _run_graph(args: argparse.Namespace) -> int:
         )
         try:
             canonical_anchor = repository.resolve_session_token(anchor, project.key)
+            anchor_session = repository.get_session(canonical_anchor)
+            if anchor_session is None or anchor_session.project_key != project.key:
+                raise ValueError("session is not indexed in the current project")
             graph = GraphService(repository).component(
                 canonical_anchor, current_id=current_id
             )
@@ -923,8 +984,10 @@ def _run_graph(args: argparse.Namespace) -> int:
     finally:
         connection.close()
     width = args.width or shutil.get_terminal_size((100, 24)).columns
-    color = sys.stdout.isatty() and "NO_COLOR" not in os.environ
-    ascii_only = args.ascii_only or not _supports_unicode(sys.stdout)
+    color = _color_enabled(args.color, sys.stdout)
+    ascii_only = args.ascii_only or (
+        not args.force_unicode and not _supports_unicode(sys.stdout)
+    )
     print(
         render_multiverse(
             graph,
@@ -944,6 +1007,14 @@ def _supports_unicode(stream: object) -> bool:
     except (LookupError, UnicodeEncodeError):
         return False
     return True
+
+
+def _color_enabled(policy: str, stream: object) -> bool:
+    if policy == "always":
+        return True
+    if policy == "never":
+        return False
+    return bool(getattr(stream, "isatty", lambda: False)()) and "NO_COLOR" not in os.environ
 
 
 def main(argv: Sequence[str] | None = None) -> int:

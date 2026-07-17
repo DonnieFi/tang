@@ -13,6 +13,7 @@ from rich.table import Table
 from rich.text import Text
 
 from tang.graph import GraphEdge, GraphNode, MultiverseGraph
+from tang.health import health_style
 from tang.timeutil import rfc3339
 
 
@@ -317,9 +318,11 @@ def render_multiverse(
             )
             item.append(
                 f" | HARNESS {_safe(node.harness, ascii_only=ascii_only)}"
-                f" | UTC {rfc3339(node.updated_at)}"
-                f" | HEALTH {node.health.value}\n"
-                f"TITLE {_safe(node.title or '(untitled)', ascii_only=ascii_only)}"
+                f" | UTC {rfc3339(node.updated_at)} | HEALTH "
+            )
+            item.append(node.health.value, style=health_style(node.health))
+            item.append(
+                f"\nTITLE {_safe(node.title or '(untitled)', ascii_only=ascii_only)}"
             )
             details.add_row(item)
     else:
@@ -339,7 +342,7 @@ def render_multiverse(
                 f"{'ACTIVE ' if node.current else ''}{node.handle}",
                 node.harness,
                 rfc3339(node.updated_at),
-                node.health.value,
+                Text(node.health.value, style=health_style(node.health)),
                 _safe(node.title or "(untitled)", ascii_only=ascii_only),
                 style=f"bold {TEAL}" if node.current else None,
             )

@@ -370,6 +370,7 @@ def test_opencode_skill_command_and_tool_preserve_workflow_contract() -> None:
         "tang graph",
         "An isolated current node is a valid map",
         "Do not persist the synthesis",
+        "Do not ask for another synthesis or summary after linking",
     ):
         assert phrase in skill
     assert "Load the `tang` skill" in command

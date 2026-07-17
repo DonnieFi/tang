@@ -18,3 +18,13 @@ def describe_health(health: SessionHealth) -> str:
         SessionHealth.POSSIBLY_INTERRUPTED: "Possibly interrupted; native evidence is incomplete",
         SessionHealth.UNKNOWN: "Status unknown; native evidence is insufficient",
     }[health]
+
+
+def health_style(health: SessionHealth) -> str:
+    """Return an accessible semantic Rich style while preserving text labels."""
+
+    return {
+        SessionHealth.COMPLETE: "bold #2aa198",
+        SessionHealth.POSSIBLY_INTERRUPTED: "bold red",
+        SessionHealth.UNKNOWN: "bold #ff9d3d",
+    }[health]

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from tang.adapters import AdapterWarning, BatchStatus, CodexAdapter, ScanBatch
 from tang.cli import main
-from tang.doctor import _adapter_check, run_doctor
+from tang.doctor import DoctorCheck, _adapter_check, doctor_exit_code, run_doctor
 from tang.storage import open_database
 
 
@@ -221,3 +221,20 @@ def test_opencode_doctor_distinguishes_empty_ready_and_degraded(
         "ready",
         "degraded",
     )
+
+
+def test_doctor_treats_absent_optional_opencode_as_non_blocking() -> None:
+    missing = ScanBatch(
+        BatchStatus.UNAVAILABLE,
+        warnings=(
+            AdapterWarning("missing-executable", "OpenCode was not installed."),
+        ),
+    )
+
+    optional = _adapter_check("opencode", missing)[0]
+    required = _adapter_check("opencode", missing, opencode_required=True)[0]
+
+    assert optional.status == "optional"
+    assert "Codex/Grok recovery remains available" in optional.message
+    assert required.status == "missing"
+    assert doctor_exit_code((DoctorCheck("cli", "ready", "ready"), optional)) == 0

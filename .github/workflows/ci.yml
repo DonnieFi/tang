@@ -43,7 +43,7 @@ jobs:
       - name: Install wheel without rebuilding source
         run: |
           uv venv --python 3.12 /tmp/tang-wheel
-          uv pip install --python /tmp/tang-wheel/bin/python dist/tang_multiverse-0.2.2-py3-none-any.whl
+          uv pip install --python /tmp/tang-wheel/bin/python dist/tang_multiverse-0.2.3-py3-none-any.whl
       - name: Smoke CLI, skill, and isolated demo
         run: |
           export PATH="/tmp/tang-wheel/bin:$PATH"
@@ -51,6 +51,8 @@ jobs:
           tang skill install codex --codex-home /tmp/tang-codex
           tang demo --ascii --width 100 > demo-output.txt
           grep -q "Demo complete" demo-output.txt
+          tang demo --unicode --width 120 > demo-unicode-output.txt
+          grep -q "MULTIVERSE NETWORK" demo-unicode-output.txt
           test ! -e "$HOME/.local/share/tang/tang.db"
           test ! -e "$HOME/.tang/tang.db"
           test ! -e "$GITHUB_WORKSPACE/.tang/tang.db"
@@ -59,5 +61,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: demo-failure-output
-          path: demo-output.txt
+          path: |
+            demo-output.txt
+            demo-unicode-output.txt
           if-no-files-found: ignore

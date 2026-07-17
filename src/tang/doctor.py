@@ -28,6 +28,7 @@ def run_doctor(
     grok_home: Path | None = None,
     opencode_executable: Path | str | None = None,
     project_dir: Path | str | None = None,
+    require_opencode: bool = False,
 ) -> tuple[DoctorCheck, ...]:
     """Check the CLI, database, FTS5, and configured harness adapters."""
 
@@ -86,7 +87,6 @@ def run_doctor(
                     f"Derived storage failed: {type(error).__name__}.",
                 )
             )
-
     try:
         connection = sqlite3.connect(":memory:")
         try:
@@ -109,19 +109,34 @@ def run_doctor(
         opencode_executable=opencode_executable,
         require_opencode=True,
     ):
-        checks.extend(_adapter_check(adapter.adapter_key, adapter.scan(None)))
+        checks.extend(
+            _adapter_check(
+                adapter.adapter_key,
+                adapter.scan(None),
+                opencode_required=require_opencode,
+            )
+        )
     return tuple(checks)
 
 
-def _adapter_check(component: str, batch: ScanBatch) -> tuple[DoctorCheck, ...]:
+def _adapter_check(
+    component: str,
+    batch: ScanBatch,
+    *,
+    opencode_required: bool = False,
+) -> tuple[DoctorCheck, ...]:
     warning_codes = {warning.code for warning in batch.warnings}
     if component == "opencode" and "missing-executable" in warning_codes:
         return (
             DoctorCheck(
                 component,
-                "missing",
-                "Install OpenCode >=1.17.18,<2.0.0 or configure "
-                "--opencode-executable.",
+                "missing" if opencode_required else "optional",
+                (
+                    "Install OpenCode >=1.17.18,<2.0.0 or configure "
+                    "--opencode-executable."
+                    if opencode_required
+                    else "OpenCode is not installed; Codex/Grok recovery remains available."
+                ),
             ),
         )
     if batch.status is BatchStatus.COMPLETE and not batch.records:
@@ -171,4 +186,4 @@ def _adapter_check(component: str, batch: ScanBatch) -> tuple[DoctorCheck, ...]:
 def doctor_exit_code(checks: tuple[DoctorCheck, ...]) -> int:
     """Return zero only when every readiness component is ready."""
 
-    return 0 if all(check.status == "ready" for check in checks) else 1
+    return 0 if all(check.status in {"ready", "optional"} for check in checks) else 1

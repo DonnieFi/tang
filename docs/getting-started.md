@@ -6,7 +6,7 @@ with citations. Tang does not copy whole transcripts into a new tool. It builds
 a small, redacted, source-cited Context Pack and records a continuation only
 after you confirm it.
 
-Tang v0.2.2 is still a release candidate. The source repository is available,
+Tang v0.2.3 is still a release candidate. The source repository is available,
 but the final tagged wheel download does not exist until the release gate is
 approved and published.
 
@@ -43,12 +43,12 @@ git checkout <release-candidate-commit>
 ```
 
 The wheel is not public yet. Copy
-`tang_multiverse-0.2.2-py3-none-any.whl` from the build host to the repository
+`tang_multiverse-0.2.3-py3-none-any.whl` from the build host to the repository
 directory on the test host using your normal secure file-transfer method. Also
 record its SHA-256 hash on the build host:
 
 ```bash
-sha256sum tang_multiverse-0.2.2-py3-none-any.whl
+sha256sum tang_multiverse-0.2.3-py3-none-any.whl
 ```
 
 After copying, run the same command on the test host. The two hashes must match.
@@ -60,7 +60,7 @@ From the source checkout, run:
 
 ```bash
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.2-py3-none-any.whl \
+  ./tang_multiverse-0.2.3-py3-none-any.whl \
   --output tang-functional-evidence.json
 ```
 
@@ -68,7 +68,7 @@ To test a particular supported interpreter:
 
 ```bash
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.2-py3-none-any.whl \
+  ./tang_multiverse-0.2.3-py3-none-any.whl \
   --python python3.11 \
   --output tang-functional-evidence-python311.json
 ```
@@ -104,7 +104,7 @@ debugging:
 ```bash
 mkdir tang-functional-work
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.2-py3-none-any.whl \
+  ./tang_multiverse-0.2.3-py3-none-any.whl \
   --work-dir ./tang-functional-work \
   --output tang-functional-evidence.json
 ```
@@ -118,16 +118,16 @@ reproduced and fixed.
 Until the public release exists, install the local wheel:
 
 ```bash
-uv tool install ./tang_multiverse-0.2.2-py3-none-any.whl
+uv tool install ./tang_multiverse-0.2.3-py3-none-any.whl
 tang skill install codex
 ```
 
-Once v0.2.2 is approved and published, install the exact version-pinned GitHub
+Once v0.2.3 is approved and published, install the exact version-pinned GitHub
 release instead. Do not install an unversioned development build when verifying
 the release:
 
 ```bash
-uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.2/tang_multiverse-0.2.2-py3-none-any.whl
+uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.3/tang_multiverse-0.2.3-py3-none-any.whl
 tang skill install codex
 ```
 
@@ -135,11 +135,12 @@ Check the installation:
 
 ```bash
 tang --help
+tang --version
 tang doctor
 ```
 
 Start a new Codex session after installing the skill. Invoke `$tang` or ask
-Codex in plain English to use Tang. Tang v0.2.2 installs a Codex skill, not a
+Codex in plain English to use Tang. Tang v0.2.3 installs a Codex skill, not a
 `/tang` slash command, so it might not appear in a slash-command picker.
 
 For OpenCode `>=1.17.18,<2.0.0` on Linux, install the integration into the
@@ -156,8 +157,10 @@ visible user and assistant turns.
 
 `tang doctor` is a readiness check. Before your first index it can report that
 the derived database is not initialized. An adapter can also be empty or
-degraded. Read the individual messages; a nonzero result does not necessarily
-mean the CLI installation itself failed.
+degraded. If OpenCode is absent, doctor labels it **optional** so a ready
+Codex/Grok path remains ready; use `tang doctor --require-opencode` when
+preparing the OpenCode workflow. Read the individual messages; a nonzero result
+does not necessarily mean the CLI installation itself failed.
 
 ### Uninstall or replace the CLI
 
@@ -324,7 +327,7 @@ edges. It does not store Codex's generated Continuation Brief.
 
 ### Why does search show nothing?
 
-Make sure you ran `tang index` from the same project. Tang v0.2.2 deliberately
+Make sure you ran `tang index` from the same project. Tang v0.2.3 deliberately
 does not search across unrelated projects. Try another memorable keyword or a
 quoted phrase and inspect indexing warnings.
 
@@ -355,7 +358,7 @@ before it records a continuation.
 
 ### Are macOS and Windows supported?
 
-No compatibility claim is made for v0.2.2. The release is tested and supported
+No compatibility claim is made for v0.2.3. The release is tested and supported
 on Linux with Python 3.11 or newer.
 
 ### Why did `tang index` exit with code 1 even though search works?

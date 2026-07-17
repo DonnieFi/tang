@@ -193,6 +193,28 @@ def test_browse_and_search_are_project_scoped_filtered_and_deterministic(
         connection.close()
 
 
+def test_search_limit_is_explicit_and_bounded(
+    codex_fixture_home: Path, tmp_path: Path
+) -> None:
+    current = tmp_path / "current"
+    foreign = tmp_path / "foreign"
+    current.mkdir()
+    foreign.mkdir()
+    database = tmp_path / "tang.db"
+    seed_discovery(database, current, foreign, codex_fixture_home, extra_count=5)
+
+    connection = open_database(database)
+    try:
+        service = DiscoveryService(TangRepository(connection))
+        results = service.search(resolve_project(current).key, "extra", limit=2)
+        assert [item.display_name for item in results] == [
+            "Extra recovery 4",
+            "Extra recovery 3",
+        ]
+    finally:
+        connection.close()
+
+
 def test_cli_json_lines_and_malformed_query_keep_diagnostics_on_stderr(
     codex_fixture_home: Path, tmp_path: Path, monkeypatch, capsys
 ) -> None:

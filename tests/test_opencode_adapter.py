@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -476,6 +477,40 @@ def test_catalog_bound_returns_deterministic_partial_without_deletions(
     assert [warning.code for warning in scan.warnings] == ["catalog-limit"]
     assert scan.records[0].identity.native_id == second["id"]
     assert scan.removed == ()
+
+
+def test_malformed_unrelated_catalog_item_does_not_block_known_deletion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    catalog, export = fixture_documents(project)
+    adapter = adapter_for(
+        tmp_path,
+        monkeypatch,
+        project,
+        state={
+            "catalog": catalog,
+            "exports": {SESSION_ID: export},
+            "version": "1.17.20",
+        },
+    )
+
+    first = adapter.scan(None)
+    Path(os.environ["FAKE_OPENCODE_STATE"]).write_text(
+        json.dumps(
+            {
+                "catalog": ["malformed-unrelated-item"],
+                "exports": {SESSION_ID: export},
+                "version": "1.17.20",
+            }
+        )
+    )
+    second = adapter.scan(first.next_checkpoint)
+
+    assert second.status is BatchStatus.PARTIAL
+    assert [warning.code for warning in second.warnings] == ["catalog-schema-drift"]
+    assert second.removed == (first.records[0].identity,)
 
 
 @pytest.mark.parametrize(

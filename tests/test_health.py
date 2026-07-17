@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from tang.adapters import CodexAdapter, SessionHealth
-from tang.health import describe_health
+from tang.health import describe_health, health_style
 
 
 def only_log(home: Path) -> Path:
@@ -69,3 +69,9 @@ def test_every_health_label_is_qualified_and_non_automatic() -> None:
     assert "Possibly" in labels[SessionHealth.POSSIBLY_INTERRUPTED]
     assert "unknown" in labels[SessionHealth.UNKNOWN].lower()
     assert all("continue" not in label.lower() for label in labels.values())
+
+
+def test_health_styles_are_semantic_without_replacing_labels() -> None:
+    assert health_style(SessionHealth.COMPLETE) == "bold #2aa198"
+    assert health_style(SessionHealth.POSSIBLY_INTERRUPTED) == "bold red"
+    assert health_style(SessionHealth.UNKNOWN) == "bold #ff9d3d"

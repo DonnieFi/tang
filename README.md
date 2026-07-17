@@ -43,7 +43,7 @@ This capture comes from the real isolated `tang demo` output. From a development
 checkout, regenerate it with `python scripts/capture_demo_hero.py --tang
 .venv/bin/tang --output docs/assets/tang-multiverse-demo.svg`.
 
-> **v0.2.2 release candidate:** the Linux wheel, complete demo path, and
+> **v0.2.3 release candidate:** the Linux wheel, complete demo path, and
 > OpenCode source/destination integration are verified. The repository remains
 > private during final testing; until the matching release is published, use
 > the local-wheel command below.
@@ -91,10 +91,10 @@ No transcript copy-and-paste. No pretending that a generic summary is provenance
 
 ## Install on Linux
 
-After `v0.2.2` is published, install its immutable, version-pinned wheel:
+After `v0.2.3` is published, install its immutable, version-pinned wheel:
 
 ```bash
-uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.2/tang_multiverse-0.2.2-py3-none-any.whl
+uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.3/tang_multiverse-0.2.3-py3-none-any.whl
 tang skill install codex
 tang --help
 ```
@@ -104,7 +104,7 @@ Requirements: Linux and Python 3.11 or later. The hackathon release makes no mac
 Before publication, install the reviewed local artifact instead:
 
 ```bash
-uv tool install ./tang_multiverse-0.2.2-py3-none-any.whl
+uv tool install ./tang_multiverse-0.2.3-py3-none-any.whl
 tang skill install codex
 tang --help
 ```
@@ -236,7 +236,7 @@ OpenCode. The CLI stays scriptable and does not introduce a competing selector.
 |---|---|
 | `tang index` | Incrementally index sessions for the current project |
 | `tang browse [--page N]` | Show up to five numbered, redacted sessions with short project handles such as `C1` or `G2` |
-| `tang search QUERY [--page N]` | Search redacted Discovery Capsules and show numbered choices; simple keywords or quoted phrases are recommended |
+| `tang search QUERY [--page N] [--limit N]` | Search redacted Discovery Capsules and show numbered choices; simple keywords or quoted phrases are recommended |
 | `tang context SESSION...` | Produce a compact Markdown or JSON Context Pack |
 | `tang link --from SESSION... --current` | Record selected sources into an explicitly confirmed current Codex session |
 | `tang link --from SESSION... --to SESSION` | Record selected sources into an explicitly confirmed target, including the OpenCode skill's current target |
@@ -262,6 +262,8 @@ next page. Pass those case-insensitive handles directly to `context`, `link`,
 or `graph`. Handles remain stable in the project's `.tang/tang.db`; `purge
 --all` resets them with all other derived data. JSON retains the exact
 `source_id` for scripts and the Codex skill's private selection mapping.
+Search returns up to 20 results by default; use `--limit N` (1-100) when a
+larger current-project result set is useful before paging.
 
 Continuation is never automatic. After selecting sources and reviewing the
 Context Pack, confirm one target and run `tang link`; then use `tang graph` on
@@ -285,8 +287,10 @@ tang demo --width 120 --unicode > tang-demo.txt
 ```
 
 `--unicode` forces Unicode connectors but does not fabricate terminal color.
-Use a real TTY or `scripts/capture_demo_hero.py` when the capture needs the
-release palette as well as the network layout.
+For a saved graph capture, use `tang graph C1 --width 120 --unicode --color
+always > tang-graph.txt`; under normal use, `auto` respects `NO_COLOR` and the
+terminal. Use a real TTY or `scripts/capture_demo_hero.py` when the capture
+needs the release palette as well as the network layout.
 
 Run `tang doctor` separately when you want component-by-component readiness.
 Before the first real project index, its expected `database: not_initialized`
@@ -307,7 +311,7 @@ codes, privacy checks, and timings as JSON without reading native user history:
 
 ```bash
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.2-py3-none-any.whl \
+  ./tang_multiverse-0.2.3-py3-none-any.whl \
   --output tang-functional-evidence.json
 ```
 
@@ -369,7 +373,7 @@ failure-path tests. Never contribute native transcripts, credentials, private
 paths, third-party logos, or a database built from real user history.
 
 Tang is licensed under the [`MIT License`](LICENSE). The verified release
-candidate becomes `v0.2.2` only after its manual review gate and matching tag.
+candidate becomes `v0.2.3` only after its manual review gate and matching tag.
 
 ---
 

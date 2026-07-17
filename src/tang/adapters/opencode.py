@@ -171,8 +171,17 @@ class OpenCodeAdapter:
             if previous.get(record.identity.canonical) != record.fingerprint.value:
                 records.append(record)
 
+        protected = {
+            warning.identity.canonical
+            for warning in warnings
+            if warning.identity is not None
+        }
+        enumeration_incomplete = any(
+            warning.identity is None and warning.code == "catalog-limit"
+            for warning in warnings
+        )
         removed: tuple[SessionIdentity, ...] = ()
-        if not warnings:
+        if not enumeration_incomplete:
             absent_from_scope = previous.keys() - {
                 identity.canonical for identity in seen
             }
@@ -185,9 +194,10 @@ class OpenCodeAdapter:
             removed = tuple(
                 SessionIdentity.from_canonical(canonical)
                 for canonical in absent_from_scope - retained_elsewhere
+                if canonical not in protected
             )
-            for canonical in absent_from_scope:
-                current.pop(canonical, None)
+            for identity in removed:
+                current.pop(identity.canonical, None)
 
         next_scopes = {**scopes, self._checkpoint_scope: current}
         next_checkpoint = AdapterCheckpoint(
