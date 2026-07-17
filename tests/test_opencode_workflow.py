@@ -17,6 +17,12 @@ from tang.cli import main
 from tang.project import resolve_project
 from tang.repository import TangRepository
 from tang.storage import open_database
+from tang.target import (
+    TargetCandidate,
+    TargetResolution,
+    TargetResolutionCode,
+    TargetResolutionKind,
+)
 
 
 NOW = datetime(2026, 7, 16, 20, 0, tzinfo=timezone.utc)
@@ -39,7 +45,8 @@ def _record(project: Path, fingerprint: str = "1784232000000") -> SourceRecord:
 def test_host_bridge_returns_only_safe_confirmation_handle(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
-    project = tmp_path / "private-owner" / "project"
+    worktree = tmp_path / "private-owner"
+    project = worktree / "project"
     project.mkdir(parents=True)
     database = tmp_path / "tang.db"
     project_key = resolve_project(project).key
@@ -69,7 +76,7 @@ def test_host_bridge_returns_only_safe_confirmation_handle(
             "--cwd",
             str(project),
             "--worktree",
-            str(project),
+            str(worktree),
             "--session-id",
             SESSION_ID,
             "--database",
@@ -143,6 +150,7 @@ def test_host_bridge_refreshes_exact_active_session_fingerprint(
         )
         assert refreshed is not None
         assert refreshed.source.fingerprint == observed.fingerprint
+        assert refreshed.source.title == "Current OpenCode work"
         assert refreshed.handle == "O1"
     finally:
         connection.close()
@@ -204,6 +212,62 @@ def test_host_bridge_classifies_missing_safe_handle(
     }
     assert SESSION_ID not in output
     assert str(project) not in output
+
+
+def test_host_bridge_refusal_never_exposes_an_actionable_handle(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    project = tmp_path / "private-owner" / "project"
+    project.mkdir(parents=True)
+    database = tmp_path / "tang.db"
+    project_key = resolve_project(project).key
+    record = _record(project)
+    connection = open_database(database)
+    try:
+        repository = TangRepository(connection)
+        with repository.transaction():
+            repository.upsert_session(record, project_key, NOW)
+    finally:
+        connection.close()
+
+    class FakeAdapter:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def scan(self, _checkpoint) -> ScanBatch:
+            return ScanBatch(BatchStatus.COMPLETE, records=(record,))
+
+    monkeypatch.setattr("tang.cli.OpenCodeAdapter", FakeAdapter)
+    monkeypatch.setattr(
+        "tang.cli.resolve_opencode_target",
+        lambda *_args, **_kwargs: TargetResolution(
+            TargetResolutionKind.UNAVAILABLE,
+            TargetResolutionCode.UNAVAILABLE_TARGET,
+            (TargetCandidate.from_source(record),),
+            None,
+            "The active OpenCode session is unavailable.",
+        ),
+    )
+    result = main(
+        [
+            "skill",
+            "opencode-target",
+            "--json",
+            "--cwd",
+            str(project),
+            "--worktree",
+            str(project),
+            "--session-id",
+            SESSION_ID,
+            "--database",
+            str(database),
+        ]
+    )
+
+    document = json.loads(capsys.readouterr().out)
+    assert result == 2
+    assert document["kind"] == "unavailable"
+    assert "target_handle" not in document
 
 
 def test_host_bridge_refuses_unknown_identity_without_creating_storage(

@@ -5,9 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from tang.adapters import (
-    BatchStatus,
     OpaqueSourceLocator,
-    ScanBatch,
     SessionHealth,
     SessionIdentity,
     SourceFingerprint,
@@ -91,8 +89,7 @@ def test_unique_current_target_links_and_ambiguity_refuses(
     database = tmp_path / "tang.db"
     source = record("grok", "source", project)
     target = record("codex", "target", project)
-    other = record("codex", "other", project)
-    seed(database, project, source, target, other)
+    seed(database, project, source, target)
     common = [
         "link",
         "--from",
@@ -104,24 +101,22 @@ def test_unique_current_target_links_and_ambiguity_refuses(
         str(project),
     ]
 
+    def unexpected_scan(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("current linking must use the indexed project database")
+
     monkeypatch.setattr(
-        "tang.cli.CodexAdapter.scan",
-        lambda adapter, checkpoint: ScanBatch(BatchStatus.COMPLETE, (target,)),
+        "tang.adapters.codex.CodexAdapter.scan", unexpected_scan
     )
+
     assert main(common) == 0
     linked = capsys.readouterr()
     assert linked.out == "Linked G1 to C1; inserted 1, existing 0.\n"
     assert linked.err == ""
 
     second_source = record("grok", "second-source", project)
-    seed(database, project, second_source)
+    other = record("codex", "other", project)
+    seed(database, project, second_source, other)
     common[2] = second_source.identity.canonical
-    monkeypatch.setattr(
-        "tang.cli.CodexAdapter.scan",
-        lambda adapter, checkpoint: ScanBatch(
-            BatchStatus.COMPLETE, (target, other)
-        ),
-    )
     assert main(common) == 2
     refused = capsys.readouterr()
     assert refused.out == ""
@@ -135,6 +130,36 @@ def test_unique_current_target_links_and_ambiguity_refuses(
         assert len(edges) == 1
     finally:
         connection.close()
+
+
+def test_unindexed_current_target_reports_index_required(
+    tmp_path: Path, capsys
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    database = tmp_path / "tang.db"
+    source = record("grok", "source", project)
+    seed(database, project, source)
+
+    result = main(
+        [
+            "link",
+            "--from",
+            "G1",
+            "--current",
+            "--current-native-id",
+            "not-indexed",
+            "--database",
+            str(database),
+            "--cwd",
+            str(project),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert result == 2
+    assert captured.out == ""
+    assert "error[index-required]" in captured.err
 
 
 def test_link_errors_stay_on_stderr(tmp_path: Path, capsys) -> None:
@@ -157,6 +182,7 @@ def test_link_rejects_malformed_canonical_ids(tmp_path: Path, capsys) -> None:
     project = tmp_path / "project"
     project.mkdir()
     database = tmp_path / "tang.db"
+    seed(database, project, record("codex", "target", project))
 
     assert main(
         [

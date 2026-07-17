@@ -17,6 +17,13 @@ from tang.adapters import (
     SourceFingerprint,
     SourceRecord,
 )
+from tang.redaction import (
+    DEFAULT_REDACTOR,
+    TITLE_CHARACTER_LIMIT,
+    ContentKind,
+    RedactionSeam,
+    required_redaction,
+)
 from tang.timeutil import rfc3339
 
 
@@ -136,6 +143,7 @@ class TangRepository:
         self, source: SourceRecord, project_key: str, indexed_at: datetime
     ) -> None:
         self._require_transaction()
+        title = self._persisted_title(source.title)
         handle = self._existing_or_next_handle(
             source.identity.canonical, project_key, source.identity.adapter
         )
@@ -144,8 +152,8 @@ class TangRepository:
             INSERT INTO sessions(
                 source_id, project_key, session_handle, adapter, source_namespace, native_id,
                 locator, fingerprint_algorithm, fingerprint_value, project_hint,
-                started_at, updated_at, health, indexed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                started_at, updated_at, health, title, indexed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(source_id) DO UPDATE SET
                 project_key=excluded.project_key,
                 session_handle=excluded.session_handle,
@@ -156,6 +164,7 @@ class TangRepository:
                 started_at=excluded.started_at,
                 updated_at=excluded.updated_at,
                 health=excluded.health,
+                title=COALESCE(excluded.title, sessions.title),
                 indexed_at=excluded.indexed_at,
                 native_available=1
             """,
@@ -173,9 +182,22 @@ class TangRepository:
                 rfc3339(source.started_at),
                 rfc3339(source.updated_at),
                 source.health.value,
+                title,
                 rfc3339(indexed_at),
             ),
         )
+
+    @staticmethod
+    def _persisted_title(title: str | None) -> str | None:
+        if title is None:
+            return None
+        redacted = required_redaction(
+            DEFAULT_REDACTOR,
+            RedactionSeam.CAPSULE_PERSISTENCE,
+            ContentKind.TITLE,
+            title,
+        ).text[:TITLE_CHARACTER_LIMIT]
+        return redacted or None
 
     @staticmethod
     def _handle_prefix(adapter: str) -> str:
@@ -289,7 +311,7 @@ class TangRepository:
         return tuple(
             StoredGraphSession(
                 session=self._stored_session(row),
-                title=self._capsule_title(row["content_json"]),
+                title=self._capsule_title(row["content_json"]) or row["title"],
             )
             for row in rows
         )
@@ -317,6 +339,7 @@ class TangRepository:
                 started_at=_datetime(row["started_at"]),
                 updated_at=_datetime(row["updated_at"]),
                 health=SessionHealth(row["health"]),
+                title=row["title"],
             ),
             project_key=row["project_key"],
             handle=row["session_handle"],

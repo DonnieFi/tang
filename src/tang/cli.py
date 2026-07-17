@@ -11,8 +11,13 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 
+from rich import box
+from rich.console import Console
+from rich.table import Table
+from rich.text import Text
+
 from tang.adapter_registry import configured_adapters
-from tang.adapters import CodexAdapter, OpenCodeAdapter, SessionHealth, SessionIdentity
+from tang.adapters import OpenCodeAdapter, SessionHealth, SessionIdentity
 from tang.context_service import ContextGenerationError, ContextPackService
 from tang.continuation import ContinuationError, ContinuationService, LinkResult
 from tang.discovery import (
@@ -32,7 +37,7 @@ from tang.redaction import (
     RedactionSeam,
     required_redaction,
 )
-from tang.render import render_multiverse
+from tang.render import STEEL, TEAL, render_multiverse
 from tang.repository import TangRepository
 from tang.skill_install import install_codex_skill, install_opencode_skill
 from tang.storage import DatabaseOpenError, open_database, project_data_path
@@ -40,8 +45,9 @@ from tang.timeutil import rfc3339
 from tang.target import (
     HostTargetContextError,
     OpenCodeTargetContext,
+    TargetCandidate,
+    TargetResolutionCode,
     TargetResolutionKind,
-    candidates_for_project,
     resolve_current_target,
     resolve_opencode_target,
 )
@@ -291,6 +297,51 @@ def _database_for(
     return database if database is not None else project_data_path(project)
 
 
+def _required_database_for(
+    args: argparse.Namespace, project: ProjectIdentity
+) -> Path | None:
+    """Return existing derived storage or emit one stable initialization error."""
+
+    database = _database_for(args, project)
+    if database.is_file():
+        return database
+    print(
+        "error[index-required]: Tang has no index for this project; run tang index first.",
+        file=sys.stderr,
+    )
+    return None
+
+
+def _indexed_codex_candidates(
+    repository: TangRepository, project: ProjectIdentity
+) -> tuple[TargetCandidate, ...]:
+    """Build current-target candidates from the authoritative project index."""
+
+    return tuple(
+        TargetCandidate.from_stored(session)
+        for session in repository.sessions_for_project(project.key)
+        if session.source.identity.adapter == "codex"
+    )
+
+
+def _show_current_target_refusal(code: TargetResolutionCode) -> None:
+    if code in {
+        TargetResolutionCode.NO_ELIGIBLE_TARGET,
+        TargetResolutionCode.HOST_ID_UNKNOWN,
+    }:
+        print(
+            "error[index-required]: The current Codex session is not indexed; "
+            "run tang index and retry.",
+            file=sys.stderr,
+        )
+        return
+    print(
+        "error[target-unconfirmed]: Choose an explicit target or supply the "
+        "host's current native session ID.",
+        file=sys.stderr,
+    )
+
+
 def _current_source_exclusion(
     args: argparse.Namespace,
     repository: TangRepository,
@@ -391,15 +442,67 @@ def _show_discovery_page(page: DiscoveryPage) -> None:
     if not page.choices:
         print("No indexed sessions.")
         return
+    width = max(shutil.get_terminal_size((100, 24)).columns, 40)
+    ascii_only = not _supports_unicode(sys.stdout)
+    color = sys.stdout.isatty() and "NO_COLOR" not in os.environ
+    console = Console(
+        file=sys.stdout,
+        width=width,
+        force_terminal=color,
+        color_system="truecolor" if color else None,
+        legacy_windows=False,
+    )
+    table = Table(
+        box=box.ASCII if ascii_only else box.SIMPLE_HEAD,
+        expand=True,
+        padding=(0, 1),
+        show_edge=False,
+    )
+    table.add_column("SELECT", style=f"bold {STEEL}", no_wrap=True)
+    table.add_column("ID", style=f"bold {TEAL}", no_wrap=True)
+    wide = width >= 88
+    table.add_column("SESSION", ratio=3, overflow="fold")
+    if wide:
+        table.add_column("HARNESS", no_wrap=True)
+        table.add_column("UPDATED (UTC)", no_wrap=True)
+        table.add_column("HEALTH", no_wrap=True)
     for choice in page.choices:
         item = choice.item
-        capability = ",".join(item.capabilities) or "none"
-        snippet = f" | {item.snippet}" if item.snippet else ""
-        print(
-            f"[{choice.number}] {item.handle} | {item.display_name} | {item.harness} | "
-            f"{rfc3339(item.updated_at)} | {item.health.value} | {capability}"
-            f"{snippet}"
+        capability_labels = {
+            "native-reread": "native reread",
+            "visible-user-agent-turns": "visible turns",
+        }
+        capability = " · ".join(
+            capability_labels.get(value, value.replace("-", " "))
+            for value in item.capabilities
+        ) or "none"
+        display_limit = 52 if width >= 120 else 34
+        display_name = (
+            item.display_name
+            if len(item.display_name) <= display_limit
+            else f"{item.display_name[: display_limit - 1].rstrip()}…"
         )
+        session = Text(display_name, style="bold")
+        session.append(f"\n{capability}", style="dim")
+        updated = item.updated_at.astimezone(timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        if wide:
+            table.add_row(
+                f"[{choice.number}]",
+                item.handle,
+                session,
+                item.harness,
+                updated,
+                item.health.value,
+            )
+        else:
+            session.append(
+                f"\n{item.harness} · {updated} · {item.health.value}",
+                style="dim",
+            )
+            table.add_row(f"[{choice.number}]", item.handle, session)
+    console.print(table)
     print(f"Page {page.number} of {page.page_count} ({page.result_count} results).")
     if page.has_next:
         print(f"Use --page {page.number + 1} for the next page.")
@@ -409,7 +512,10 @@ def _show_discovery_page(page: DiscoveryPage) -> None:
 
 def _run_discovery(args: argparse.Namespace) -> int:
     project = resolve_project(args.cwd)
-    connection = open_database(_database_for(args, project))
+    database = _required_database_for(args, project)
+    if database is None:
+        return 2
+    connection = open_database(database)
     try:
         repository = TangRepository(connection)
         excluded_source_ids = _current_source_exclusion(args, repository, project)
@@ -482,7 +588,10 @@ def _run_discovery(args: argparse.Namespace) -> int:
 
 def _run_context(args: argparse.Namespace) -> int:
     project = resolve_project(args.cwd)
-    connection = open_database(_database_for(args, project))
+    database = _required_database_for(args, project)
+    if database is None:
+        return 2
+    connection = open_database(database)
     try:
         repository = TangRepository(connection)
         service = ContextPackService(
@@ -639,7 +748,10 @@ def _run_opencode_target(args: argparse.Namespace) -> int:
                 repository.sessions_for_project(project.key), project, context
             )
             document = resolution.as_document()
-            if len(resolution.candidates) == 1:
+            if (
+                resolution.kind is TargetResolutionKind.CONFIRMATION_REQUIRED
+                and len(resolution.candidates) == 1
+            ):
                 try:
                     target_handle = repository.handle_for_source_id(
                         resolution.candidates[0].identity.canonical
@@ -701,7 +813,10 @@ def _link_document(result: LinkResult) -> dict[str, object]:
 
 def _run_link(args: argparse.Namespace) -> int:
     project = resolve_project(args.cwd)
-    connection = open_database(_database_for(args, project))
+    database = _required_database_for(args, project)
+    if database is None:
+        return 2
+    connection = open_database(database)
     try:
         repository = TangRepository(connection)
         service = ContinuationService(repository)
@@ -711,20 +826,19 @@ def _run_link(args: argparse.Namespace) -> int:
                 for token in args.source_ids
             )
             if args.current:
-                scan = CodexAdapter(args.codex_home).scan(None)
-                discovery = candidates_for_project(scan.records, project)
-                for warning in discovery.warnings:
-                    print(f"warning: {warning.code}: {warning.message}", file=sys.stderr)
                 excluded = frozenset(
                     SessionIdentity.from_canonical(source_id)
                     for source_id in source_ids
                 )
                 resolution = resolve_current_target(
-                    discovery.candidates,
+                    _indexed_codex_candidates(repository, project),
                     project,
                     current_native_id=args.current_native_id,
                     exclude=excluded,
                 )
+                if resolution.kind is not TargetResolutionKind.RESOLVED:
+                    _show_current_target_refusal(resolution.code)
+                    return 2
                 result = service.link_resolved(
                     source_ids,
                     resolution,
@@ -766,36 +880,38 @@ def _run_link(args: argparse.Namespace) -> int:
 
 def _run_graph(args: argparse.Namespace) -> int:
     project = resolve_project(args.cwd)
+    database = _required_database_for(args, project)
+    if database is None:
+        return 2
+    connection = open_database(database)
     resolution = None
-    if args.session is None or args.current_native_id is not None:
-        scan = CodexAdapter(args.codex_home).scan(None)
-        resolution = resolve_current_target(
-            candidates_for_project(scan.records, project).candidates,
-            project,
-            current_native_id=args.current_native_id,
-        )
-    if args.session is None:
-        if resolution is None:
-            raise RuntimeError("graph target resolution was not attempted")
-        if resolution.kind is not TargetResolutionKind.RESOLVED or resolution.target is None:
-            print(
-                "error[target-unconfirmed]: Choose an explicit graph session or confirm the current target.",
-                file=sys.stderr,
-            )
-            return 2
-        anchor = resolution.target.identity.canonical
-    else:
-        anchor = args.session
-    current_id = (
-        resolution.target.identity.canonical
-        if resolution is not None
-        and resolution.kind is TargetResolutionKind.RESOLVED
-        and resolution.target is not None
-        else None
-    )
-    connection = open_database(_database_for(args, project))
     try:
         repository = TangRepository(connection)
+        if args.session is None or args.current_native_id is not None:
+            resolution = resolve_current_target(
+                _indexed_codex_candidates(repository, project),
+                project,
+                current_native_id=args.current_native_id,
+            )
+        if args.session is None:
+            if resolution is None:
+                raise RuntimeError("graph target resolution was not attempted")
+            if (
+                resolution.kind is not TargetResolutionKind.RESOLVED
+                or resolution.target is None
+            ):
+                _show_current_target_refusal(resolution.code)
+                return 2
+            anchor = resolution.target.identity.canonical
+        else:
+            anchor = args.session
+        current_id = (
+            resolution.target.identity.canonical
+            if resolution is not None
+            and resolution.kind is TargetResolutionKind.RESOLVED
+            and resolution.target is not None
+            else None
+        )
         try:
             canonical_anchor = repository.resolve_session_token(anchor, project.key)
             graph = GraphService(repository).component(

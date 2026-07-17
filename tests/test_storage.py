@@ -53,6 +53,7 @@ def test_fresh_database_is_secure_configured_and_migrated(tmp_path: Path) -> Non
         }
         assert "native_available" in session_columns
         assert "session_handle" in session_columns
+        assert "title" in session_columns
     finally:
         connection.close()
 

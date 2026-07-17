@@ -151,6 +151,12 @@ MIGRATIONS: tuple[Migration, ...] = (
             "CREATE UNIQUE INDEX sessions_project_handle ON sessions(project_key, session_handle)",
         ),
     ),
+    (
+        6,
+        (
+            "ALTER TABLE sessions ADD COLUMN title TEXT",
+        ),
+    ),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 

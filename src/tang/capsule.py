@@ -10,6 +10,7 @@ from tang.redaction import (
     ContentKind,
     RedactionSeam,
     Redactor,
+    TITLE_CHARACTER_LIMIT,
     conceal_native_session_ids,
     required_redaction,
 )
@@ -18,7 +19,6 @@ from tang.timeutil import optional_rfc3339
 
 
 CAPSULE_BYTE_LIMIT = 8_192
-_MAX_TITLE_CHARACTERS = 256
 _MAX_DISPLAY_NAME_CHARACTERS = 96
 _MAX_EXCERPT_CHARACTERS = 2_048
 _MAX_RECENT_EXCERPTS = 4
@@ -59,7 +59,7 @@ class DiscoveryCapsuleBuilder:
             source.title or "",
         )
         title, title_truncated = _bounded(
-            title_result.text, _MAX_TITLE_CHARACTERS
+            title_result.text, TITLE_CHARACTER_LIMIT
         )
 
         selected_ordinals = self._selected_ordinals(read.turns)

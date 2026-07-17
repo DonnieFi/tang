@@ -120,7 +120,8 @@ def _adapter_check(component: str, batch: ScanBatch) -> tuple[DoctorCheck, ...]:
             DoctorCheck(
                 component,
                 "missing",
-                "Install OpenCode 1.17.20 or configure --opencode-executable.",
+                "Install OpenCode >=1.17.18,<2.0.0 or configure "
+                "--opencode-executable.",
             ),
         )
     if batch.status is BatchStatus.COMPLETE and not batch.records:

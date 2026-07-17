@@ -5,9 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from tang.adapters import (
-    BatchStatus,
     OpaqueSourceLocator,
-    ScanBatch,
     SessionHealth,
     SessionIdentity,
     SourceFingerprint,
@@ -53,20 +51,13 @@ def seed(database: Path, project: Path, *records: SourceRecord) -> None:
 
 
 def test_graph_accepts_an_explicit_indexed_session(
-    tmp_path: Path, monkeypatch, capsys
+    tmp_path: Path, capsys
 ) -> None:
     project = tmp_path / "project"
     project.mkdir()
     database = tmp_path / "tang.db"
     item = record("explicit", project)
     seed(database, project, item)
-    monkeypatch.setattr(
-        "tang.cli.CodexAdapter.scan",
-        lambda adapter, checkpoint: (_ for _ in ()).throw(
-            AssertionError("explicit graph rendering must not scan native history")
-        ),
-    )
-
     result = main(
         [
             "graph",
@@ -93,25 +84,23 @@ def test_graph_infers_only_a_unique_current_target(
     project.mkdir()
     database = tmp_path / "tang.db"
     current = record("current", project)
-    other = record("other", project)
-    seed(database, project, current, other)
+    seed(database, project, current)
     common = ["graph", "--database", str(database), "--cwd", str(project)]
 
+    def unexpected_scan(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("current graphing must use the indexed project database")
+
     monkeypatch.setattr(
-        "tang.cli.CodexAdapter.scan",
-        lambda adapter, checkpoint: ScanBatch(BatchStatus.COMPLETE, (current,)),
+        "tang.adapters.codex.CodexAdapter.scan", unexpected_scan
     )
+
     assert main(common) == 0
     inferred = capsys.readouterr()
     assert inferred.err == ""
     assert "★ C1" in inferred.out
 
-    monkeypatch.setattr(
-        "tang.cli.CodexAdapter.scan",
-        lambda adapter, checkpoint: ScanBatch(
-            BatchStatus.COMPLETE, (current, other)
-        ),
-    )
+    other = record("other", project)
+    seed(database, project, other)
     assert main(common) == 2
     ambiguous = capsys.readouterr()
     assert ambiguous.out == ""
@@ -126,10 +115,6 @@ def test_graph_respects_no_color_and_explicit_ascii(
     database = tmp_path / "tang.db"
     item = record("current", project)
     seed(database, project, item)
-    monkeypatch.setattr(
-        "tang.cli.CodexAdapter.scan",
-        lambda adapter, checkpoint: ScanBatch(BatchStatus.COMPLETE, (item,)),
-    )
     output = TtyBuffer()
     monkeypatch.setattr("tang.cli.sys.stdout", output)
     monkeypatch.setenv("NO_COLOR", "1")

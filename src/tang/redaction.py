@@ -14,6 +14,7 @@ from typing import Callable, Pattern
 
 
 Replacement = str | Callable[[re.Match[str]], str]
+TITLE_CHARACTER_LIMIT = 256
 
 
 class RedactionSeam(StrEnum):
@@ -129,6 +130,7 @@ _NATIVE_SESSION_UUID = re.compile(
     r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-"
     r"[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}(?![0-9A-Fa-f])"
 )
+_OPENCODE_SESSION_ID = re.compile(r"(?<![A-Za-z0-9_])ses_[A-Za-z0-9_-]+")
 
 
 class Redactor:
@@ -184,9 +186,11 @@ def required_redaction(
 
 
 def conceal_native_session_ids(text: str) -> str:
-    """Hide UUID-shaped native session handles on human discovery surfaces."""
+    """Hide supported native session handles on human discovery surfaces."""
 
-    return _NATIVE_SESSION_UUID.sub("[session]", text)
+    return _OPENCODE_SESSION_ID.sub(
+        "[session]", _NATIVE_SESSION_UUID.sub("[session]", text)
+    )
 
 
 DEFAULT_REDACTOR = Redactor()

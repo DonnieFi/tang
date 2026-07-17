@@ -85,6 +85,8 @@ class OpenCodeTargetContext:
                 "OpenCode host identity does not match the observed session.",
             )
         try:
+            directory_path = Path(directory).expanduser().resolve(strict=True)
+            worktree_path = Path(worktree).expanduser().resolve(strict=True)
             directory_project = resolve_project(directory)
             worktree_project = resolve_project(worktree)
             source_project = resolve_project(observed_source.project_hint)
@@ -93,13 +95,12 @@ class OpenCodeTargetContext:
                 "malformed-host-context",
                 "OpenCode host target context is incomplete or unusable.",
             ) from error
-        if len(
-            {
-                directory_project.key,
-                worktree_project.key,
-                source_project.key,
-            }
-        ) != 1:
+        worktree_contains_directory = directory_path.is_relative_to(worktree_path)
+        shared_git_project = worktree_project.key == directory_project.key
+        if (
+            source_project.key != directory_project.key
+            or not (worktree_contains_directory or shared_git_project)
+        ):
             raise HostTargetContextError(
                 "host-project-mismatch",
                 "OpenCode host and observed session projects do not match.",
@@ -235,6 +236,7 @@ def resolve_current_target(
                 for candidate in candidates
                 if candidate.identity.adapter == "codex"
                 and candidate.project_key == active_project.key
+                and candidate.native_available
                 and candidate.identity not in exclude
             ),
             key=_rank,

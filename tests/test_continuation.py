@@ -18,7 +18,7 @@ from tang.continuation import (
     ContinuationService,
 )
 from tang.graph import GraphService
-from tang.repository import TangRepository
+from tang.repository import StoredContinuation, TangRepository
 from tang.storage import open_database
 from tang.target import (
     TargetCandidate,
@@ -82,6 +82,25 @@ def test_compound_many_to_many_dag_and_cycle_refusal(tmp_path: Path) -> None:
         assert len(before) == 6
     finally:
         connection.close()
+
+
+def test_cycle_detection_handles_a_chain_beyond_recursion_depth() -> None:
+    edges = tuple(
+        StoredContinuation(
+            f"codex:graph:n{index}",
+            f"codex:graph:n{index + 1}",
+            "project",
+            "explicit",
+            NOW,
+        )
+        for index in range(1_500)
+    )
+
+    assert not ContinuationService._introduces_cycle(edges, ())
+    assert ContinuationService._introduces_cycle(
+        edges,
+        (("codex:graph:n1500", "codex:graph:n0"),),
+    )
 
 
 def test_bad_source_self_and_foreign_requests_are_atomic(tmp_path: Path) -> None:

@@ -22,7 +22,9 @@ from tang.storage import BUSY_TIMEOUT_MS, open_database
 NOW = datetime(2026, 7, 15, 0, 0, tzinfo=timezone.utc)
 
 
-def source(native_id: str, fingerprint: str = "digest-1") -> SourceRecord:
+def source(
+    native_id: str, fingerprint: str = "digest-1", title: str | None = None
+) -> SourceRecord:
     return SourceRecord(
         identity=SessionIdentity("codex", "fixture", native_id),
         locator=OpaqueSourceLocator(f"/private/{native_id}.jsonl"),
@@ -31,6 +33,7 @@ def source(native_id: str, fingerprint: str = "digest-1") -> SourceRecord:
         started_at=NOW,
         updated_at=NOW + timedelta(minutes=1),
         health=SessionHealth.UNKNOWN,
+        title=title,
     )
 
 
@@ -86,6 +89,65 @@ def test_insert_update_delete_and_fts_synchronization(tmp_path: Path) -> None:
         assert repository.get_session(changed.identity.canonical) is None
         assert repository.get_capsule(changed.identity.canonical) is None
         assert repository.search_capsule_ids("project-a", "updated") == ()
+    finally:
+        connection.close()
+
+
+def test_session_title_persists_without_capsule_and_survives_empty_refresh(
+    tmp_path: Path,
+) -> None:
+    connection = open_database(tmp_path / "titles" / "tang.db")
+    repository = TangRepository(connection)
+    titled = source("session-title", title="Current OpenCode work")
+    try:
+        with repository.transaction():
+            repository.upsert_session(titled, "project-a", NOW)
+
+        stored = repository.get_session(titled.identity.canonical)
+        assert stored is not None
+        assert stored.source.title == "Current OpenCode work"
+        assert repository.graph_sessions(
+            "project-a", (titled.identity.canonical,)
+        )[0].title == "Current OpenCode work"
+
+        without_title = replace(
+            titled,
+            fingerprint=SourceFingerprint("sha256", "digest-2"),
+            title=None,
+        )
+        with repository.transaction():
+            repository.upsert_session(
+                without_title, "project-a", NOW + timedelta(seconds=1)
+            )
+
+        refreshed = repository.get_session(titled.identity.canonical)
+        assert refreshed is not None
+        assert refreshed.source.title == "Current OpenCode work"
+    finally:
+        connection.close()
+
+
+def test_session_title_is_redacted_and_bounded_at_persistence(
+    tmp_path: Path,
+) -> None:
+    connection = open_database(tmp_path / "private-title" / "tang.db")
+    repository = TangRepository(connection)
+    secret = "graph-title-secret"
+    record = source(
+        "private-title",
+        title=f'Release PASSWORD="{secret}" ' + ("x" * 300),
+    )
+    try:
+        with repository.transaction():
+            repository.upsert_session(record, "project-a", NOW)
+
+        stored_title = connection.execute(
+            "SELECT title FROM sessions WHERE source_id = ?",
+            (record.identity.canonical,),
+        ).fetchone()[0]
+        assert secret not in stored_title
+        assert "PASSWORD=[REDACTED:credential]" in stored_title
+        assert len(stored_title) == 256
     finally:
         connection.close()
 

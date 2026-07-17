@@ -172,19 +172,27 @@ class ContinuationService:
             adjacency.setdefault(source, set()).add(target)
             adjacency.setdefault(target, set())
 
-        visiting: set[str] = set()
-        visited: set[str] = set()
-
-        def visit(node: str) -> bool:
-            if node in visiting:
-                return True
-            if node in visited:
-                return False
-            visiting.add(node)
-            if any(visit(target) for target in sorted(adjacency[node])):
-                return True
-            visiting.remove(node)
-            visited.add(node)
-            return False
-
-        return any(visit(node) for node in sorted(adjacency))
+        # 0 = unseen, 1 = on the active DFS path, 2 = fully explored. Keep the
+        # traversal iterative so a valid long history cannot hit Python's
+        # recursion limit while checking one new edge.
+        state: dict[str, int] = {}
+        for start in sorted(adjacency):
+            if state.get(start, 0) != 0:
+                continue
+            state[start] = 1
+            stack = [(start, iter(sorted(adjacency[start])))]
+            while stack:
+                node, targets = stack[-1]
+                try:
+                    target = next(targets)
+                except StopIteration:
+                    state[node] = 2
+                    stack.pop()
+                    continue
+                target_state = state.get(target, 0)
+                if target_state == 1:
+                    return True
+                if target_state == 0:
+                    state[target] = 1
+                    stack.append((target, iter(sorted(adjacency[target]))))
+        return False

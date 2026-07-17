@@ -67,6 +67,21 @@ def test_hero_renderer_shows_connected_branch_merge_and_active_handle() -> None:
     assert "codex:map:g" not in rendered
 
 
+def test_truncated_timeline_lanes_are_labeled() -> None:
+    graph = hero()
+    truncated = MultiverseGraph(
+        graph.project_key,
+        graph.nodes,
+        graph.edges,
+        graph.timelines,
+        True,
+    )
+
+    rendered = render_multiverse(truncated, width=120, color=False)
+
+    assert "FIRST 5 ROOT-TO-LEAF PATHS (MORE OMITTED)" in rendered
+
+
 def test_isolated_renderer_is_truthful() -> None:
     isolated = MultiverseGraph("project", (node("h"),), (), (("codex:map:h",),))
     rendered = render_multiverse(isolated, width=100, color=False)

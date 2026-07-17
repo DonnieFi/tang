@@ -246,7 +246,12 @@ def render_multiverse(
     table_box = box.ASCII if ascii_only else box.HEAVY_HEAD
 
     if width >= 100 and not ascii_only and graph.edges and graph.timelines:
-        network_title = f"TIMELINE LANES · {len(graph.timelines)} ROOT-TO-LEAF PATHS"
+        network_title = (
+            f"TIMELINE LANES · FIRST {len(graph.timelines)} ROOT-TO-LEAF PATHS "
+            "(MORE OMITTED)"
+            if graph.timelines_truncated
+            else f"TIMELINE LANES · {len(graph.timelines)} ROOT-TO-LEAF PATHS"
+        )
         network = Table.grid(expand=True, padding=(0, 1))
         network.add_column(style=f"bold {STEEL}", no_wrap=True)
         network.add_column(overflow="fold")

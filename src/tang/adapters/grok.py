@@ -159,13 +159,24 @@ class GrokAdapter:
             if previous.get(identity.canonical) != record.fingerprint.value:
                 records.append(record)
 
+        protected = {
+            warning.identity.canonical
+            for warning in warnings
+            if warning.identity is not None
+        }
+        enumeration_incomplete = any(
+            warning.identity is None
+            and warning.code in {"unreadable-session-group", "unsafe-session-group"}
+            for warning in warnings
+        )
         removed: tuple[SessionIdentity, ...] = ()
-        if not warnings:
+        if not enumeration_incomplete:
             removed = tuple(
                 SessionIdentity.from_canonical(canonical)
                 for canonical in previous.keys() - {
                     identity.canonical for identity in seen
                 }
+                if canonical not in protected
             )
             for identity in removed:
                 current.pop(identity.canonical, None)
@@ -375,12 +386,20 @@ class GrokAdapter:
                 )
                 continue
             for candidate in candidates:
+                identity = (
+                    SessionIdentity(
+                        self.adapter_key, self.source_namespace, candidate.name
+                    )
+                    if self._is_uuid(candidate.name)
+                    else None
+                )
                 try:
                     if candidate.is_symlink():
                         warnings.append(
                             AdapterWarning(
                                 "unsafe-session-source",
                                 "A symlinked Grok session directory was skipped.",
+                                identity,
                             )
                         )
                         continue
@@ -393,6 +412,7 @@ class GrokAdapter:
                         AdapterWarning(
                             "unsafe-session-source",
                             "A Grok session outside the configured store was skipped.",
+                            identity,
                         )
                     )
                     continue
@@ -401,6 +421,7 @@ class GrokAdapter:
                         AdapterWarning(
                             "unreadable-session",
                             "A Grok session could not be inspected and was skipped.",
+                            identity,
                         )
                     )
                     continue

@@ -179,6 +179,26 @@ def test_healthy_scan_reports_native_deletion(copied_codex_home: Path) -> None:
     assert json.loads(second.next_checkpoint.cursor)["fingerprints"] == {}
 
 
+def test_unrelated_malformed_file_does_not_disable_deletion_detection(
+    copied_codex_home: Path,
+) -> None:
+    adapter = fixture_adapter(copied_codex_home)
+    first = adapter.scan(None)
+    identity = first.records[0].identity
+    only_log(copied_codex_home).unlink()
+    malformed = copied_codex_home / "sessions" / "malformed.jsonl"
+    malformed.write_text("{not-json}\n", encoding="utf-8")
+
+    second = adapter.scan(first.next_checkpoint)
+
+    assert second.status is BatchStatus.PARTIAL
+    assert second.removed == (identity,)
+    assert "unrecognized-session-name" in {
+        warning.code for warning in second.warnings
+    }
+    assert json.loads(second.next_checkpoint.cursor)["fingerprints"] == {}
+
+
 def test_truncated_read_returns_visible_partial_data(copied_codex_home: Path) -> None:
     adapter = fixture_adapter(copied_codex_home)
     record = adapter.scan(None).records[0]

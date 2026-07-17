@@ -11,7 +11,7 @@ from tang.adapters import (
     SourceFingerprint,
     SourceRecord,
 )
-from tang.graph import GraphService
+from tang.graph import MAX_TIMELINE_LANES, GraphEdge, GraphService
 from tang.repository import StoredCapsule, StoredContinuation, TangRepository
 from tang.storage import open_database
 
@@ -93,6 +93,7 @@ def test_isolated_and_disconnected_components_are_stable(tmp_path: Path) -> None
     try:
         isolated = GraphService(repository).component("codex:multiverse:h")
         assert [node.native_id for node in isolated.nodes] == ["h"]
+        assert isolated.nodes[0].title == "Isolated experiment"
         assert isolated.edges == ()
         assert [short(path) for path in isolated.timelines] == ["H"]
 
@@ -100,6 +101,44 @@ def test_isolated_and_disconnected_components_are_stable(tmp_path: Path) -> None
         assert "h" not in {node.native_id for node in connected.nodes}
     finally:
         connection.close()
+
+
+def test_timeline_enumeration_is_iterative_and_bounded() -> None:
+    chain_nodes = frozenset(f"chain-{index}" for index in range(1_501))
+    chain_edges = tuple(
+        GraphEdge(f"chain-{index}", f"chain-{index + 1}", datetime.now().astimezone())
+        for index in range(1_500)
+    )
+
+    chain_paths, chain_truncated = GraphService._timelines(chain_nodes, chain_edges)
+
+    assert len(chain_paths) == 1
+    assert len(chain_paths[0]) == 1_501
+    assert not chain_truncated
+
+    nodes = {"root"}
+    edges: list[GraphEdge] = []
+    prior = "root"
+    timestamp = datetime.now().astimezone()
+    for level in range(9):
+        left = f"left-{level}"
+        right = f"right-{level}"
+        merge = f"merge-{level}"
+        nodes.update((left, right, merge))
+        edges.extend(
+            (
+                GraphEdge(prior, left, timestamp),
+                GraphEdge(prior, right, timestamp),
+                GraphEdge(left, merge, timestamp),
+                GraphEdge(right, merge, timestamp),
+            )
+        )
+        prior = merge
+
+    paths, truncated = GraphService._timelines(frozenset(nodes), tuple(edges))
+
+    assert len(paths) == MAX_TIMELINE_LANES
+    assert truncated
 
 
 def test_graph_title_is_redacted_again_at_the_display_seam(tmp_path: Path) -> None:

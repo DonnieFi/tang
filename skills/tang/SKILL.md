@@ -1,6 +1,6 @@
 ---
 name: tang
-description: Find and continue prior coding-agent work from the current project with redacted discovery, explicit source selection, and source-cited context. Use when a developer asks to recover, resume, compare, or combine work from earlier Codex or Grok sessions inside the active Codex session.
+description: Find and continue prior coding-agent work from the current project with redacted discovery, explicit source selection, and source-cited context. Use when a developer asks to recover, resume, compare, or combine work from earlier Codex, Grok, or OpenCode sessions inside the active Codex session.
 ---
 
 # Tang

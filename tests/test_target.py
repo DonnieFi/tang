@@ -473,10 +473,40 @@ def test_opencode_context_rejects_malformed_or_inconsistent_host_metadata(
             worktree=foreign_path,
             observed_source=observed,
         )
+    with pytest.raises(HostTargetContextError) as foreign_source:
+        OpenCodeTargetContext.from_host(
+            session_id="ses_fixtureCurrent01",
+            directory=project_path,
+            worktree=tmp_path,
+            observed_source=source(
+                "ses_fixtureCurrent01", str(foreign_path), adapter="opencode"
+            ),
+        )
 
     assert malformed.value.code == "malformed-host-context"
     assert mismatched_source.value.code == "host-source-mismatch"
     assert mismatched_project.value.code == "host-project-mismatch"
+    assert foreign_source.value.code == "host-project-mismatch"
+
+
+def test_opencode_context_accepts_project_directory_below_host_worktree(
+    tmp_path: Path,
+) -> None:
+    worktree = tmp_path / "private-worktree"
+    project_path = worktree / "nested-project"
+    project_path.mkdir(parents=True)
+    native_id = "ses_fixtureCurrent01"
+
+    context = OpenCodeTargetContext.from_host(
+        session_id=native_id,
+        directory=project_path,
+        worktree=worktree,
+        observed_source=source(
+            native_id, str(project_path), adapter="opencode"
+        ),
+    )
+
+    assert context.project_key == resolve_project(project_path).key
 
 
 def test_opencode_target_display_and_json_do_not_expose_host_metadata(

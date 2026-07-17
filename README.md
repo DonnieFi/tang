@@ -43,7 +43,7 @@ This capture comes from the real isolated `tang demo` output. From a development
 checkout, regenerate it with `python scripts/capture_demo_hero.py --tang
 .venv/bin/tang --output docs/assets/tang-multiverse-demo.svg`.
 
-> **v0.2.0 release candidate:** the Linux wheel, complete demo path, and
+> **v0.2.2 release candidate:** the Linux wheel, complete demo path, and
 > OpenCode source/destination integration are verified. The repository remains
 > private during final testing; until the matching release is published, use
 > the local-wheel command below.
@@ -91,10 +91,10 @@ No transcript copy-and-paste. No pretending that a generic summary is provenance
 
 ## Install on Linux
 
-After `v0.2.0` is published, install its immutable, version-pinned wheel:
+After `v0.2.2` is published, install its immutable, version-pinned wheel:
 
 ```bash
-uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.0/tang_multiverse-0.2.0-py3-none-any.whl
+uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.2/tang_multiverse-0.2.2-py3-none-any.whl
 tang skill install codex
 tang --help
 ```
@@ -104,7 +104,7 @@ Requirements: Linux and Python 3.11 or later. The hackathon release makes no mac
 Before publication, install the reviewed local artifact instead:
 
 ```bash
-uv tool install ./tang_multiverse-0.2.0-py3-none-any.whl
+uv tool install ./tang_multiverse-0.2.2-py3-none-any.whl
 tang skill install codex
 tang --help
 ```
@@ -115,8 +115,8 @@ on the same version. Start a new Codex session, invoke `$tang`, or ask Codex in
 plain English to use Tang. Tang is a Codex skill, not a `/tang` slash command;
 the slash-command picker is not expected to list it.
 
-For OpenCode `1.17.20` on Linux, install the project-local integration, restart
-OpenCode in that project, and invoke `/tang`:
+For OpenCode `>=1.17.18,<2.0.0` on Linux, install the project-local
+integration, restart OpenCode in that project, and invoke `/tang`:
 
 ```bash
 tang skill install opencode --project-root "$PWD"
@@ -152,13 +152,15 @@ Confirm the continuation. Tang records explicit, cycle-free edges. Repeated many
 |---|---:|---|
 | Codex CLI 0.144.4 | Supported on Linux | Representative local store live-verified; read-only source adapter and current continuation target |
 | Grok 0.2.99 | Supported on Linux | Representative local store live-verified; read-only source adapter |
-| OpenCode 1.17.20 | Supported on Linux | Live-verified with OpenAI- and xAI-backed sessions; read-only source adapter and explicitly confirmed current continuation target |
+| OpenCode `>=1.17.18,<2.0.0` | Supported on Linux | Runtime contracts fail closed; 1.17.20 live-verified with OpenAI- and xAI-backed sessions; read-only source adapter and explicitly confirmed current continuation target |
 | Linux x86-64 | Supported | Clean-wheel acceptance on Python 3.11.11 and 3.12.8; synthetic fixture coverage in CI |
 | macOS | Unsupported | No compatibility or CI claim |
 | Windows | Unsupported | No native compatibility claim |
 
-Other Codex, Grok, and OpenCode versions may share a compatible format, but
-v0.2.0 does not claim them without separate live evidence.
+Within the documented OpenCode range, Tang still validates the native catalog
+and export shapes on every use and fails closed on incompatible data. Tang makes
+no compatibility claim for OpenCode versions outside that range, or for other
+Codex and Grok versions without separate evidence.
 
 The longer-term product direction is symmetrical continuity: any supported
 handle should be able to receive the blade. Tang v0.2 supports repeated,
@@ -296,7 +298,7 @@ maps those exact sources into a branch-and-merge DAG, confirms one new link,
 renders the active Multiverse, and deletes the workspace. On the clean-wheel
 Linux gate runs kept search and Context Pack generation under 0.2 seconds each,
 the search/context/link/graph core under 0.6 seconds, and the complete isolated
-demo under 0.2 seconds. These are observed release-host timings, not universal
+demo under 2 seconds. These are observed release-host timings, not universal
 performance guarantees.
 
 Release-candidate reviewers can run the isolated clean-wheel acceptance script
@@ -305,7 +307,7 @@ codes, privacy checks, and timings as JSON without reading native user history:
 
 ```bash
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.0-py3-none-any.whl \
+  ./tang_multiverse-0.2.2-py3-none-any.whl \
   --output tang-functional-evidence.json
 ```
 
@@ -367,7 +369,7 @@ failure-path tests. Never contribute native transcripts, credentials, private
 paths, third-party logos, or a database built from real user history.
 
 Tang is licensed under the [`MIT License`](LICENSE). The verified release
-candidate becomes `v0.2.0` only after its manual review gate and matching tag.
+candidate becomes `v0.2.2` only after its manual review gate and matching tag.
 
 ---
 

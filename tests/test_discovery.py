@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -221,7 +222,9 @@ def test_cli_json_lines_and_malformed_query_keep_diagnostics_on_stderr(
     def unexpected_native_scan(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("current exclusion must use the indexed project database")
 
-    monkeypatch.setattr("tang.cli.CodexAdapter.scan", unexpected_native_scan)
+    monkeypatch.setattr(
+        "tang.adapters.codex.CodexAdapter.scan", unexpected_native_scan
+    )
     assert (
         main(
             [
@@ -251,8 +254,21 @@ def test_cli_json_lines_and_malformed_query_keep_diagnostics_on_stderr(
 
     assert main(["search", "forge", *common, "--harness", "grok"]) == 0
     line_result = capsys.readouterr()
-    assert line_result.out.count("\n") == 2
-    assert "[1] G1 | Beta work | grok | 2026-07-14T02:00:00Z | unknown" in line_result.out
+    assert all(
+        value in line_result.out
+        for value in (
+            "SELECT",
+            "ID",
+            "SESSION",
+            "[1]",
+            "G1",
+            "Beta work",
+            "grok",
+            "2026-07-14T02:00:00Z",
+            "unknown",
+        )
+    )
+    assert "\x1b[" not in line_result.out
     assert "Page 1 of 1 (1 results)." in line_result.out
     assert "grok:discovery:beta" not in line_result.out
     assert "codex:discovery:alpha" not in line_result.out
@@ -265,7 +281,7 @@ def test_cli_json_lines_and_malformed_query_keep_diagnostics_on_stderr(
 
 
 def test_human_discovery_is_numbered_paged_and_maps_only_current_choices(
-    codex_fixture_home: Path, tmp_path: Path, capsys
+    codex_fixture_home: Path, tmp_path: Path, monkeypatch, capsys
 ) -> None:
     current = tmp_path / "current"
     foreign = tmp_path / "foreign"
@@ -276,22 +292,35 @@ def test_human_discovery_is_numbered_paged_and_maps_only_current_choices(
         database, current, foreign, codex_fixture_home, extra_count=5
     )
     common = ["--database", str(database), "--cwd", str(current)]
+    monkeypatch.setattr(
+        "tang.cli.shutil.get_terminal_size",
+        lambda _fallback=None: os.terminal_size((100, 24)),
+    )
 
     assert main(["browse", *common]) == 0
     first = capsys.readouterr()
 
-    assert len([line for line in first.out.splitlines() if line.startswith("[")]) == 5
+    assert all(f"[{number}]" in first.out for number in range(1, 6))
+    assert "SELECT" in first.out and "SESSION" in first.out
     assert "Page 1 of 2 (7 results)." in first.out
     assert "Use --page 2 for the next page." in first.out
-    assert "extra fixture" in first.out
+    assert "Extra recovery" in first.out
     assert "codex:discovery:" not in first.out
     assert "grok:discovery:" not in first.out
 
+    monkeypatch.setattr(
+        "tang.cli.shutil.get_terminal_size",
+        lambda _fallback=None: os.terminal_size((60, 24)),
+    )
     assert main(["browse", *common, "--page", "2"]) == 0
     second = capsys.readouterr()
 
-    assert "[6] C1 | Alpha plan" in second.out
-    assert "[7] G1 | Beta work" in second.out
+    assert all(
+        value in second.out
+        for value in ("[6]", "C1", "Alpha plan", "[7]", "G1", "Beta work")
+    )
+    assert "HARNESS" not in second.out
+    assert "codex" in second.out and "grok" in second.out
     assert "Page 2 of 2 (7 results)." in second.out
     assert "Use --page 1 for the previous page." in second.out
 

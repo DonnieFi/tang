@@ -482,6 +482,10 @@ def test_catalog_bound_returns_deterministic_partial_without_deletions(
     ("state", "code"),
     [
         ({"version": "9.0.0"}, "unsupported-version"),
+        ({"version": "1.17.17"}, "unsupported-version"),
+        ({"version": "2.0.0"}, "unsupported-version"),
+        ({"version": "1.17.20-dev"}, "unsupported-version"),
+        ({"version": "1.017.20"}, "unsupported-version"),
         ({"version_exit": 2}, "version-failed"),
         ({"version": "1.17.20", "serve_exit": 2}, "catalog-unavailable"),
         ({"version": "1.17.20", "catalog": "not-json"}, "catalog-invalid-json"),
@@ -503,6 +507,30 @@ def test_scan_fails_closed_for_unsupported_native_contracts(
     assert scan.records == ()
     assert scan.next_checkpoint is None
     assert scan.warnings[0].code == code
+
+
+@pytest.mark.parametrize("version", ["1.17.18", "1.17.20", "1.18.0", "1.99.999"])
+def test_scan_accepts_supported_opencode_1_x_versions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, version: str
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    catalog, export = fixture_documents(project)
+    adapter = adapter_for(
+        tmp_path,
+        monkeypatch,
+        project,
+        state={
+            "catalog": catalog,
+            "exports": {SESSION_ID: export},
+            "version": version,
+        },
+    )
+
+    scan = adapter.scan(None)
+
+    assert scan.status is BatchStatus.COMPLETE
+    assert scan.records
 
 
 def test_missing_and_timed_out_executable_are_structured(

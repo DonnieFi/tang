@@ -357,6 +357,30 @@ def test_healthy_scan_reports_native_deletion(fixture_home: Path) -> None:
     assert json.loads(second.next_checkpoint.cursor)["fingerprints"] == {}
 
 
+def test_unrelated_symlinked_session_does_not_disable_deletion_detection(
+    fixture_home: Path, tmp_path: Path
+) -> None:
+    adapter = GrokAdapter(fixture_home, source_namespace="fixture")
+    first = adapter.scan(None)
+    identity = first.records[0].identity
+    session_dir = next((fixture_home / "sessions").glob("*/*"))
+    group = session_dir.parent
+    for child in session_dir.iterdir():
+        child.unlink()
+    session_dir.rmdir()
+    symlink = group / "019f6000-1234-7000-8000-000000000099"
+    symlink.symlink_to(tmp_path / "missing-session", target_is_directory=True)
+
+    second = adapter.scan(first.next_checkpoint)
+
+    assert second.status is BatchStatus.PARTIAL
+    assert second.removed == (identity,)
+    assert "unsafe-session-source" in {
+        warning.code for warning in second.warnings
+    }
+    assert json.loads(second.next_checkpoint.cursor)["fingerprints"] == {}
+
+
 def test_missing_updates_is_partial_during_scan(fixture_home: Path) -> None:
     updates = next((fixture_home / "sessions").rglob("updates.jsonl"))
     updates.unlink()

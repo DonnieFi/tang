@@ -42,12 +42,25 @@ from tang.adapters.base import (
 )
 
 
-SUPPORTED_OPENCODE_VERSION = "1.17.20"
+MINIMUM_OPENCODE_VERSION = (1, 17, 18)
+MAXIMUM_OPENCODE_MAJOR = 2
 CATALOG_LIMIT = 500
 CATALOG_RESPONSE_LIMIT = 8 * 1024 * 1024
 EXPORT_RESPONSE_LIMIT = 8 * 1024 * 1024
 _SESSION_ID = re.compile(r"ses_[A-Za-z0-9_-]{1,128}\Z")
+_VERSION_PART = r"(?:0|[1-9][0-9]*)"
+_VERSION = re.compile(
+    rf"({_VERSION_PART})\.({_VERSION_PART})\.({_VERSION_PART})\Z"
+)
 _LOCATOR_PREFIX = "opencode-session-v1:"
+
+
+def _supported_version(value: str) -> bool:
+    match = _VERSION.fullmatch(value)
+    if match is None:
+        return False
+    version = tuple(int(part) for part in match.groups())
+    return MINIMUM_OPENCODE_VERSION <= version and version[0] < MAXIMUM_OPENCODE_MAJOR
 
 
 class _OpenCodeFailure(RuntimeError):
@@ -124,11 +137,11 @@ class OpenCodeAdapter:
             version = self._run_cli(("--version",), "version").strip()
         except _OpenCodeFailure as error:
             return self._scan_unavailable(error)
-        if version != SUPPORTED_OPENCODE_VERSION:
+        if not _supported_version(version):
             return self._scan_unavailable(
                 _OpenCodeFailure(
                     "unsupported-version",
-                    "The installed OpenCode version is not supported by this adapter.",
+                    "Install a stable OpenCode version >=1.17.18 and <2.0.0.",
                 )
             )
         try:

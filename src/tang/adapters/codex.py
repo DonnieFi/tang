@@ -172,13 +172,24 @@ class CodexAdapter:
             if previous.get(identity.canonical) != record.fingerprint.value:
                 records.append(record)
 
+        protected = {
+            warning.identity.canonical
+            for warning in warnings
+            if warning.identity is not None
+        }
+        enumeration_incomplete = any(
+            warning.identity is None
+            and warning.code in {"unreadable-session-group", "unsafe-session-group"}
+            for warning in warnings
+        )
         removed: tuple[SessionIdentity, ...] = ()
-        if not warnings:
+        if not enumeration_incomplete:
             removed = tuple(
                 SessionIdentity.from_canonical(canonical)
                 for canonical in previous.keys() - {
                     identity.canonical for identity in seen
                 }
+                if canonical not in protected
             )
             for identity in removed:
                 current.pop(identity.canonical, None)
@@ -332,10 +343,23 @@ class CodexAdapter:
             for child in children:
                 try:
                     if child.is_symlink():
+                        native_id = self._filename_session_id(child)
+                        identity = (
+                            SessionIdentity(
+                                self.adapter_key, self.source_namespace, native_id
+                            )
+                            if native_id is not None
+                            else None
+                        )
                         warnings.append(
                             AdapterWarning(
-                                "unsafe-session-source",
+                                (
+                                    "unsafe-session-source"
+                                    if identity is not None
+                                    else "unsafe-session-group"
+                                ),
                                 "A symlinked Codex session path was skipped.",
+                                identity,
                             )
                         )
                         continue
@@ -346,10 +370,23 @@ class CodexAdapter:
                     elif resolved.is_file() and resolved.suffix == ".jsonl":
                         logs.append(resolved)
                 except (OSError, ValueError):
+                    native_id = self._filename_session_id(child)
+                    identity = (
+                        SessionIdentity(
+                            self.adapter_key, self.source_namespace, native_id
+                        )
+                        if native_id is not None
+                        else None
+                    )
                     warnings.append(
                         AdapterWarning(
-                            "unsafe-session-source",
+                            (
+                                "unsafe-session-source"
+                                if identity is not None
+                                else "unsafe-session-group"
+                            ),
                             "An unreadable or escaped Codex session path was skipped.",
+                            identity,
                         )
                     )
 

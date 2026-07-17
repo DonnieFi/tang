@@ -6,6 +6,7 @@ from tang.redaction import (
     DEFAULT_REDACTOR,
     ContentKind,
     RedactionSeam,
+    conceal_native_session_ids,
     required_redaction,
 )
 
@@ -121,3 +122,14 @@ def test_required_redaction_fails_explicitly_for_excluded_content() -> None:
             ContentKind.TOOL_PAYLOAD,
             "must never become visible",
         )
+
+
+def test_supported_native_session_ids_are_concealed() -> None:
+    value = (
+        "Codex 019f6000-1234-7000-8000-000000000001 and "
+        "OpenCode ses_tangCurrent_123-abc"
+    )
+
+    concealed = conceal_native_session_ids(value)
+
+    assert concealed == "Codex [session] and OpenCode [session]"

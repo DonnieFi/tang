@@ -312,3 +312,51 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) retain 0.1.0; (b) use a patch version; (c) assign v0.2.0 and present the earlier v0.1.0 behavior only as history.
 - Decision: (c) — OpenCode is a backward-compatible new capability, so a semantic-versioning minor bump accurately distinguishes its package, wheel, installation contract, and README story. The supporting samurai asset is a clean derivative with all product names and third-party marks removed. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
 - By: human (version and README direction) and agent (release-contract implementation)
+
+## 2026-07-17T21:30:21Z · tang-xp5 · Bound OpenCode compatibility by contract generation
+- Context: Kiritsuke ran Tang v0.2.0 with OpenCode 1.17.18, but the production adapter rejected it solely because Epic 7 had used an exact 1.17.20 evidence pin; the adapter already validates catalog/export shapes and safety boundaries at runtime.
+- Options: (a) retain exact 1.17.20; (b) remove version checks; (c) accept stable versions `>=1.17.18,<2.0.0` while retaining strict runtime schema, identity, project, size, and timeout validation.
+- Decision: (c) — a bounded floor unblocks compatible installs without admitting known-older contracts or an unknown future major; the privacy-safe evidence probe remains exactly pinned to 1.17.20 so its historical claim stays reproducible. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: human (relax compatibility) and agent (bounded fail-closed policy)
+
+## 2026-07-17T21:30:21Z · tang-gwb · Make OpenCode directory authoritative for target projects
+- Context: Kiritsuke returned `host-project-mismatch` for a valid current session because Tang required OpenCode's current project `directory` and its broader `worktree` root to independently produce the same Tang project key; that is false for legitimate nested non-Git projects.
+- Options: (a) remove project validation; (b) keep exact equality; (c) require the freshly observed session to match authoritative `directory`, while accepting `worktree` only as an ancestor or a path sharing the same Git project identity.
+- Decision: (c) — preserve exact native ID and project isolation while matching OpenCode's documented distinction between a session directory and worktree root; foreign siblings and clones remain rejected. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: agent, based on human Kiritsuke evidence and the installed OpenCode 1.17.20 ToolContext contract
+
+## 2026-07-17T21:36:52Z · tang-gxy · Persist redacted session titles independently of capsules
+- Context: Newly joined OpenCode targets could be valid indexed graph nodes without a Discovery Capsule, but Tang stored titles only inside capsules, so the Multiverse displayed `(untitled)` even when the native catalog supplied a useful title.
+- Options: (a) keep the untitled fallback; (b) create synthetic title-only capsules; (c) add a bounded title column to session metadata, redact it at persistence, preserve it across temporarily titleless refreshes, and use it only as the graph fallback when no capsule title exists.
+- Decision: (c) — keep capsules truthful while giving every adapter-neutral graph node its available display metadata; apply the shared 256-character persistence redaction and retain graph-seam redaction as defense in depth. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: agent, based on human Kiritsuke UX evidence and Tang's approved privacy seams
+
+## 2026-07-17T21:41:09Z · tang-bp0 · Ship Kiritsuke refinements as v0.2.1
+- Context: Kiritsuke already has v0.2.0 installed, so rebuilding the OpenCode compatibility, project-resolution, and title fixes under the same version would make installation and troubleshooting ambiguous.
+- Options: (a) overwrite v0.2.0; (b) assign v0.2.1; (c) defer packaging until a larger release.
+- Decision: (b) — issue the backward-compatible fixes as v0.2.1, update current package and installation contracts while retaining historical v0.2.0 evidence, and verify the exact wheel through clean functional acceptance. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: agent, applying semantic patch-versioning to the human-approved refinements
+
+## 2026-07-17T21:54:35Z · tang-412 · Resolve Codex targets from the project index
+- Context: `tang link --current` and implicit `tang graph` reparsed and rehashed the complete native Codex store even though the recovery workflow already indexes the project and may supply an exact host native ID.
+- Options: (a) retain full rescans; (b) pass a checkpoint that would omit unchanged candidate records; (c) resolve only available Codex candidates from the authoritative project index and require a fresh index when the host ID is absent there.
+- Decision: (c) — remove native rescans from the reveal path without guessing or weakening exact-ID and ambiguity rules; return a specific `index-required` refusal when host evidence is not indexed. Serves: Technological Implementation, Design, Potential Impact.
+- By: agent, based on verified review evidence and the approved index-first skill workflow
+
+## 2026-07-17T21:54:35Z · tang-412 · Bound graph work and scope deletion uncertainty
+- Context: recursive cycle/timeline traversal could crash on long DAGs or expand exponentially, while any unrelated adapter warning prevented native deletion detection indefinitely.
+- Options: (a) retain conservative but unbounded behavior; (b) weaken deletion safety globally; (c) use iterative cycle detection, cap deterministic rendered timelines at 256 with an explicit omission label, protect warning-identified sources, and suppress removals only when store enumeration itself is incomplete.
+- Decision: (c) — bound judge-facing graph work while preserving every confirmed edge and keep last-known-good records only where a warning could actually conceal that identity or subtree. Serves: Technological Implementation, Design, Potential Impact.
+- By: agent, based on adversarial long-chain, dense-DAG, malformed-source, and symlink tests
+
+## 2026-07-17T21:54:35Z · tang-412 · Distinguish the reviewed patch as v0.2.2
+- Context: a v0.2.1 wheel had already been built before the additional correctness and performance review fixes, so rebuilding different bytes under v0.2.1 would make host testing ambiguous.
+- Options: (a) replace v0.2.1 in place; (b) issue v0.2.2; (c) defer the fixes.
+- Decision: (b) — version the cumulative pre-submission refinement patch as v0.2.2 while retaining v0.2.1 as historical evidence. Serves: Technological Implementation, Quality of Idea.
+- By: agent, applying immutable artifact and semantic patch-versioning discipline
+
+## 2026-07-17T22:03:38Z · tang-369 · Make human discovery scan-friendly
+- Context: functional CLI testing found the pipe-delimited human browse output difficult to scan and select from, while the first Rich table draft became too tall when full snippets wrapped.
+- Options: (a) retain delimiter lines; (b) render full snippets in a tall table; (c) show a responsive table with selection number, simple handle, bounded session name, compact capability labels, harness, seconds-level UTC, and health while retaining full snippets in JSON.
+- Decision: (c) — keep five-result paging compact and readable at wide and narrow widths without altering the deterministic JSON/skill contract. Serves: Design, Potential Impact, Technological Implementation.
+- By: human (requested a CLI table) and agent (responsive compact presentation)

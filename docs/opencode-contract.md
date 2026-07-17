@@ -1,6 +1,9 @@
 # OpenCode contract evidence
 
-Epic 7 pins its initial compatibility claim to OpenCode `1.17.20` on Linux.
+Tang accepts stable OpenCode versions `>=1.17.18,<2.0.0` on Linux and validates
+the catalog and export contracts at runtime. The original Epic 7 live evidence
+remains pinned to OpenCode `1.17.20`; the wider range is a product compatibility
+policy, not a retroactive claim about which versions produced that evidence.
 Tang treats OpenCode as the harness even when the model provider is OpenAI or
 xAI/Grok. Tang never reads OpenCode's provider credential file.
 
@@ -19,6 +22,9 @@ The source adapter is based on documented, non-interactive CLI contracts:
 The destination integration uses OpenCode's documented custom-tool context.
 The context supplies the exact active `sessionID`, invoking `messageID`,
 `directory`, and `worktree`.
+Tang treats `directory` as the session's authoritative project and accepts
+`worktree` when it is an ancestor of that directory or resolves to the same Git
+project. A foreign sibling or clone still fails as `host-project-mismatch`.
 Tang can therefore require explicit confirmation of a concrete current target
 without guessing from modification times or a global “latest session.”
 
@@ -183,7 +189,8 @@ Seeing `/tang` alone is insufficient in a source checkout because its command
 definition may be present before the `tang` skill is installed; confirm the
 new process lists the skill before running recovery.
 
-The installed-product path expects `tang` and OpenCode `1.17.20` on `PATH`.
+The installed-product path expects `tang` and a stable OpenCode version in
+`>=1.17.18,<2.0.0` on `PATH`.
 Source-checkout testing may instead set `TANG_EXECUTABLE` to the checkout's
 virtual-environment script and `TANG_OPENCODE_EXECUTABLE` to the pinned OpenCode
 binary before launching OpenCode. `/tang` loads the one Tang Agent Skill;

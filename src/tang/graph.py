@@ -16,6 +16,9 @@ from tang.redaction import (
 from tang.repository import StoredContinuation, TangRepository
 
 
+MAX_TIMELINE_LANES = 256
+
+
 @dataclass(frozen=True, slots=True)
 class GraphNode:
     source_id: str
@@ -42,6 +45,7 @@ class MultiverseGraph:
     nodes: tuple[GraphNode, ...]
     edges: tuple[GraphEdge, ...]
     timelines: tuple[tuple[str, ...], ...]
+    timelines_truncated: bool = False
 
 
 class GraphService:
@@ -88,11 +92,13 @@ class GraphService:
             for edge in project_edges
             if edge.source_id in component_ids and edge.target_id in component_ids
         )
+        timelines, timelines_truncated = self._timelines(component_ids, edges)
         return MultiverseGraph(
             project_key,
             nodes,
             edges,
-            self._timelines(component_ids, edges),
+            timelines,
+            timelines_truncated,
         )
 
     def _title(self, title: str | None) -> str | None:
@@ -127,7 +133,7 @@ class GraphService:
     @staticmethod
     def _timelines(
         component_ids: frozenset[str], edges: tuple[GraphEdge, ...]
-    ) -> tuple[tuple[str, ...], ...]:
+    ) -> tuple[tuple[tuple[str, ...], ...], bool]:
         outgoing = {node: [] for node in component_ids}
         incoming = {node: 0 for node in component_ids}
         for edge in edges:
@@ -135,15 +141,15 @@ class GraphService:
             incoming[edge.target_id] += 1
         roots = sorted(node for node, count in incoming.items() if count == 0)
         paths: list[tuple[str, ...]] = []
-
-        def walk(node: str, path: tuple[str, ...]) -> None:
+        stack = [(root, ()) for root in reversed(roots)]
+        while stack and len(paths) <= MAX_TIMELINE_LANES:
+            node, path = stack.pop()
+            current = (*path, node)
             targets = sorted(outgoing[node])
             if not targets:
-                paths.append((*path, node))
-                return
-            for target in targets:
-                walk(target, (*path, node))
-
-        for root in roots:
-            walk(root, ())
-        return tuple(sorted(paths))
+                paths.append(current)
+                continue
+            for target in reversed(targets):
+                stack.append((target, current))
+        truncated = len(paths) > MAX_TIMELINE_LANES or bool(stack)
+        return tuple(sorted(paths[:MAX_TIMELINE_LANES])), truncated

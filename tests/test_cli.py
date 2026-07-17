@@ -12,7 +12,7 @@ from tang.storage import DatabaseOpenError
 
 
 def test_package_name_and_version_are_importable() -> None:
-    assert tang.__version__ == "0.2.0"
+    assert tang.__version__ == "0.2.2"
 
 
 def test_main_prints_concise_help(capsys) -> None:
@@ -82,6 +82,32 @@ def test_storage_setup_failure_is_actionable(tmp_path: Path, monkeypatch, capsys
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err.startswith("error[storage-unavailable]: Tang cannot open")
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ("browse",),
+        ("search", "checkpoint"),
+        ("context", "C1"),
+        ("link", "--from", "C1", "--to", "C2"),
+        ("graph", "C1"),
+    ],
+)
+def test_index_dependent_commands_do_not_create_absent_storage(
+    arguments: tuple[str, ...], tmp_path: Path, capsys
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    database = project / ".tang" / "tang.db"
+
+    assert main([*arguments, "--cwd", str(project)]) == 2
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith("error[index-required]")
+    assert not database.exists()
+    assert not database.parent.exists()
 
 
 def test_connect_is_an_actionable_unknown_command_without_running_link(
