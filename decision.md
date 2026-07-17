@@ -300,3 +300,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) require users to race a manual re-index before every target operation; (b) ignore fingerprint drift; (c) update only the already-indexed exact target's derived identity metadata from the fresh host observation, then retain the resolver's strict equality and explicit-confirmation checks.
 - Decision: (c) — eliminate the unavoidable active-session race without creating unindexed targets, rereading transcript content, guessing identity, or weakening link approval. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
 - By: agent, based on repeated human live-test evidence and the approved exact-host target policy
+
+## 2026-07-17T01:08:31Z · tang-09a.8 · Promote reviewed Epic 7 OpenCode integration
+- Context: The dated Epic 7 milestone passed the manual gate with pinned live OpenCode source/destination evidence, dual-Python and focused suites, clean-wheel installation, green CI, and an explicit human promotion approval.
+- Options: (a) retain the reviewed milestone only on the epic branch; (b) fast-forward the reviewed branch into main; (c) create an unnecessary merge commit over a linear branch.
+- Decision: (b) — push milestone `4e039ff0fb0708010edcfa42e34bcf4faa6a23a7` and fast-forward `main` from `7a26cb084faf5f40465615ffc0112104fccb71e6` to the same reviewed SHA. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: human (explicit promotion approval) and agent (gate execution)
