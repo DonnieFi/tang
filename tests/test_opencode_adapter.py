@@ -36,6 +36,7 @@ FAKE_OPENCODE = r'''#!/usr/bin/env python3
 import base64
 import json
 import os
+import stat
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -103,6 +104,12 @@ if "export" in sys.argv:
     time.sleep(state.get("export_sleep", 0))
     if state.get("export_exit"):
         raise SystemExit(state["export_exit"])
+    stdout_mode = os.fstat(sys.stdout.fileno()).st_mode
+    if state.get("require_regular_export_stdout") and (
+        not stat.S_ISREG(stdout_mode) or stat.S_IMODE(stdout_mode) & 0o077
+    ):
+        print("{")
+        raise SystemExit(0)
     session_id = sys.argv[-1]
     export = state.get("exports", {}).get(session_id)
     if export is None:
@@ -171,6 +178,7 @@ def adapter_for(
         or {
             "catalog": catalog,
             "exports": {SESSION_ID: export},
+            "require_regular_export_stdout": True,
             "version": "1.17.20",
         },
     )

@@ -11,6 +11,7 @@ import secrets
 import shutil
 import socket
 import subprocess
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -44,6 +45,7 @@ from tang.adapters.base import (
 SUPPORTED_OPENCODE_VERSION = "1.17.20"
 CATALOG_LIMIT = 500
 CATALOG_RESPONSE_LIMIT = 8 * 1024 * 1024
+EXPORT_RESPONSE_LIMIT = 8 * 1024 * 1024
 _SESSION_ID = re.compile(r"ses_[A-Za-z0-9_-]{1,128}\Z")
 _LOCATOR_PREFIX = "opencode-session-v1:"
 
@@ -574,35 +576,58 @@ class OpenCodeAdapter:
                 process.wait(timeout=2)
 
     def _run_cli(self, arguments: Sequence[str], operation: str) -> str:
+        output = None
         try:
-            result = subprocess.run(
-                [self._executable, *arguments],
-                cwd=self._project_dir,
-                env=self._environment(),
-                check=False,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                text=True,
-                timeout=self._command_timeout,
-            )
-        except FileNotFoundError as error:
-            raise _OpenCodeFailure(
-                "missing-executable", "The OpenCode executable is unavailable."
-            ) from error
-        except subprocess.TimeoutExpired as error:
-            raise _OpenCodeFailure(
-                f"{operation}-timeout", f"The OpenCode {operation} command timed out."
-            ) from error
-        except (OSError, UnicodeError) as error:
-            raise _OpenCodeFailure(
-                f"{operation}-unavailable",
-                f"The OpenCode {operation} command could not be read.",
-            ) from error
-        if result.returncode != 0:
-            raise _OpenCodeFailure(
-                f"{operation}-failed", f"The OpenCode {operation} command failed."
-            )
-        return result.stdout
+            try:
+                if operation == "session-export":
+                    output = tempfile.TemporaryFile(mode="w+b")
+                result = subprocess.run(
+                    [self._executable, *arguments],
+                    cwd=self._project_dir,
+                    env=self._environment(),
+                    check=False,
+                    stdout=output if output is not None else subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    text=output is None,
+                    timeout=self._command_timeout,
+                )
+            except FileNotFoundError as error:
+                raise _OpenCodeFailure(
+                    "missing-executable", "The OpenCode executable is unavailable."
+                ) from error
+            except subprocess.TimeoutExpired as error:
+                raise _OpenCodeFailure(
+                    f"{operation}-timeout",
+                    f"The OpenCode {operation} command timed out.",
+                ) from error
+            except (OSError, UnicodeError) as error:
+                raise _OpenCodeFailure(
+                    f"{operation}-unavailable",
+                    f"The OpenCode {operation} command could not be read.",
+                ) from error
+            if result.returncode != 0:
+                raise _OpenCodeFailure(
+                    f"{operation}-failed", f"The OpenCode {operation} command failed."
+                )
+            if output is None:
+                return result.stdout
+            output.seek(0)
+            raw = output.read(EXPORT_RESPONSE_LIMIT + 1)
+            if len(raw) > EXPORT_RESPONSE_LIMIT:
+                raise _OpenCodeFailure(
+                    f"{operation}-too-large",
+                    f"The OpenCode {operation} command exceeded the safe read limit.",
+                )
+            try:
+                return raw.decode("utf-8")
+            except UnicodeError as error:
+                raise _OpenCodeFailure(
+                    f"{operation}-unavailable",
+                    f"The OpenCode {operation} command could not be read.",
+                ) from error
+        finally:
+            if output is not None:
+                output.close()
 
     def _decode_checkpoint(
         self,

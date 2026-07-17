@@ -118,7 +118,10 @@ def test_opencode_install_is_idempotent_change_safe_and_cli_accessible(
     assert unrelated.read_text() == '{"dependencies":{"user-owned":"1.0.0"}}'
 
     assert main(["skill", "install", "opencode", "--project-root", str(project)]) == 0
-    assert capsys.readouterr().out == "Tang OpenCode integration is already current.\n"
+    assert capsys.readouterr().out == (
+        "Tang OpenCode integration is already current; "
+        "restart OpenCode with tang on PATH.\n"
+    )
 
 
 def test_opencode_install_refuses_symlinked_config(tmp_path: Path) -> None:

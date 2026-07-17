@@ -250,6 +250,7 @@ def test_opencode_skill_command_and_tool_preserve_workflow_contract() -> None:
     ):
         assert phrase in skill
     assert "Load the `tang` skill" in command
+    assert "do not substitute" in command
     assert "context.sessionID" in tool
     assert "context.directory" in tool
     assert "context.worktree" in tool

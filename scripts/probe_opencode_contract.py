@@ -10,6 +10,7 @@ import platform
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Sequence
@@ -109,25 +110,42 @@ def _run(
     remaining = deadline - time.monotonic()
     if remaining <= 0:
         raise ProbeFailure(f"{operation}_timeout")
+    output = None
     try:
-        result = subprocess.run(
-            [executable, *arguments],
-            cwd=project,
-            env=environment,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=min(command_timeout, remaining),
-        )
-    except FileNotFoundError as error:
-        raise ProbeFailure("executable_missing") from error
-    except subprocess.TimeoutExpired as error:
-        raise ProbeFailure(f"{operation}_timeout") from error
-    except OSError as error:
-        raise ProbeFailure("execution_failed") from error
-    if result.returncode != 0:
-        raise ProbeFailure(f"{operation}_failed")
-    return result.stdout
+        try:
+            if operation == "session_export":
+                output = tempfile.TemporaryFile(mode="w+b")
+            result = subprocess.run(
+                [executable, *arguments],
+                cwd=project,
+                env=environment,
+                check=False,
+                stdout=output if output is not None else subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=output is None,
+                timeout=min(command_timeout, remaining),
+            )
+        except FileNotFoundError as error:
+            raise ProbeFailure("executable_missing") from error
+        except subprocess.TimeoutExpired as error:
+            raise ProbeFailure(f"{operation}_timeout") from error
+        except OSError as error:
+            raise ProbeFailure("execution_failed") from error
+        if result.returncode != 0:
+            raise ProbeFailure(f"{operation}_failed")
+        if output is None:
+            return result.stdout
+        output.seek(0)
+        raw = output.read(8 * 1024 * 1024 + 1)
+        if len(raw) > 8 * 1024 * 1024:
+            raise ProbeFailure("session_export_invalid_shape")
+        try:
+            return raw.decode("utf-8")
+        except UnicodeError as error:
+            raise ProbeFailure("session_export_invalid_json") from error
+    finally:
+        if output is not None:
+            output.close()
 
 
 def _provider_class(message_info: dict[str, Any]) -> str:

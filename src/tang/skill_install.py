@@ -99,7 +99,9 @@ def install_opencode_skill(
         for _origin, target in targets:
             _harden_target(target)
         return SkillInstallResult(
-            "unchanged", destination, "Tang OpenCode integration is already current."
+            "unchanged",
+            destination,
+            "Tang OpenCode integration is already current; restart OpenCode with tang on PATH.",
         )
     if not force and any(
         target.exists() and not matches
@@ -148,7 +150,9 @@ def install_opencode_skill(
     finally:
         shutil.rmtree(temporary, ignore_errors=True)
     return SkillInstallResult(
-        "installed", destination, "Tang OpenCode integration installed."
+        "installed",
+        destination,
+        "Tang OpenCode integration installed; start OpenCode with tang on PATH.",
     )
 
 

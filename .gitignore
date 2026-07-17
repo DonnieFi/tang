@@ -38,6 +38,7 @@ dist/
 
 # Local runtime and demo output
 /demo-output/
+/.opencode/skills/
 *.log
 *.sqlite
 *.sqlite3

@@ -49,11 +49,13 @@ The local user's existing OpenCode IDs, titles, paths, transcript values, and
 credentials were not recorded. The checked-in fixtures are deterministic
 inventions described in `tests/fixtures/opencode/README.md`.
 
-One large pre-existing local export produced incomplete JSON while being
-observed through the host runner despite OpenCode exiting successfully. This is
-not promoted into a format claim. The adapter must treat invalid or incomplete
-exports as partial source failures and retain the last known good checkpoint;
-live-provider acceptance must include a non-trivial export.
+OpenCode `1.17.20` can exit successfully before fully flushing a non-trivial
+export when stdout is a pipe. Tang therefore captures raw export stdout in a
+bounded, user-only anonymous temporary file: OpenCode sees the regular-file
+semantics it flushes correctly, while the unlinked transient is closed after
+parsing and no unredacted transcript enters Tang's durable database. Invalid,
+incomplete, or oversized exports still remain partial source failures and
+retain the last known good checkpoint.
 
 ## Privacy-safe external-provider acceptance
 
@@ -176,6 +178,9 @@ unrelated OpenCode configuration, is idempotent, refuses divergent Tang-owned
 files unless `--force` is explicit, and applies user-only file modes on POSIX.
 The bridge is dependency-free and does not alter the project's package manifest.
 Start a new OpenCode process after installation so it discovers the assets.
+Seeing `/tang` alone is insufficient in a source checkout because its command
+definition may be present before the `tang` skill is installed; confirm the
+new process lists the skill before running recovery.
 
 The installed-product path expects `tang` and OpenCode `1.17.20` on `PATH`.
 Source-checkout testing may instead set `TANG_EXECUTABLE` to the checkout's

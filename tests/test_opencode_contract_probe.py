@@ -21,6 +21,7 @@ def _fake_opencode(tmp_path: Path, export: Path) -> Path:
         """#!/usr/bin/env python3
 import json
 import os
+import stat
 import sys
 import time
 from pathlib import Path
@@ -48,6 +49,12 @@ elif "list" in sys.argv:
         listed = listed[:limit]
     print(json.dumps(listed))
 elif "export" in sys.argv:
+    stdout_mode = os.fstat(sys.stdout.fileno()).st_mode
+    if os.environ.get("TANG_FAKE_REQUIRE_REGULAR_STDOUT") == "1" and (
+        not stat.S_ISREG(stdout_mode) or stat.S_IMODE(stdout_mode) & 0o077
+    ):
+        print("{")
+        raise SystemExit(0)
     document = json.loads(Path(os.environ["TANG_FAKE_EXPORT"]).read_text())
     source_id = sys.argv[-1]
     document["info"]["id"] = source_id
@@ -75,6 +82,7 @@ def test_probe_emits_only_privacy_safe_contract_evidence(
     export = FIXTURES / "session-export.json"
     executable = _fake_opencode(tmp_path, export)
     monkeypatch.setenv("TANG_FAKE_EXPORT", str(export))
+    monkeypatch.setenv("TANG_FAKE_REQUIRE_REGULAR_STDOUT", "1")
 
     result = subprocess.run(
         [
