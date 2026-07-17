@@ -172,12 +172,20 @@ def build_parser() -> argparse.ArgumentParser:
     opencode_target = skill_subparsers.add_parser(
         "opencode-target",
         help="resolve an active OpenCode target for the installed skill",
+        description=(
+            "Internal machine bridge for the installed OpenCode skill; "
+            "do not invoke it manually or supply native session IDs in a shell."
+        ),
     )
     opencode_target.add_argument("--json", action="store_true", dest="as_json")
     opencode_target.add_argument("--database", type=Path)
     opencode_target.add_argument("--cwd", type=Path, required=True)
     opencode_target.add_argument("--worktree", type=Path, required=True)
-    opencode_target.add_argument("--session-id", required=True)
+    opencode_target.add_argument(
+        "--session-id",
+        required=True,
+        help="native host context supplied only by the installed OpenCode tool",
+    )
     opencode_target.add_argument("--opencode-executable", type=Path)
     return parser
 
@@ -620,10 +628,11 @@ def _run_opencode_target(args: argparse.Namespace) -> int:
             )
             document = resolution.as_document()
             if len(resolution.candidates) == 1:
-                target_handle = repository.handle_for_source_id(
-                    resolution.candidates[0].identity.canonical
-                )
-                if target_handle is None:
+                try:
+                    target_handle = repository.handle_for_source_id(
+                        resolution.candidates[0].identity.canonical
+                    )
+                except ValueError:
                     document = {
                         "schema_version": 1,
                         "kind": "unavailable",

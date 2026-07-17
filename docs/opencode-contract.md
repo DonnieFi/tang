@@ -184,6 +184,9 @@ binary before launching OpenCode. `/tang` loads the one Tang Agent Skill;
 the custom tool supplies exact active-session context privately and emits only
 a project-local handle or a fixed error code. The user must still approve the
 selected source handles and target handle before `tang link` records edges.
+The nested `tang skill opencode-target` command is a tool-only machine bridge:
+humans should not invoke it or pass native session IDs on a command line. The
+installed custom tool supplies that host context without exposing it in chat.
 
 On 2026-07-16, privacy-safe live reports passed from one direct OpenAI-backed
 session and one direct xAI/Grok-backed session on the pinned host. Both reports

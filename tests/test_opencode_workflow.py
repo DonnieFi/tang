@@ -92,6 +92,62 @@ def test_host_bridge_returns_only_safe_confirmation_handle(
     assert str(project) not in output
 
 
+def test_host_bridge_classifies_missing_safe_handle(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    project = tmp_path / "private-owner" / "project"
+    project.mkdir(parents=True)
+    database = tmp_path / "tang.db"
+    project_key = resolve_project(project).key
+    record = _record(project)
+    connection = open_database(database)
+    try:
+        repository = TangRepository(connection)
+        with repository.transaction():
+            repository.upsert_session(record, project_key, NOW)
+    finally:
+        connection.close()
+
+    class FakeAdapter:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def scan(self, _checkpoint) -> ScanBatch:
+            return ScanBatch(BatchStatus.COMPLETE, records=(record,))
+
+    def missing_handle(_repository, _source_id: str) -> str:
+        raise ValueError("session is not indexed")
+
+    monkeypatch.setattr("tang.cli.OpenCodeAdapter", FakeAdapter)
+    monkeypatch.setattr(TangRepository, "handle_for_source_id", missing_handle)
+
+    result = main(
+        [
+            "skill",
+            "opencode-target",
+            "--json",
+            "--cwd",
+            str(project),
+            "--worktree",
+            str(project),
+            "--session-id",
+            SESSION_ID,
+            "--database",
+            str(database),
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert result == 2
+    assert json.loads(output) == {
+        "code": "target-handle-missing",
+        "kind": "unavailable",
+        "schema_version": 1,
+    }
+    assert SESSION_ID not in output
+    assert str(project) not in output
+
+
 def test_host_bridge_refuses_unknown_identity_without_creating_storage(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
@@ -186,6 +242,8 @@ def test_opencode_skill_command_and_tool_preserve_workflow_contract() -> None:
         "kind: confirmation_required",
         "each excerpt's `citation` object",
         "tang_current_target",
+        "returned page controls",
+        "omitted sessions are absent",
         "tang link --from",
         "tang graph",
         "Do not persist the synthesis",
