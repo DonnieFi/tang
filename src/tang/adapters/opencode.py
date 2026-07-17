@@ -177,7 +177,7 @@ class OpenCodeAdapter:
             if warning.identity is not None
         }
         enumeration_incomplete = any(
-            warning.identity is None and warning.code == "catalog-limit"
+            warning.identity is None and warning.code.startswith("catalog-")
             for warning in warnings
         )
         removed: tuple[SessionIdentity, ...] = ()

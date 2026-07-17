@@ -174,6 +174,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     demo = subparsers.add_parser("demo", help="run the isolated synthetic demo")
     demo.add_argument("--width", type=int, default=120)
+    demo.add_argument(
+        "--color",
+        choices=("auto", "always", "never"),
+        default="auto",
+        help="terminal color policy (default: auto)",
+    )
     demo_layout = demo.add_mutually_exclusive_group()
     demo_layout.add_argument(
         "--ascii",
@@ -518,13 +524,21 @@ def _show_discovery_page(page: DiscoveryPage) -> None:
             for value in item.capabilities
         ) or "none"
         display_limit = 52 if width >= 120 else 34
-        display_name = (
-            item.display_name
-            if len(item.display_name) <= display_limit
-            else f"{item.display_name[: display_limit - 1].rstrip()}…"
+        display_name = _truncate_discovery_text(
+            item.display_name, display_limit, ascii_only=ascii_only
         )
         session = Text(display_name, style="bold")
         session.append(f"\n{capability}", style="dim")
+        snippet = " ".join(item.snippet.split())
+        if snippet:
+            snippet_limit = 96 if width >= 120 else 64
+            session.append(
+                "\n"
+                + _truncate_discovery_text(
+                    snippet, snippet_limit, ascii_only=ascii_only
+                ),
+                style="dim",
+            )
         updated = item.updated_at.astimezone(timezone.utc).strftime(
             "%Y-%m-%dT%H:%M:%SZ"
         )
@@ -550,6 +564,15 @@ def _show_discovery_page(page: DiscoveryPage) -> None:
         print(f"Use --page {page.number + 1} for the next page.")
     elif page.has_previous:
         print(f"Use --page {page.number - 1} for the previous page.")
+
+
+def _truncate_discovery_text(value: str, limit: int, *, ascii_only: bool) -> str:
+    """Keep compact human previews readable in Unicode and ASCII terminals."""
+
+    if len(value) <= limit:
+        return value
+    suffix = "..." if ascii_only else "…"
+    return f"{value[: limit - len(suffix)].rstrip()}{suffix}"
 
 
 def _run_discovery(args: argparse.Namespace) -> int:
@@ -1052,7 +1075,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
             return run_demo(
                 width=max(args.width, 40),
-                color=sys.stdout.isatty() and "NO_COLOR" not in os.environ,
+                color=_color_enabled(args.color, sys.stdout),
                 ascii_only=args.ascii_only
                 or (
                     not args.force_unicode

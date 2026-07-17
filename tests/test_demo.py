@@ -1,9 +1,17 @@
 from __future__ import annotations
 
 import re
+import io
 from pathlib import Path
 
 from tang.cli import main
+
+
+class _CaptureBuffer(io.StringIO):
+    encoding = "utf-8"
+
+    def isatty(self) -> bool:
+        return False
 
 
 def test_demo_is_reproducible_and_cannot_touch_ambient_user_data(
@@ -74,3 +82,14 @@ def test_demo_unicode_override_preserves_network_when_detection_fails(
     output = capsys.readouterr().out
     assert "MULTIVERSE NETWORK · TIME FLOWS →" in output
     assert "TIMELINE LANES · 5 ROOT-TO-LEAF PATHS" in output
+
+
+def test_demo_can_force_color_for_redirected_capture(monkeypatch) -> None:
+    output = _CaptureBuffer()
+    monkeypatch.setattr("tang.cli.sys.stdout", output)
+    monkeypatch.setenv("NO_COLOR", "1")
+
+    assert main(["demo", "--width", "120", "--unicode", "--color", "always"]) == 0
+
+    assert "MULTIVERSE NETWORK" in output.getvalue()
+    assert "\x1b[" in output.getvalue()

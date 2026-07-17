@@ -18,7 +18,7 @@ def test_readme_is_a_verified_release_candidate_surface() -> None:
     )
     assert "cdnjs.cloudflare.com" not in hero
     assert 'url("http' not in hero
-    assert "DonnieFi/tang/releases/download/v0.2.3" in readme
+    assert "DonnieFi/tang/releases/download/v0.2.4" in readme
     assert "docs/assets/tang-mascot-concept.png" in readme
     assert readme.index("```text") < readme.index("docs/assets/tang-multiverse-demo.svg")
     assert "Codex CLI 0.144.4" in readme and "Grok 0.2.99" in readme

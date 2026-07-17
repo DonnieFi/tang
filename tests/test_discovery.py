@@ -18,7 +18,7 @@ from tang.adapters import (
     VisibleTurn,
 )
 from tang.capsule import DiscoveryCapsuleBuilder
-from tang.cli import main
+from tang.cli import _truncate_discovery_text, main
 from tang.discovery import DiscoveryFilter, DiscoveryService, discovery_page
 from tang.project import resolve_project
 from tang.repository import TangRepository
@@ -215,6 +215,12 @@ def test_search_limit_is_explicit_and_bounded(
         connection.close()
 
 
+def test_discovery_previews_keep_a_bounded_redacted_snippet_and_ascii_safe_ellipsis() -> None:
+    assert _truncate_discovery_text("x" * 10, 10, ascii_only=False) == "x" * 10
+    assert _truncate_discovery_text("x" * 10, 6, ascii_only=False) == "xxxxx…"
+    assert _truncate_discovery_text("x" * 10, 6, ascii_only=True) == "xxx..."
+
+
 def test_cli_json_lines_and_malformed_query_keep_diagnostics_on_stderr(
     codex_fixture_home: Path, tmp_path: Path, monkeypatch, capsys
 ) -> None:
@@ -327,6 +333,7 @@ def test_human_discovery_is_numbered_paged_and_maps_only_current_choices(
     assert "Page 1 of 2 (7 results)." in first.out
     assert "Use --page 2 for the next page." in first.out
     assert "Extra recovery" in first.out
+    assert "extra fixture" in first.out
     assert "codex:discovery:" not in first.out
     assert "grok:discovery:" not in first.out
 

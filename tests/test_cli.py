@@ -12,7 +12,7 @@ from tang.storage import DatabaseOpenError
 
 
 def test_package_name_and_version_are_importable() -> None:
-    assert tang.__version__ == "0.2.3"
+    assert tang.__version__ == "0.2.4"
 
 
 def test_main_prints_concise_help(capsys) -> None:
@@ -44,7 +44,7 @@ def test_version_flag_reports_the_installed_release(capsys) -> None:
         main(["--version"])
 
     assert error.value.code == 0
-    assert capsys.readouterr().out == "tang-multiverse 0.2.3\n"
+    assert capsys.readouterr().out == "tang-multiverse 0.2.4\n"
 
 
 def test_python_module_entry_point() -> None:

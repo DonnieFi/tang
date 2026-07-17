@@ -43,7 +43,7 @@ This capture comes from the real isolated `tang demo` output. From a development
 checkout, regenerate it with `python scripts/capture_demo_hero.py --tang
 .venv/bin/tang --output docs/assets/tang-multiverse-demo.svg`.
 
-> **v0.2.3 release candidate:** the Linux wheel, complete demo path, and
+> **v0.2.4 release candidate:** the Linux wheel, complete demo path, and
 > OpenCode source/destination integration are verified. The repository remains
 > private during final testing; until the matching release is published, use
 > the local-wheel command below.
@@ -91,10 +91,10 @@ No transcript copy-and-paste. No pretending that a generic summary is provenance
 
 ## Install on Linux
 
-After `v0.2.3` is published, install its immutable, version-pinned wheel:
+After `v0.2.4` is published, install its immutable, version-pinned wheel:
 
 ```bash
-uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.3/tang_multiverse-0.2.3-py3-none-any.whl
+uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.4/tang_multiverse-0.2.4-py3-none-any.whl
 tang skill install codex
 tang --help
 ```
@@ -104,7 +104,7 @@ Requirements: Linux and Python 3.11 or later. The hackathon release makes no mac
 Before publication, install the reviewed local artifact instead:
 
 ```bash
-uv tool install ./tang_multiverse-0.2.3-py3-none-any.whl
+uv tool install ./tang_multiverse-0.2.4-py3-none-any.whl
 tang skill install codex
 tang --help
 ```
@@ -287,10 +287,11 @@ tang demo --width 120 --unicode > tang-demo.txt
 ```
 
 `--unicode` forces Unicode connectors but does not fabricate terminal color.
-For a saved graph capture, use `tang graph C1 --width 120 --unicode --color
-always > tang-graph.txt`; under normal use, `auto` respects `NO_COLOR` and the
-terminal. Use a real TTY or `scripts/capture_demo_hero.py` when the capture
-needs the release palette as well as the network layout.
+For a saved capture, use `tang demo --width 120 --unicode --color always >
+tang-demo.txt` or `tang graph C1 --width 120 --unicode --color always >
+tang-graph.txt`; under normal use, `auto` respects `NO_COLOR` and the
+terminal. `scripts/capture_demo_hero.py` remains the repeatable README-asset
+path.
 
 Run `tang doctor` separately when you want component-by-component readiness.
 Before the first real project index, its expected `database: not_initialized`
@@ -311,7 +312,7 @@ codes, privacy checks, and timings as JSON without reading native user history:
 
 ```bash
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.3-py3-none-any.whl \
+  ./tang_multiverse-0.2.4-py3-none-any.whl \
   --output tang-functional-evidence.json
 ```
 
@@ -373,7 +374,7 @@ failure-path tests. Never contribute native transcripts, credentials, private
 paths, third-party logos, or a database built from real user history.
 
 Tang is licensed under the [`MIT License`](LICENSE). The verified release
-candidate becomes `v0.2.3` only after its manual review gate and matching tag.
+candidate becomes `v0.2.4` only after its manual review gate and matching tag.
 
 ---
 

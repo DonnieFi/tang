@@ -479,7 +479,7 @@ def test_catalog_bound_returns_deterministic_partial_without_deletions(
     assert scan.removed == ()
 
 
-def test_malformed_unrelated_catalog_item_does_not_block_known_deletion(
+def test_identityless_catalog_warning_retains_last_known_good_record(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = tmp_path / "project"
@@ -510,7 +510,9 @@ def test_malformed_unrelated_catalog_item_does_not_block_known_deletion(
 
     assert second.status is BatchStatus.PARTIAL
     assert [warning.code for warning in second.warnings] == ["catalog-schema-drift"]
-    assert second.removed == (first.records[0].identity,)
+    assert second.removed == ()
+    assert second.next_checkpoint is not None
+    assert first.records[0].identity.canonical in second.next_checkpoint.cursor
 
 
 @pytest.mark.parametrize(

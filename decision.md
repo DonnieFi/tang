@@ -372,3 +372,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) rebuild v0.2.2 with different contents; (b) defer this pass; (c) issue a patch-level v0.2.3 candidate.
 - Decision: (c) — keep every wheel and functional-test report unambiguous while delivering backward-compatible polish through a distinct artifact. Serves: Technological Implementation, Design, Quality of Idea.
 - By: human (approved the complete refinement pass) and agent (semantic versioning and release-contract update)
+
+## 2026-07-17T23:10:25Z · tang-2be.25 · Issue demo-retention polish as v0.2.4
+- Context: v0.2.3 was already built and clean-wheel validated before the human-approved fix to partial OpenCode catalog deletion and final discovery/capture polish.
+- Options: (a) rebuild v0.2.3 with different contents; (b) omit the fixes; (c) issue v0.2.4.
+- Decision: (c) — preserve immutable artifact evidence and make the reviewed demo build uniquely installable. Serves: Technological Implementation, Design, Quality of Idea.
+- By: human (approved all review refinements and promotion) and agent (artifact versioning)

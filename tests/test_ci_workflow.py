@@ -15,7 +15,7 @@ def test_ci_is_linux_only_and_covers_the_release_path() -> None:
         "uv pip install",
         "tang skill install codex",
         "tang demo --ascii --width 100",
-        "tang demo --unicode --width 120",
+        "tang demo --unicode --color always --width 120",
         'test ! -e "$HOME/.local/share/tang/tang.db"',
         'test ! -e "$HOME/.tang/tang.db"',
         'test ! -e "$GITHUB_WORKSPACE/.tang/tang.db"',
