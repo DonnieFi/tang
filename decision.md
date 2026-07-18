@@ -396,3 +396,15 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) retain the refusal; (b) choose the newest native session; (c) focus only the unique target of the latest explicit confirmation, refuse tied targets, and leave its active marker off.
 - Decision: (c) — turn an already-confirmed graph target into a useful CLI default without guessing native recency or claiming host-current state. The behavioral change follows the built v0.2.6 candidate, so issue an immutable v0.2.7 candidate. Serves: Design, Potential Impact, Technological Implementation.
 - By: human (requested useful CLI graph detection) and agent (confirmation-preserving implementation)
+
+## 2026-07-18T14:30:10Z · tang-2be.31 · Hold adapter-neutral resume pending contract approval
+- Context: Existing context and link commands implement deterministic source selection, redaction, and confirmed targets, but a new cross-harness resume surface could either reuse them or introduce a generalized host bridge.
+- Options: (a) make resume a context-only convenience; (b) orchestrate the existing context-plus-confirmed-link flow; (c) add a generalized host bridge.
+- Decision: defer selection until human review approves semantics — the choice changes CLI and skill contracts, target authority, privacy boundaries, error behavior, and test scope. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: human direction (adapter-neutral feature required; semantics deferred) and agent (stuck-protocol evidence review)
+
+## 2026-07-18T14:45:00Z · tang-2be.10 · Bind the independent-host smoke to the current private candidate
+- Context: The original v0.1.0 smoke wording no longer validates the reviewed v0.2.7 product, which adds OpenCode integration, project-local storage, handle-based discovery, and the current demo path.
+- Options: (a) test the historic v0.1.0 tag; (b) wait for a public release; (c) securely transfer the exact private v0.2.7 candidate wheel and record its commit and SHA-256 before publication.
+- Decision: (c) — validates the actual submission candidate without changing repository visibility; Codex and OpenCode installations are tested where available, while Grok remains a read-only CLI source. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
+- By: human (private until submission and requested current smoke) and agent (release-evidence retargeting)

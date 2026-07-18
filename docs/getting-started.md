@@ -168,12 +168,54 @@ visible user and assistant turns.
   work from any of those project terminals. Use a harness skill when you want
   guided, native selection.
 
+Tang does **not** ship `tang resume HANDLE` yet. In Codex, invoke `$tang` and
+ask it to recover the displayed handle; in OpenCode, do the same through
+`/tang`; from a terminal, inspect an exact handle with `tang context HANDLE`.
+Those paths preserve the existing selection, source-citation, and explicit-link
+rules without claiming that Tang can reopen a native session in another host.
+
 `tang doctor` is a readiness check. Before your first index it can report that
 the derived database is not initialized. An adapter can also be empty or
 degraded. If OpenCode is absent, doctor labels it **optional** so a ready
 Codex/Grok path remains ready; use `tang doctor --require-opencode` when
 preparing the OpenCode workflow. Read the individual messages; a nonzero result
 does not necessarily mean the CLI installation itself failed.
+
+### Separate-host smoke checklist
+
+Before recording or publishing a candidate, test the exact transferred wheel
+on a second Linux host—not from a development checkout. Record the source
+commit and the wheel's SHA-256 on the build host, compare that hash on the test
+host, then install and verify the artifact:
+
+```bash
+uv tool install --force ./tang_multiverse-0.2.7-py3-none-any.whl
+tang --version
+tang doctor
+tang demo --ascii
+```
+
+Install each available host integration and restart that host before using its
+command:
+
+```bash
+tang skill install codex --force        # then start Codex and use $tang
+tang skill install opencode --project-root "$PWD" --force  # restart, then use /tang
+```
+
+In a real project, test `tang index`, `browse`, `search`, `context HANDLE`, an
+explicitly confirmed link, and `tang graph HANDLE`. Then test deletion without
+touching native history:
+
+```bash
+tang purge --all --yes
+tang browse                 # no derived sessions remain
+tang index                  # rebuilds only the project-local derived database
+```
+
+After the rebuild, the same native sessions should be discoverable again. Keep
+only privacy-safe command results, version strings, source commit, and wheel
+hash in the smoke record—never raw session IDs or transcript content.
 
 ### Uninstall or replace the CLI
 

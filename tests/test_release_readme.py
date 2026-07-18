@@ -49,6 +49,9 @@ def test_supported_install_contract_has_one_skill_path() -> None:
 
     assert 'tang skill install opencode --project-root "$PWD"' in guide
     assert "**minimum reviewed build**" in guide
+    assert "Tang does **not** ship `tang resume HANDLE` yet" in guide
+    assert "## Separate-host smoke checklist" in guide
+    assert "tang purge --all --yes" in guide
 
     codex_skill = (ROOT / "skills" / "tang" / "SKILL.md").read_text(
         encoding="utf-8"
