@@ -48,8 +48,8 @@ def test_functional_acceptance_covers_installed_skill_and_demo_contracts() -> No
     module = _module()
     source = SCRIPT.read_text()
 
-    assert module.PROJECT_VERSION == "0.2.4"
-    assert module.EXPECTED_WHEEL_FILENAME == "tang_multiverse-0.2.4-py3-none-any.whl"
+    assert module.PROJECT_VERSION == "0.2.7"
+    assert module.EXPECTED_WHEEL_FILENAME == "tang_multiverse-0.2.7-py3-none-any.whl"
 
     for required in (
         '"Keep the canonical `source_id` private"',
@@ -57,6 +57,8 @@ def test_functional_acceptance_covers_installed_skill_and_demo_contracts() -> No
         '["demo", "--ascii", "--width", "100"]',
         '"INDEX: 2 indexed; status complete (0 warning(s))"',
         '"MULTIVERSE: selected sources G1 + C1 merge into C2"',
+        '"LINK: C5 -> O1 (confirmed; inserted 1)"',
+        '"confirmed OpenCode O1"',
         '"isolated demo modified the normal project database"',
         '"wide graph omitted the woven network"',
         '"demo_seconds"',

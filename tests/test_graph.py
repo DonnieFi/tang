@@ -91,9 +91,10 @@ def test_multiverse_component_preserves_every_branch_and_merge_path(tmp_path: Pa
 def test_isolated_and_disconnected_components_are_stable(tmp_path: Path) -> None:
     connection, repository, _ = seeded(tmp_path)
     try:
-        isolated = GraphService(repository).component("codex:multiverse:h")
+        isolated = GraphService(repository).component("opencode:multiverse:h")
         assert [node.native_id for node in isolated.nodes] == ["h"]
-        assert isolated.nodes[0].title == "Isolated experiment"
+        assert isolated.nodes[0].harness == "opencode"
+        assert isolated.nodes[0].title == "OpenCode continuation target"
         assert isolated.edges == ()
         assert [short(path) for path in isolated.timelines] == ["H"]
 
@@ -174,5 +175,36 @@ def test_graph_title_is_redacted_again_at_the_display_seam(tmp_path: Path) -> No
         assert "graph-display-secret" not in str(title)
         assert sum("LEFT JOIN capsules AS c" in statement for statement in statements) == 1
         assert not any("SELECT * FROM capsules" in statement for statement in statements)
+    finally:
+        connection.close()
+
+
+def test_graph_uses_redacted_capsule_display_name_when_native_title_is_absent(
+    tmp_path: Path,
+) -> None:
+    connection, repository, document = seeded(tmp_path)
+    source_id = "codex:multiverse:c"
+    content = {"schema_version": 1, "display_name": "Derived recovery title"}
+    encoded = json.dumps(
+        content, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode()
+    timestamp = datetime.fromisoformat("2026-07-14T20:10:00+00:00")
+    try:
+        with repository.transaction():
+            connection.execute("UPDATE sessions SET title = NULL WHERE source_id = ?", (source_id,))
+            repository.put_capsule(
+                StoredCapsule(
+                    source_id,
+                    document["project_key"],
+                    content,
+                    "display fallback fixture",
+                    len(encoded),
+                    timestamp,
+                )
+            )
+
+        graph = GraphService(repository).component(source_id)
+        title = next(node.title for node in graph.nodes if node.source_id == source_id)
+        assert title == "Derived recovery title"
     finally:
         connection.close()

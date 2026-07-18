@@ -320,8 +320,41 @@ class TangRepository:
     def _capsule_title(content_json: str | None) -> str | None:
         if content_json is None:
             return None
-        title = json.loads(content_json).get("source_title")
-        return str(title) if title else None
+        content = json.loads(content_json)
+        for field in ("source_title", "display_name"):
+            title = content.get(field)
+            if isinstance(title, str) and title.strip():
+                return title
+        return None
+
+    def backfill_untitled_sessions(self, project_key: str) -> int:
+        """Persist safe Capsule labels for legacy sessions without native titles."""
+
+        self._require_transaction()
+        rows = self._connection.execute(
+            """
+            SELECT s.source_id, c.content_json
+            FROM sessions AS s
+            JOIN capsules AS c USING(source_id)
+            WHERE s.project_key = ? AND (s.title IS NULL OR trim(s.title) = '')
+            ORDER BY s.source_id
+            """,
+            (project_key,),
+        ).fetchall()
+        backfilled = 0
+        for row in rows:
+            title = self._persisted_title(self._capsule_title(row["content_json"]))
+            if title is None:
+                continue
+            result = self._connection.execute(
+                """
+                UPDATE sessions SET title = ?
+                WHERE source_id = ? AND (title IS NULL OR trim(title) = '')
+                """,
+                (title, row["source_id"]),
+            )
+            backfilled += result.rowcount
+        return backfilled
 
     @staticmethod
     def _stored_session(row: sqlite3.Row) -> StoredSession:

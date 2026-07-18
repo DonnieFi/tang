@@ -6,7 +6,7 @@ with citations. Tang does not copy whole transcripts into a new tool. It builds
 a small, redacted, source-cited Context Pack and records a continuation only
 after you confirm it.
 
-Tang v0.2.4 is still a release candidate. The source repository is available,
+Tang v0.2.7 is still a release candidate. The source repository is available,
 but the final tagged wheel download does not exist until the release gate is
 approved and published.
 
@@ -43,12 +43,12 @@ git checkout <release-candidate-commit>
 ```
 
 The wheel is not public yet. Copy
-`tang_multiverse-0.2.4-py3-none-any.whl` from the build host to the repository
+`tang_multiverse-0.2.7-py3-none-any.whl` from the build host to the repository
 directory on the test host using your normal secure file-transfer method. Also
 record its SHA-256 hash on the build host:
 
 ```bash
-sha256sum tang_multiverse-0.2.4-py3-none-any.whl
+sha256sum tang_multiverse-0.2.7-py3-none-any.whl
 ```
 
 After copying, run the same command on the test host. The two hashes must match.
@@ -60,7 +60,7 @@ From the source checkout, run:
 
 ```bash
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.4-py3-none-any.whl \
+  ./tang_multiverse-0.2.7-py3-none-any.whl \
   --output tang-functional-evidence.json
 ```
 
@@ -68,15 +68,15 @@ To test a particular supported interpreter:
 
 ```bash
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.4-py3-none-any.whl \
+  ./tang_multiverse-0.2.7-py3-none-any.whl \
   --python python3.11 \
   --output tang-functional-evidence-python311.json
 ```
 
 The script does all of its product work in a temporary directory. It installs
 the wheel into a fresh virtual environment and uses only Tang's synthetic test
-sessions. It does not read your real Codex or Grok history and does not use your
-normal project Tang database.
+sessions. It does not read your real Codex, Grok, or OpenCode history and does
+not use your normal project Tang database.
 
 The run checks:
 
@@ -104,7 +104,7 @@ debugging:
 ```bash
 mkdir tang-functional-work
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.4-py3-none-any.whl \
+  ./tang_multiverse-0.2.7-py3-none-any.whl \
   --work-dir ./tang-functional-work \
   --output tang-functional-evidence.json
 ```
@@ -118,16 +118,16 @@ reproduced and fixed.
 Until the public release exists, install the local wheel:
 
 ```bash
-uv tool install ./tang_multiverse-0.2.4-py3-none-any.whl
+uv tool install ./tang_multiverse-0.2.7-py3-none-any.whl
 tang skill install codex
 ```
 
-Once v0.2.4 is approved and published, install the exact version-pinned GitHub
+Once v0.2.7 is approved and published, install the exact version-pinned GitHub
 release instead. Do not install an unversioned development build when verifying
 the release:
 
 ```bash
-uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.4/tang_multiverse-0.2.4-py3-none-any.whl
+uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.7/tang_multiverse-0.2.7-py3-none-any.whl
 tang skill install codex
 ```
 
@@ -140,7 +140,7 @@ tang doctor
 ```
 
 Start a new Codex session after installing the skill. Invoke `$tang` or ask
-Codex in plain English to use Tang. Tang v0.2.4 installs a Codex skill, not a
+Codex in plain English to use Tang. Tang v0.2.7 installs a Codex skill, not a
 `/tang` slash command, so it might not appear in a slash-command picker.
 
 For OpenCode `>=1.17.18,<2.0.0` on Linux, install the integration into the
@@ -154,6 +154,19 @@ This installs Tang-owned files only under the project's `.opencode` directory.
 The transcript source contract is provider-independent: an OpenCode session can
 use OpenAI, xAI, or another model provider without changing how Tang reads its
 visible user and assistant turns.
+
+### Choose where to use Tang
+
+- **Codex:** `tang skill install codex`, then start a new Codex session in the
+  project and invoke `$tang` (or ask Codex in plain English).
+- **OpenCode:** run the project-local install command above, restart OpenCode
+  in that project, and invoke `/tang`.
+- **Grok:** no Tang plugin is installed in Grok for v0.2. Its local history is
+  a supported read-only source; run the same Tang CLI from the project terminal,
+  Codex, or OpenCode to recover it into the current supported target.
+- **CLI:** `tang index`, `browse`, `search`, `context`, `link`, and `graph`
+  work from any of those project terminals. Use a harness skill when you want
+  guided, native selection.
 
 `tang doctor` is a readiness check. Before your first index it can report that
 the derived database is not initialized. An adapter can also be empty or
@@ -210,6 +223,12 @@ tang index
 Exit code `0` means indexing completed. Exit code `1` means Tang retained useful
 results but encountered warnings, such as a malformed or unavailable session.
 Read the warnings before deciding whether to continue.
+
+Run `tang index` at the start of a recovery workflow or after eligible native
+history changes. It is incremental: unchanged sessions are not reread. It also
+backfills a missing Tang display title from an already-redacted Discovery
+Capsule, so a normal refresh upgrades older titleless graph rows without a
+destructive rebuild.
 
 Browse everything indexed for this project, or search using words you remember:
 
@@ -279,6 +298,11 @@ connected component containing the returned target ID:
 tang graph <source-or-target-handle>
 ```
 
+In a normal terminal after a confirmation, bare `tang graph` focuses the one
+latest confirmed target when there is exactly one. It never chooses a native
+session by recency or marks that fallback as the active host session; pass a
+handle such as `tang graph O1` whenever you want an exact component.
+
 Use an accessible fallback when needed:
 
 ```bash
@@ -327,7 +351,7 @@ edges. It does not store Codex's generated Continuation Brief.
 
 ### Why does search show nothing?
 
-Make sure you ran `tang index` from the same project. Tang v0.2.4 deliberately
+Make sure you ran `tang index` from the same project. Tang v0.2.7 deliberately
 does not search across unrelated projects. Try another memorable keyword or a
 quoted phrase and inspect indexing warnings.
 
@@ -358,7 +382,7 @@ before it records a continuation.
 
 ### Are macOS and Windows supported?
 
-No compatibility claim is made for v0.2.4. The release is tested and supported
+No compatibility claim is made for v0.2.7. The release is tested and supported
 on Linux with Python 3.11 or newer.
 
 ### Why did `tang index` exit with code 1 even though search works?

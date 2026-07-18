@@ -186,7 +186,7 @@ def _seed_graph(
         }
     finally:
         connection.close()
-    return "codex:multiverse:g", "codex:multiverse:h", handles
+    return "codex:multiverse:g", "opencode:multiverse:h", handles
 
 
 def run_demo(*, width: int, color: bool, ascii_only: bool) -> int:
@@ -288,8 +288,8 @@ def run_demo(*, width: int, color: bool, ascii_only: bool) -> int:
             f"and opaque checkpoint {cited}"
         )
         print(
-            "NEXT ACTION: Continue in the active Codex handle and verify that "
-            f"checkpoint invariant {cited}"
+            "NEXT ACTION: Continue in the confirmed OpenCode handle and verify "
+            f"that checkpoint invariant {cited}"
         )
         print(
             "MULTIVERSE: selected sources "
@@ -297,7 +297,8 @@ def run_demo(*, width: int, color: bool, ascii_only: bool) -> int:
             f"{handles['codex:multiverse:c']}; that work branches to "
             f"{handles['codex:multiverse:d']} and {handles['codex:multiverse:e']}, "
             f"then {handles['codex:multiverse:e']} + "
-            f"{handles['grok:multiverse:f']} merge into {handles[source]}."
+            f"{handles['grok:multiverse:f']} merge into {handles[source]}, then "
+            f"continue into confirmed OpenCode {handles[target]}."
         )
         print(
             f"LINK: {handles[source]} -> {handles[target]} "

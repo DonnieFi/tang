@@ -41,10 +41,12 @@ def test_demo_is_reproducible_and_cannot_touch_ambient_user_data(
     assert "[grok:019f6000-1234-7000-8000-000000000001" in output.out
     assert "SELECT:\n  G1 | grok |" in output.out
     assert "MULTIVERSE: selected sources G1 + C1 merge into C2" in output.out
-    assert "LINK: C5 -> C6 (confirmed; inserted 1)" in output.out
+    assert "confirmed OpenCode O1" in output.out
+    assert "LINK: C5 -> O1 (confirmed; inserted 1)" in output.out
     assert "TANG MULTIVERSE MAP" in output.out
     assert "BRANCH" in output.out and "MERGE" in output.out
-    assert "possibly_interrupted" in output.out
+    assert "possibly interrupted" in output.out
+    assert "ACTIVE O1" in output.out and "opencode" in output.out
     assert "codex:multiverse:" not in output.out
     workspace = Path(re.search(r"^Workspace: (.+)$", output.out, re.MULTILINE).group(1))
     assert not workspace.exists()
@@ -67,7 +69,7 @@ def test_demo_wide_unicode_map_includes_the_woven_network(capsys) -> None:
 
     output = capsys.readouterr().out
     assert "MULTIVERSE NETWORK · TIME FLOWS →" in output
-    assert "×G2" in output and "★C6" in output
+    assert "×G2" in output and "★O1" in output
     assert "Implement deterministic checkpoint recovery" in output
     assert re.search(r"│ C1\s+│ codex\s+│.*?│ Implement deterministic", output)
 

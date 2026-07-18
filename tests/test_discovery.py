@@ -293,7 +293,7 @@ def test_cli_json_lines_and_malformed_query_keep_diagnostics_on_stderr(
             "Beta work",
             "grok",
             "2026-07-14T02:00:00Z",
-            "unknown",
+            "unverified",
         )
     )
     assert "\x1b[" not in line_result.out

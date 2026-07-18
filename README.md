@@ -5,11 +5,10 @@
 <td width="68%" valign="top">
 <strong>Keep the blade, switch the handle.</strong><br><br>
 <strong>Continue one coding agent's work inside another, with the original sources cited.</strong><br><br>
-Bring one session or many from Grok, Codex, and OpenCode into the Codex or
-OpenCode session you are in. Then let that session feed one future session or
-many, merge in other sources, and repeat as often as the work changes handles.
-Tang preserves the resulting many-to-many history in a terminal-native
-Multiverse Map.<br><br>
+Bring one session or many from Grok, Codex, or OpenCode into your current
+handle. Tang preserves every explicitly confirmed continuation in a
+terminal-native Multiverse Map—whether you start from Codex, OpenCode, or the
+same CLI in a normal terminal.<br><br>
 <strong>Across Grok, Codex, and OpenCode today—with every continuation explicitly confirmed.</strong>
 </td>
 <td width="32%" align="right" valign="top">
@@ -37,13 +36,13 @@ directed graph. Tang does not invent relationships.
 
 The final terminal view highlights the active handle and remains understandable with `NO_COLOR`, narrow terminals, and ASCII-only connectors.
 
-![The real Tang isolated demo showing a woven network plus five timeline lanes, explicit branches and merges, an unavailable source, and active Codex handle C6.](docs/assets/tang-multiverse-demo.svg)
+![The real Tang isolated demo showing a woven network plus five timeline lanes, explicit branches and merges, an unavailable source, and active OpenCode handle O1.](docs/assets/tang-multiverse-demo.svg)
 
 This capture comes from the real isolated `tang demo` output. From a development
 checkout, regenerate it with `python scripts/capture_demo_hero.py --tang
 .venv/bin/tang --output docs/assets/tang-multiverse-demo.svg`.
 
-> **v0.2.4 release candidate:** the Linux wheel, complete demo path, and
+> **v0.2.7 release candidate:** the Linux wheel, complete demo path, and
 > OpenCode source/destination integration are verified. The repository remains
 > private during final testing; until the matching release is published, use
 > the local-wheel command below.
@@ -70,16 +69,16 @@ sessions become continuity. A later Codex or OpenCode session can merge more
 Grok, Codex, or OpenCode sources, branch into several future sessions, and
 extend the same Multiverse without flattening its history.
 
-## From one handle to the next
+## Start where you already work
 
-The Build Week demonstration leads with the focused Grok-to-Codex path without
-limiting the graph to one hop. The shipped integration also reads OpenCode
-history and can use an explicitly confirmed current OpenCode session as the
-destination. Each action selects one source or many into one confirmed current
-target; repeating that action across later targets creates the many-to-many
-Multiverse:
+Invoke `$tang` in Codex, `/tang` in OpenCode, or run the same `tang` commands
+directly in a terminal. The filmed path leads Grok to Codex; the shipped
+workflow also recovers OpenCode sources and can continue into a confirmed
+OpenCode session. Each action selects one source or many into one confirmed
+current target; repeating that action across later targets creates the
+many-to-many Multiverse:
 
-1. Open the Tang skill in the current Codex project.
+1. Open Tang in the current Codex or OpenCode project, or run the CLI there.
 2. Find a prior Grok session by a phrase you remember.
 3. Preview its small, redacted Discovery Capsule.
 4. Select it and build a compact, source-cited Context Pack.
@@ -91,10 +90,10 @@ No transcript copy-and-paste. No pretending that a generic summary is provenance
 
 ## Install on Linux
 
-After `v0.2.4` is published, install its immutable, version-pinned wheel:
+After `v0.2.7` is published, install its immutable, version-pinned wheel:
 
 ```bash
-uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.4/tang_multiverse-0.2.4-py3-none-any.whl
+uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.7/tang_multiverse-0.2.7-py3-none-any.whl
 tang skill install codex
 tang --help
 ```
@@ -104,7 +103,7 @@ Requirements: Linux and Python 3.11 or later. The hackathon release makes no mac
 Before publication, install the reviewed local artifact instead:
 
 ```bash
-uv tool install ./tang_multiverse-0.2.4-py3-none-any.whl
+uv tool install ./tang_multiverse-0.2.7-py3-none-any.whl
 tang skill install codex
 tang --help
 ```
@@ -126,6 +125,18 @@ The OpenCode command, skill, and private current-target bridge are bundled with
 the same Tang wheel. Tang reads supported OpenCode transcripts independently
 of the model provider used for that session.
 
+### Choose your entry point
+
+- **Codex:** install the bundled skill with `tang skill install codex`, start a
+  new session in the project, then invoke `$tang` or ask in plain English.
+- **OpenCode:** install the project-local integration above, restart OpenCode
+  in that project, then invoke `/tang`.
+- **Grok:** no Tang plugin is installed in Grok for v0.2; its local history is a
+  supported read-only source. Run `tang index` from the project terminal—or
+  from Codex or OpenCode—to recover it into the current supported target.
+- **CLI:** `tang index`, `browse`, `search`, `context`, `link`, and `graph` are
+  the same scriptable commands from either host or a normal project terminal.
+
 For download verification, uninstall instructions, a plain-English
 walkthrough, and FAQs, see [`docs/getting-started.md`](docs/getting-started.md).
 
@@ -142,9 +153,12 @@ and redacts the native sources, fairly allocates a compact Context Pack across
 them, and cites every recovered excerpt. The active agent uses that evidence
 without treating recovered transcript text as instructions.
 
-### 3. See the timeline
+### 3. See the Multiverse
 
 Confirm the continuation. Tang records explicit, cycle-free edges. Repeated many-source operations across later target sessions form a many-to-many DAG, rendered as the Multiverse Map.
+
+Use the skill when you want guided, host-native selection; use the CLI when you
+already know a handle or need a scriptable path.
 
 ## What Tang supports
 
@@ -299,8 +313,9 @@ result is informative rather than a demo failure.
 
 The demo copies only bundled synthetic Codex and Grok fixtures into a temporary
 workspace, indexes and searches them, builds a two-source cited Context Pack,
-maps those exact sources into a branch-and-merge DAG, confirms one new link,
-renders the active Multiverse, and deletes the workspace. On the clean-wheel
+maps those exact sources into a branch-and-merge DAG, then confirms the final
+continuation into a synthetic OpenCode target before rendering the active
+Multiverse and deleting the workspace. On the clean-wheel
 Linux gate runs kept search and Context Pack generation under 0.2 seconds each,
 the search/context/link/graph core under 0.6 seconds, and the complete isolated
 demo under 2 seconds. These are observed release-host timings, not universal
@@ -312,14 +327,14 @@ codes, privacy checks, and timings as JSON without reading native user history:
 
 ```bash
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.4-py3-none-any.whl \
+  ./tang_multiverse-0.2.7-py3-none-any.whl \
   --output tang-functional-evidence.json
 ```
 
-OpenCode support is covered separately by sanitized contract fixtures,
-provider-independent live transcript evidence, target-confirmation tests, and
-the installed `/tang` workflow. The isolated judge demo intentionally keeps its
-original focused Grok-to-Codex story.
+OpenCode support is covered by sanitized contract fixtures, provider-independent
+live transcript evidence, target-confirmation tests, and the installed `/tang`
+workflow. The isolated judge demo keeps its focused Grok-to-Codex recovery
+story and visibly ends with a confirmed OpenCode continuation target.
 
 ## Built with Codex and GPT-5.6
 
@@ -374,7 +389,7 @@ failure-path tests. Never contribute native transcripts, credentials, private
 paths, third-party logos, or a database built from real user history.
 
 Tang is licensed under the [`MIT License`](LICENSE). The verified release
-candidate becomes `v0.2.4` only after its manual review gate and matching tag.
+candidate becomes `v0.2.7` only after its manual review gate and matching tag.
 
 ---
 

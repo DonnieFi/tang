@@ -376,7 +376,8 @@ def run_acceptance(wheel: Path, work: Path, python: str) -> dict[str, Any]:
     )
     _require(
         "MULTIVERSE: selected sources G1 + C1 merge into C2" in demo.stdout
-        and "LINK: C5 -> C6 (confirmed; inserted 1)" in demo.stdout,
+        and "LINK: C5 -> O1 (confirmed; inserted 1)" in demo.stdout
+        and "confirmed OpenCode O1" in demo.stdout,
         "installed demo did not present one handle-based continuation story",
     )
     _require("TANG MULTIVERSE MAP" in demo.stdout, "installed demo omitted the map")

@@ -107,6 +107,84 @@ def test_graph_infers_only_a_unique_current_target(
     assert "error[target-unconfirmed]" in ambiguous.err
 
 
+def test_bare_graph_uses_one_latest_confirmed_target_without_claiming_current(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    database = tmp_path / "tang.db"
+    source = record("source", project)
+    target = record("target", project)
+    other = record("other", project)
+    seed(database, project, source, target, other)
+    connection = open_database(database)
+    try:
+        repository = TangRepository(connection)
+        with repository.transaction():
+            repository.put_continuation(
+                StoredContinuation(
+                    source.identity.canonical,
+                    target.identity.canonical,
+                    resolve_project(project).key,
+                    "explicit",
+                    NOW,
+                )
+            )
+    finally:
+        connection.close()
+    monkeypatch.setattr(
+        "tang.adapters.codex.CodexAdapter.scan",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("bare graph must use the indexed project database")
+        ),
+    )
+
+    assert main(["graph", "--database", str(database), "--cwd", str(project)]) == 0
+
+    rendered = capsys.readouterr()
+    assert rendered.err == ""
+    assert "C1" in rendered.out and "C2" in rendered.out
+    assert "★ C2" not in rendered.out
+
+
+def test_bare_graph_refuses_tied_latest_confirmation_targets(
+    tmp_path: Path, capsys
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    database = tmp_path / "tang.db"
+    source_one = record("source-one", project)
+    target_one = record("target-one", project)
+    source_two = record("source-two", project)
+    target_two = record("target-two", project)
+    seed(database, project, source_one, target_one, source_two, target_two)
+    connection = open_database(database)
+    try:
+        repository = TangRepository(connection)
+        with repository.transaction():
+            for source, target in (
+                (source_one, target_one),
+                (source_two, target_two),
+            ):
+                repository.put_continuation(
+                    StoredContinuation(
+                        source.identity.canonical,
+                        target.identity.canonical,
+                        resolve_project(project).key,
+                        "explicit",
+                        NOW,
+                    )
+                )
+    finally:
+        connection.close()
+
+    assert main(["graph", "--database", str(database), "--cwd", str(project)]) == 2
+
+    refused = capsys.readouterr()
+    assert refused.out == ""
+    assert refused.err.startswith("error[graph-target-unconfirmed]")
+
+
 def test_graph_respects_no_color_and_explicit_ascii(
     tmp_path: Path, monkeypatch
 ) -> None:

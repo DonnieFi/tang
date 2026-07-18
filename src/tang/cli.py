@@ -30,7 +30,7 @@ from tang.discovery import (
 )
 from tang.doctor import doctor_exit_code, run_doctor
 from tang.graph import GraphService
-from tang.health import health_style
+from tang.health import health_label, health_style
 from tang.indexing import IndexResult, ProjectIndexer
 from tang.project import ProjectIdentity, resolve_project
 from tang.redaction import (
@@ -549,14 +549,14 @@ def _show_discovery_page(page: DiscoveryPage) -> None:
                 session,
                 item.harness,
                 updated,
-                Text(item.health.value, style=health_style(item.health)),
+                Text(health_label(item.health), style=health_style(item.health)),
             )
         else:
             session.append(
                 f"\n{item.harness} · {updated} · ",
                 style="dim",
             )
-            session.append(item.health.value, style=health_style(item.health))
+            session.append(health_label(item.health), style=health_style(item.health))
             table.add_row(f"[{choice.number}]", item.handle, session)
     console.print(table)
     print(f"Page {page.number} of {page.page_count} ({page.result_count} results).")
@@ -977,13 +977,28 @@ def _run_graph(args: argparse.Namespace) -> int:
         if args.session is None:
             if resolution is None:
                 raise RuntimeError("graph target resolution was not attempted")
-            if (
-                resolution.kind is not TargetResolutionKind.RESOLVED
-                or resolution.target is None
-            ):
+            if resolution.kind is TargetResolutionKind.RESOLVED and resolution.target:
+                anchor = resolution.target.identity.canonical
+            elif args.current_native_id is None:
+                latest_targets = _latest_confirmed_graph_targets(repository, project.key)
+                if len(latest_targets) == 1:
+                    # A confirmed edge, unlike native-session recency, is durable
+                    # user intent. This is a display focus only, not a claim that
+                    # its target is the currently active native session.
+                    anchor = latest_targets[0]
+                elif len(latest_targets) > 1:
+                    print(
+                        "error[graph-target-unconfirmed]: Multiple targets share "
+                        "the latest confirmation; pass a session handle.",
+                        file=sys.stderr,
+                    )
+                    return 2
+                else:
+                    _show_current_target_refusal(resolution.code)
+                    return 2
+            else:
                 _show_current_target_refusal(resolution.code)
                 return 2
-            anchor = resolution.target.identity.canonical
         else:
             anchor = args.session
         current_id = (
@@ -1021,6 +1036,18 @@ def _run_graph(args: argparse.Namespace) -> int:
         end="",
     )
     return 0
+
+
+def _latest_confirmed_graph_targets(
+    repository: TangRepository, project_key: str
+) -> tuple[str, ...]:
+    """Return the deterministic target set from one latest confirmation event."""
+
+    edges = repository.continuations_for_project(project_key)
+    if not edges:
+        return ()
+    latest = max(edge.confirmed_at for edge in edges)
+    return tuple(sorted({edge.target_id for edge in edges if edge.confirmed_at == latest}))
 
 
 def _supports_unicode(stream: object) -> bool:

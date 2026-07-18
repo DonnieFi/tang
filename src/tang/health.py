@@ -16,7 +16,17 @@ def describe_health(health: SessionHealth) -> str:
     return {
         SessionHealth.COMPLETE: "Last observed native task completed",
         SessionHealth.POSSIBLY_INTERRUPTED: "Possibly interrupted; native evidence is incomplete",
-        SessionHealth.UNKNOWN: "Status unknown; native evidence is insufficient",
+        SessionHealth.UNKNOWN: "Unverified; native evidence is insufficient",
+    }[health]
+
+
+def health_label(health: SessionHealth) -> str:
+    """Return the concise human label while retaining stable JSON enum values."""
+
+    return {
+        SessionHealth.COMPLETE: "complete",
+        SessionHealth.POSSIBLY_INTERRUPTED: "possibly interrupted",
+        SessionHealth.UNKNOWN: "unverified",
     }[health]
 
 

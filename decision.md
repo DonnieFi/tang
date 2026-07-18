@@ -378,3 +378,21 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) rebuild v0.2.3 with different contents; (b) omit the fixes; (c) issue v0.2.4.
 - Decision: (c) — preserve immutable artifact evidence and make the reviewed demo build uniquely installable. Serves: Technological Implementation, Design, Quality of Idea.
 - By: human (approved all review refinements and promotion) and agent (artifact versioning)
+
+## 2026-07-18T00:55:35Z · tang-2be.26 · Backfill safe display titles as v0.2.5
+- Context: live graph review showed Codex sessions without native titles as `(untitled)`, while their existing redacted Discovery Capsules already contained recognizable display names; raw `unknown` also read as a defect rather than qualified uncertainty.
+- Options: (a) leave graph labels empty; (b) reread every native transcript to generate labels; (c) reuse the bounded, redacted stored Capsule display name and expose `unverified` only in human presentation.
+- Decision: (c) — make graph labels useful immediately, persist titleless-record backfills during normal incremental index without native rereads, and retain the stable JSON `unknown` enum. Serves: Design, Potential Impact, Technological Implementation.
+- By: human (requested title creation and clearer uncertainty) and agent (privacy-preserving implementation)
+
+## 2026-07-18T01:14:55Z · tang-2be.29 · Show the supported OpenCode destination in the isolated demo
+- Context: the shipped OpenCode source/destination workflow was present in the wheel and README but absent from the judge-facing Multiverse capture; the approved demonstration still requires a focused Grok-to-Codex recovery story and temporary data only.
+- Options: (a) leave OpenCode invisible in the demo; (b) run a live OpenCode server from `tang demo`; (c) retain the copied Grok/Codex recovery corpus and finish its deterministic graph with a synthetic, explicitly confirmed OpenCode target.
+- Decision: (c) — make the supported destination visually concrete without reading ambient OpenCode data, adding a second interactive workflow, or weakening the focused recovery narrative. README installation copy names Codex, OpenCode, Grok's read-only role, and the direct CLI path. Serves: Design, Potential Impact, Technological Implementation, Quality of Idea.
+- By: human (requested README/demo polish and all-host installation clarity) and agent (bounded isolation-preserving implementation)
+
+## 2026-07-18T01:14:55Z · tang-2be.30 · Let bare graph use the latest confirmed target
+- Context: plain-terminal `tang graph` lacks private host-session evidence and previously refused whenever more than one Codex candidate was indexed, even immediately after an explicit `tang link` supplied one durable target.
+- Options: (a) retain the refusal; (b) choose the newest native session; (c) focus only the unique target of the latest explicit confirmation, refuse tied targets, and leave its active marker off.
+- Decision: (c) — turn an already-confirmed graph target into a useful CLI default without guessing native recency or claiming host-current state. The behavioral change follows the built v0.2.6 candidate, so issue an immutable v0.2.7 candidate. Serves: Design, Potential Impact, Technological Implementation.
+- By: human (requested useful CLI graph detection) and agent (confirmation-preserving implementation)

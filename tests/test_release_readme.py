@@ -18,11 +18,15 @@ def test_readme_is_a_verified_release_candidate_surface() -> None:
     )
     assert "cdnjs.cloudflare.com" not in hero
     assert 'url("http' not in hero
-    assert "DonnieFi/tang/releases/download/v0.2.4" in readme
+    assert "DonnieFi/tang/releases/download/v0.2.7" in readme
     assert "docs/assets/tang-mascot-concept.png" in readme
     assert readme.index("```text") < readme.index("docs/assets/tang-multiverse-demo.svg")
     assert "Codex CLI 0.144.4" in readme and "Grok 0.2.99" in readme
     assert "OpenCode `>=1.17.18,<2.0.0`" in readme
+    assert "## Choose your entry point" in readme
+    assert "**Codex:**" in readme
+    assert "**OpenCode:**" in readme
+    assert "**Grok:** no Tang plugin" in readme
     assert "Cursor" not in readme
     assert "$tang" in readme and "not a `/tang` slash command" in readme
     assert "019f62b2-5a7d-75c3-922d-969b182ec9a2" in readme

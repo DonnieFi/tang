@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from tang.adapters import CodexAdapter, SessionHealth
-from tang.health import describe_health, health_style
+from tang.health import describe_health, health_label, health_style
 
 
 def only_log(home: Path) -> Path:
@@ -18,7 +18,7 @@ def test_ambiguous_active_task_defaults_to_unknown(codex_fixture_home: Path) -> 
 
     assert record.health is SessionHealth.UNKNOWN
     assert describe_health(record.health) == (
-        "Status unknown; native evidence is insufficient"
+        "Unverified; native evidence is insufficient"
     )
 
 
@@ -67,7 +67,7 @@ def test_every_health_label_is_qualified_and_non_automatic() -> None:
 
     assert set(labels) == set(SessionHealth)
     assert "Possibly" in labels[SessionHealth.POSSIBLY_INTERRUPTED]
-    assert "unknown" in labels[SessionHealth.UNKNOWN].lower()
+    assert "unverified" in labels[SessionHealth.UNKNOWN].lower()
     assert all("continue" not in label.lower() for label in labels.values())
 
 
@@ -75,3 +75,10 @@ def test_health_styles_are_semantic_without_replacing_labels() -> None:
     assert health_style(SessionHealth.COMPLETE) == "bold #2aa198"
     assert health_style(SessionHealth.POSSIBLY_INTERRUPTED) == "bold red"
     assert health_style(SessionHealth.UNKNOWN) == "bold #ff9d3d"
+
+
+def test_health_labels_clarify_uncertainty_without_changing_native_enums() -> None:
+    assert health_label(SessionHealth.COMPLETE) == "complete"
+    assert health_label(SessionHealth.POSSIBLY_INTERRUPTED) == "possibly interrupted"
+    assert health_label(SessionHealth.UNKNOWN) == "unverified"
+    assert SessionHealth.UNKNOWN.value == "unknown"

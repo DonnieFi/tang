@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 
+import pytest
+
 from tang.adapters import (
     AdapterCheckpoint,
     AdapterWarning,
@@ -155,6 +157,49 @@ def test_index_is_current_project_scoped_incremental_and_restart_safe(
         )
     finally:
         reopened.close()
+
+
+def test_incremental_index_backfills_legacy_title_from_capsule_without_reread(
+    discovery_corpus, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    current = tmp_path / "current-project"
+    foreign = tmp_path / "foreign-project"
+    current.mkdir()
+    foreign.mkdir()
+    point_corpus_at_projects(discovery_corpus, current, foreign)
+    connection = open_database(tmp_path / "tang.db")
+    repository = TangRepository(connection)
+    indexer = ProjectIndexer(repository)
+    adapter = CodexAdapter(
+        discovery_corpus.codex_home, source_namespace="title-backfill"
+    )
+    project = resolve_project(current)
+    try:
+        first = indexer.index((adapter,), project, now=NOW)
+        source_id = next(
+            session.source.identity.canonical
+            for session in repository.sessions_for_project(project.key)
+        )
+        capsule = repository.get_capsule(source_id)
+        assert capsule is not None
+        display_name = capsule.content["display_name"]
+        assert isinstance(display_name, str) and display_name
+        with repository.transaction():
+            connection.execute("UPDATE sessions SET title = NULL WHERE source_id = ?", (source_id,))
+
+        def unexpected_reread(*_args: object, **_kwargs: object) -> TurnBatch:
+            raise AssertionError("legacy title backfill must use the stored Capsule")
+
+        monkeypatch.setattr(adapter, "read", unexpected_reread)
+        second = indexer.index((adapter,), project, now=NOW)
+
+        assert first.indexed > 0
+        assert second.indexed == 0
+        refreshed = repository.get_session(source_id)
+        assert refreshed is not None
+        assert refreshed.source.title == display_name
+    finally:
+        connection.close()
 
 
 def test_adapter_checkpoints_are_scoped_per_project(

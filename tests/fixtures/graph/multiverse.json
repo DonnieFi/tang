@@ -9,8 +9,8 @@
     {"source_id": "codex:multiverse:d", "harness": "codex", "native_id": "d", "title": "Branch into storage", "timestamp": "2026-07-14T20:15:00Z", "health": "unknown", "native_available": true},
     {"source_id": "codex:multiverse:e", "harness": "codex", "native_id": "e", "title": "Branch into context", "timestamp": "2026-07-14T20:20:00Z", "health": "complete", "native_available": true},
     {"source_id": "grok:multiverse:f", "harness": "grok", "native_id": "f", "title": "Recover graph constraints", "timestamp": "2026-07-14T20:25:00Z", "health": "possibly_interrupted", "native_available": false},
-    {"source_id": "codex:multiverse:g", "harness": "codex", "native_id": "g", "title": "Current active handle", "timestamp": "2026-07-14T20:30:00Z", "health": "complete", "native_available": true},
-    {"source_id": "codex:multiverse:h", "harness": "codex", "native_id": "h", "title": "Isolated experiment", "timestamp": "2026-07-14T20:35:00Z", "health": "unknown", "native_available": true}
+    {"source_id": "codex:multiverse:g", "harness": "codex", "native_id": "g", "title": "Validated Codex recovery", "timestamp": "2026-07-14T20:30:00Z", "health": "complete", "native_available": true},
+    {"source_id": "opencode:multiverse:h", "harness": "opencode", "native_id": "h", "title": "OpenCode continuation target", "timestamp": "2026-07-14T20:35:00Z", "health": "unknown", "native_available": true}
   ],
   "edges": [
     {"source_id": "grok:multiverse:a", "target_id": "codex:multiverse:c", "confirmed_at": "2026-07-14T20:11:00Z", "confirmation_mode": "explicit"},

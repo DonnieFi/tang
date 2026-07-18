@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 
 from tang.adapters import (
@@ -97,6 +97,12 @@ class ProjectIndexer:
         diagnostics: list[IndexDiagnostic] = []
         timestamp = now or datetime.now(timezone.utc)
 
+        # Existing Capsule labels are already redacted, bounded, and persisted.
+        # Backfill them before scanning so a normal incremental index repairs
+        # legacy titleless records without rereading their native transcripts.
+        with self._repository.transaction():
+            self._repository.backfill_untitled_sessions(active_project.key)
+
         for adapter in adapters:
             prior_checkpoint = self._repository.get_checkpoint(
                 adapter.adapter_key, adapter.source_namespace, active_project.key
@@ -179,7 +185,19 @@ class ProjectIndexer:
                     # As above, retain the warning for this attempt but allow the
                     # adapter cursor to advance until the native source changes.
                     continue
-                pending.append((source, capsule))
+                derived_title = capsule.content.get("display_name")
+                pending.append(
+                    (
+                        replace(source, title=derived_title)
+                        if (
+                            (not source.title or not source.title.strip())
+                            and isinstance(derived_title, str)
+                            and derived_title.strip()
+                        )
+                        else source,
+                        capsule,
+                    )
+                )
 
             checkpoint_changed = (
                 scan.next_checkpoint is not None
