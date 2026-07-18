@@ -16,3 +16,5 @@ Call `tang_current_target` privately to resolve the active session. Continue onl
 If the user asks only to view the graph, do not require or record a continuation link. Call `tang_current_target` privately and, when it returns the exact safe result above, run `tang graph <target-handle>` immediately. An isolated current node is a valid map; explain that confirmed edges appear only after an explicitly approved link.
 
 Never expose or invent a native session ID, path, credential, transcript text outside the Context Pack, or target. Never use `connect` or create a second selector.
+
+If the user asks to reopen an indexed OpenCode handle itself, explain that `tang resume <handle>` is a normal-terminal launcher and must not be run as a nested interactive process inside this OpenCode session. It reopens only that native session; it does not replace this source-cited recovery workflow or create a continuation link.

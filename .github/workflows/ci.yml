@@ -43,11 +43,12 @@ jobs:
       - name: Install wheel without rebuilding source
         run: |
           uv venv --python 3.12 /tmp/tang-wheel
-          uv pip install --python /tmp/tang-wheel/bin/python dist/tang_multiverse-0.2.7-py3-none-any.whl
+          uv pip install --python /tmp/tang-wheel/bin/python dist/tang_multiverse-0.2.8-py3-none-any.whl
       - name: Smoke CLI, skill, and isolated demo
         run: |
           export PATH="/tmp/tang-wheel/bin:$PATH"
           tang --help
+          tang resume --help
           tang skill install codex --codex-home /tmp/tang-codex
           tang demo --ascii --width 100 > demo-output.txt
           grep -q "Demo complete" demo-output.txt

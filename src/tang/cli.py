@@ -41,6 +41,7 @@ from tang.redaction import (
 )
 from tang.render import STEEL, TEAL, render_multiverse
 from tang.repository import TangRepository
+from tang.resume import ResumeError, ResumeService
 from tang.skill_install import install_codex_skill, install_opencode_skill
 from tang.storage import DatabaseOpenError, open_database, project_data_path
 from tang.timeutil import rfc3339
@@ -63,8 +64,8 @@ def build_parser() -> argparse.ArgumentParser:
             "Continue coding-agent work across harnesses with source-cited context."
         ),
         epilog=(
-            "Primary workflow: index, browse, context, link, and graph. Recovery "
-            "flow: index; browse or search; build context; explicitly "
+            "Primary workflow: index, browse, context, link, graph, and resume. "
+            "Recovery flow: index; browse or search; build context; explicitly "
             "confirm a target with link; then graph the result. If you looked for "
             "connect, use tang link --help."
         ),
@@ -106,6 +107,23 @@ def build_parser() -> argparse.ArgumentParser:
     context.add_argument("--codex-home", type=Path)
     context.add_argument("--grok-home", type=Path)
     context.add_argument("--opencode-executable", type=Path)
+    resume = subparsers.add_parser(
+        "resume",
+        help="open an indexed session in its native harness",
+        description=(
+            "Privately resolve one current-project Tang handle and open the "
+            "corresponding Codex or OpenCode session. This does not build "
+            "context, create links, or modify native history."
+        ),
+    )
+    resume.add_argument(
+        "session",
+        help="displayed Tang handle for a Codex or OpenCode session",
+    )
+    resume.add_argument("--database", type=Path)
+    resume.add_argument("--cwd", type=Path, default=Path.cwd())
+    resume.add_argument("--codex-executable", type=Path)
+    resume.add_argument("--opencode-executable", type=Path)
     purge = subparsers.add_parser("purge", help="remove Tang-derived data")
     purge.add_argument("--all", action="store_true", dest="purge_all")
     purge.add_argument("--yes", action="store_true", help="confirm without a prompt")
@@ -686,6 +704,29 @@ def _run_context(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_resume(args: argparse.Namespace) -> int:
+    project = resolve_project(args.cwd)
+    database = _required_database_for(args, project)
+    if database is None:
+        return 2
+    launch_directory = args.cwd.expanduser().resolve(strict=True)
+    connection = open_database(database)
+    try:
+        try:
+            return ResumeService(TangRepository(connection)).resume(
+                args.session,
+                project,
+                launch_directory,
+                codex_executable=args.codex_executable,
+                opencode_executable=args.opencode_executable,
+            )
+        except ResumeError as error:
+            print(f"error[{error.code}]: {error}", file=sys.stderr)
+            return 2
+    finally:
+        connection.close()
+
+
 def _run_purge(args: argparse.Namespace) -> int:
     if not args.purge_all:
         print("error: purge currently requires --all", file=sys.stderr)
@@ -1087,6 +1128,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_discovery(args)
         if args.command == "context":
             return _run_context(args)
+        if args.command == "resume":
+            return _run_resume(args)
         if args.command == "purge":
             return _run_purge(args)
         if args.command == "doctor":

@@ -42,10 +42,10 @@ This capture comes from the real isolated `tang demo` output. From a development
 checkout, regenerate it with `python scripts/capture_demo_hero.py --tang
 .venv/bin/tang --output docs/assets/tang-multiverse-demo.svg`.
 
-> **v0.2.7 release candidate:** the Linux wheel, complete demo path, and
-> OpenCode source/destination integration are verified. The repository remains
-> private during final testing; until the matching release is published, use
-> the local-wheel command below.
+> **v0.2.8 release candidate:** the Linux wheel, complete demo path, and
+> OpenCode source/destination integration are verified. The source repository
+> is public; until the matching release artifact is published, use the reviewed
+> local-wheel command below.
 
 ## The work should outlive the tool
 
@@ -90,10 +90,10 @@ No transcript copy-and-paste. No pretending that a generic summary is provenance
 
 ## Install on Linux
 
-After `v0.2.7` is published, install its immutable, version-pinned wheel:
+After `v0.2.8` is published, install its immutable, version-pinned wheel:
 
 ```bash
-uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.7/tang_multiverse-0.2.7-py3-none-any.whl
+uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.8/tang_multiverse-0.2.8-py3-none-any.whl
 tang skill install codex
 tang --help
 ```
@@ -103,7 +103,7 @@ Requirements: Linux and Python 3.11 or later. The hackathon release makes no mac
 Before publication, install the reviewed local artifact instead:
 
 ```bash
-uv tool install ./tang_multiverse-0.2.7-py3-none-any.whl
+uv tool install ./tang_multiverse-0.2.8-py3-none-any.whl
 tang skill install codex
 tang --help
 ```
@@ -134,8 +134,10 @@ of the model provider used for that session.
 - **Grok:** no Tang plugin is installed in Grok for v0.2; its local history is a
   supported read-only source. Run `tang index` from the project terminal—or
   from Codex or OpenCode—to recover it into the current supported target.
-- **CLI:** `tang index`, `browse`, `search`, `context`, `link`, and `graph` are
-  the same scriptable commands from either host or a normal project terminal.
+- **CLI:** `tang index`, `browse`, `search`, `context`, `link`, `graph`, and
+  `resume` are the same scriptable commands from either host or a normal
+  project terminal. `tang resume HANDLE` reopens an indexed Codex or OpenCode
+  session through its native CLI.
 
 For download verification, uninstall instructions, a plain-English
 walkthrough, and FAQs, see [`docs/getting-started.md`](docs/getting-started.md).
@@ -255,6 +257,7 @@ OpenCode. The CLI stays scriptable and does not introduce a competing selector.
 | `tang link --from SESSION... --current` | Record selected sources into an explicitly confirmed current Codex session |
 | `tang link --from SESSION... --to SESSION` | Record selected sources into an explicitly confirmed target, including the OpenCode skill's current target |
 | `tang graph [SESSION]` | Render the containing Multiverse Map |
+| `tang resume SESSION` | Reopen one indexed Codex or OpenCode session by its Tang handle |
 | `tang purge --all` | Remove Tang-derived data after confirmation |
 | `tang doctor` | Check installation, database, FTS5, and adapter readiness without creating absent derived storage |
 | `tang skill install codex` | Install or update the bundled Codex skill without silently overwriting changes |
@@ -327,7 +330,7 @@ codes, privacy checks, and timings as JSON without reading native user history:
 
 ```bash
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.7-py3-none-any.whl \
+  ./tang_multiverse-0.2.8-py3-none-any.whl \
   --output tang-functional-evidence.json
 ```
 
@@ -365,9 +368,12 @@ promotion. Those choices are dated in [`decision.md`](decision.md).
 | Native session resume | Yes | No | Not applicable | No |
 | Manual history hunting | Sometimes | By copy/paste | Manual | No |
 | Transcript export | As static text | Sometimes | Varies | No |
-| Tang | Yes, as evidence in a new session | **Yes** | **Yes** | **Yes** |
+| Tang | **Yes, by exact indexed handle** | **Yes** | **Yes** | **Yes** |
 
-Tang does not launch or remote-control another harness, infer edges, or claim to resume an arbitrary closed target. Its wedge is narrower: continue prior work across a harness boundary, with evidence you can inspect.
+`tang resume HANDLE` launches only the exact selected Codex or OpenCode session
+through that harness's native CLI. It does not inject another transcript, build
+a Context Pack, infer an edge, or remote-control a running harness. Tang's
+cross-harness wedge remains source-cited recovery plus explicit continuation.
 
 ## Roadmap
 
@@ -389,7 +395,10 @@ failure-path tests. Never contribute native transcripts, credentials, private
 paths, third-party logos, or a database built from real user history.
 
 Tang is licensed under the [`MIT License`](LICENSE). The verified release
-candidate becomes `v0.2.7` only after its manual review gate and matching tag.
+candidate becomes `v0.2.8` only after its manual review gate and matching tag.
+Report security issues privately using the process in
+[`SECURITY.md`](SECURITY.md); never attach native transcripts or credentials to
+a public issue.
 
 ---
 

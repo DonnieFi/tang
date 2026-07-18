@@ -17,6 +17,7 @@ RELEASE_COMMANDS = {
     "index",
     "link",
     "purge",
+    "resume",
     "search",
     "skill",
 }
@@ -62,6 +63,7 @@ def test_every_release_command_has_stdout_only_help(arguments: tuple[str, ...]) 
         ("context",),
         ("link",),
         ("purge", "--all"),
+        ("resume",),
         ("skill",),
         ("graph", "--width", "not-an-integer"),
         ("demo", "--width", "not-an-integer"),

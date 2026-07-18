@@ -224,6 +224,7 @@ def test_skill_instructions_require_host_selection_without_invented_ids() -> Non
         "source_ids` exactly match the private selection",
         "tang graph <target_handle>",
         "bare `tang graph` may focus the one latest confirmed target",
+        "`tang resume <handle>` is a normal-terminal launcher",
         "Do not ask for another synthesis or summary after linking",
         "one canonical continuation command",
         "idempotent replay",

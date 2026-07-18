@@ -18,11 +18,13 @@ def test_readme_is_a_verified_release_candidate_surface() -> None:
     )
     assert "cdnjs.cloudflare.com" not in hero
     assert 'url("http' not in hero
-    assert "DonnieFi/tang/releases/download/v0.2.7" in readme
+    assert "DonnieFi/tang/releases/download/v0.2.8" in readme
     assert "docs/assets/tang-mascot-concept.png" in readme
     assert readme.index("```text") < readme.index("docs/assets/tang-multiverse-demo.svg")
     assert "Codex CLI 0.144.4" in readme and "Grok 0.2.99" in readme
     assert "OpenCode `>=1.17.18,<2.0.0`" in readme
+    assert "The source repository\n> is public" in readme
+    assert "SECURITY.md" in readme
     assert "## Choose your entry point" in readme
     assert "**Codex:**" in readme
     assert "**OpenCode:**" in readme
@@ -42,14 +44,19 @@ def test_readme_is_a_verified_release_candidate_surface() -> None:
 def test_supported_install_contract_has_one_skill_path() -> None:
     spec = (ROOT / "docs" / "tangspec.md").read_text(encoding="utf-8")
     guide = (ROOT / "docs" / "getting-started.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
     for document in (spec, guide):
         assert "tang skill install codex" in document
         assert "npx" not in document.lower()
 
+    assert "Cursor" not in spec
+    assert "tang resume HANDLE" in spec
+    assert "releases/download/v0.2.8" in spec
     assert 'tang skill install opencode --project-root "$PWD"' in guide
     assert "**minimum reviewed build**" in guide
-    assert "Tang does **not** ship `tang resume HANDLE` yet" in guide
+    assert "`tang resume C5` reopens the exact indexed Codex session" in guide
+    assert "| `tang resume SESSION` |" in readme
     assert "## Separate-host smoke checklist" in guide
     assert "tang purge --all --yes" in guide
 

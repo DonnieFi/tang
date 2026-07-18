@@ -14,13 +14,20 @@ Tang is a local-first Codex skill and installable Python CLI for continuing codi
 
 Tang serves a solo developer who uses multiple coding-agent harnesses and needs to recover or reuse work without manually hunting through native history stores.
 
-The motivating incident was a Cursor session using Sol that crashed while producing a specification. The session appeared lost, was difficult to locate and continue, and required another agent to recover it. That incident explains Tang's origin, but it is not the opening claim or demonstrated support path for the hackathon release.
+The motivating incident was a session using Sol in another coding-agent
+environment—which will remain unnamed—that crashed while producing a
+specification. The session appeared lost, was difficult to locate and continue,
+and required another agent to recover it. That incident explains Tang's origin,
+but it is not the opening claim or demonstrated support path for the hackathon
+release.
 
-The hackathon release proves one complete Grok-to-Codex workflow. Cursor remains a post-release adapter because its private content-addressed history format is too risky to promise without repeatable recovery from real data.
+The hackathon release proves one complete Grok-to-Codex workflow. Support for
+the unnamed origin environment remains out of scope because its private history
+format is too risky to promise without repeatable recovery from real data.
 
 ## Domain Language
 
-- **Harness:** A coding-agent environment such as Codex, Grok, Cursor, or OpenCode.
+- **Harness:** A coding-agent environment such as Codex, Grok, or OpenCode.
 - **Session:** One native conversation in a harness.
 - **Continuation:** A directed relationship showing that selected prior sessions supplied context to the current session. Avoid the term handoff because the work does not stop.
 - **Timeline:** One directed path through connected sessions.
@@ -54,7 +61,18 @@ The hackathon release proves one complete Grok-to-Codex workflow. Cursor remains
   handle-only presentation rules as the primary Codex workflow; it is not a
   second terminal selector.
 - Codex remains the primary judged Grok-to-Codex demonstration path. OpenCode
-  support is an approved completed extension, not a Cursor support claim.
+  support is an approved completed extension, not a claim for the unnamed
+  origin environment.
+
+### Approved v0.2.8 Extension
+
+- `tang resume HANDLE` may launch the exact indexed, native-available Codex or
+  OpenCode session through that harness's native CLI from a normal project
+  terminal.
+- Resume accepts a project-local Tang handle, keeps the native identity private,
+  and refuses missing, unavailable, foreign-worktree, malformed, or unsupported
+  sessions. It never guesses a session, builds cross-harness context, records a
+  continuation edge, mutates native logs, or remote-controls a running harness.
 
 ### Stretch
 
@@ -62,12 +80,14 @@ The hackathon release proves one complete Grok-to-Codex workflow. Cursor remains
 - Expanded or custom-budget Context Packs.
 - A richer interactive standalone browser.
 - Additional purge scopes and broader diagnostics.
-- Cursor read-only adapter only after repeatable recovery from real Cursor data plus fixture and failure tests.
+- Additional read-only adapters only after repeatable recovery from real data
+  plus fixture and failure tests.
 - SVG export, advanced graph-card themes, fuzzy navigation, or a full-screen TUI.
 
 ### Not In V1
 
-- Launching, resuming, assigning, or remote-controlling another harness.
+- Assigning work to or remote-controlling a running harness.
+- Launching or resuming unsupported harnesses.
 - Continuing context into an arbitrary closed target session.
 - Automatic continuation inference or suggested graph edges.
 - Semantic/vector search or `sqlite-vec`.
@@ -136,7 +156,8 @@ Adapters return partial results with warnings for malformed or truncated data. A
   server catalog and native export contracts. Tang can resolve only the exact
   active OpenCode session supplied privately by the host, then requires an
   explicit user confirmation before it becomes a continuation target.
-- **Cursor stretch:** Read only through a separately isolated adapter. Do not claim support until live recovery, fixture, and failure tests pass.
+- **Future adapters:** Read only through separately isolated adapters. Do not
+  claim support until live recovery, fixture, and failure tests pass.
 
 Release documentation names the adapter versions used for fixtures and distinguishes live-verified from fixture-verified behavior.
 
@@ -235,7 +256,7 @@ The distribution name is `tang-multiverse`; the installed command is `tang`. The
 Publish a tagged wheel so judges can install Tang without rebuilding it from source. The README leads with a version-pinned command after the public repository owner is known:
 
 ```bash
-uv tool install https://github.com/DonnieFi/tang/releases/download/v0.1.0/tang_multiverse-0.1.0-py3-none-any.whl
+uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.8/tang_multiverse-0.2.8-py3-none-any.whl
 tang skill install codex
 ```
 
@@ -252,10 +273,12 @@ Treat the README as a judged product surface, not auxiliary documentation.
 
 1. Hero capture of the terminal Multiverse Map, the line "Keep the blade, switch the handle," and the literal promise "Continue one coding agent's work inside another, with the original sources cited."
 2. The concrete Grok-to-Codex demonstration claim and 30-second version-pinned Linux installation.
-3. The Cursor/Sol crash as a clearly separated origin story, without implying Cursor support.
+3. The unnamed Sol-session crash as a clearly separated origin story, without
+   implying support for that environment.
 4. A short recorded recovery-to-continuation workflow.
 5. Three-step explanation: find, continue here, see the timeline.
-6. Codex/Grok support matrix with Linux as the only supported platform and Cursor marked post-hackathon.
+6. Codex/Grok/OpenCode support matrix with Linux as the only supported
+   platform.
 7. Discovery Capsule, local data lifecycle, redaction limits, and purge instructions.
 8. Architecture diagram and concise CLI reference.
 9. Reproducible `tang demo` and judge-testing instructions.
@@ -306,7 +329,9 @@ Do not use third-party logos in the demo or README without permission. Plain-tex
 - Video: public YouTube, under three minutes, with audio covering the product and Codex/GPT-5.6 usage.
 - Evidence: keep most core implementation in the designated GPT-5.6 Codex thread, capture its `/feedback` ID, and tie major decisions to dated commits.
 - README: include setup, supported platforms, sample data, judge test path, Codex collaboration, and human decision points.
-- Demo narrative: open on the cross-harness gap and demonstrate a Grok session continuing inside Codex. Mention the Cursor/Sol crash later as the origin story, without implying Cursor support.
+- Demo narrative: open on the cross-harness gap and demonstrate a Grok session
+  continuing inside Codex. Mention the unnamed Sol-session crash later as the
+  origin story, without implying support for that environment.
 - Impact measurement: compare Tang's recovery flow with manual native-history hunting and, if time permits, collect feedback from two or three developers.
 - Deadline: July 21, 2026 at 5:00 PM Pacific.
 

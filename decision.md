@@ -408,3 +408,15 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) test the historic v0.1.0 tag; (b) wait for a public release; (c) securely transfer the exact private v0.2.7 candidate wheel and record its commit and SHA-256 before publication.
 - Decision: (c) — validates the actual submission candidate without changing repository visibility; Codex and OpenCode installations are tested where available, while Grok remains a read-only CLI source. Serves: Technological Implementation, Design, Potential Impact, Quality of Idea.
 - By: human (private until submission and requested current smoke) and agent (release-evidence retargeting)
+
+## 2026-07-18T15:18:02Z · tang-2be.31 · Resume exact native sessions through Tang handles
+- Context: A CLI-confirmed continuation can identify a friendly target such as C5, but Codex and OpenCode accept only native session IDs for their own resume commands; forcing the user back through a title/time picker breaks the handle promise.
+- Options: (a) keep link as provenance only and require native pickers; (b) add a Codex-only shortcut; (c) add one adapter-aware `tang resume HANDLE` launcher for the verified Codex and OpenCode native contracts.
+- Decision: (c) — resolve only a current-project, native-available handle, keep its native ID private, dispatch to the owning CLI, and never infer context or edges. Grok remains unsupported as a destination. The new public command supersedes the unpublished v0.2.7 candidate, so issue v0.2.8. Serves: Design, Potential Impact, Technological Implementation.
+- By: human (required Tang-wide resume before publish) and agent (bounded cross-harness launch contract)
+
+## 2026-07-18T15:30:20Z · tang-m0l · Keep public history; harden the current release surface
+- Context: The repository became public before the final tag, so tracked files, history, artifacts, and GitHub metadata needed review for secrets, private paths, stale private-release claims, and avoidable attribution to an unrelated product.
+- Options: (a) rewrite public history broadly; (b) preserve auditable history and remediate only current public/package surfaces; (c) make no changes before submission.
+- Decision: (b) — retain the intentional `red@deba.lan` commit attribution and synthetic test canaries, add a security-reporting policy, remove stale private-repository language and the named origin product from the approved spec, and verify that wheel/sdist contents exclude local agent state and real session data. Repository description, topics, and the first tagged release remain explicit publication actions. Serves: Design, Technological Implementation, Quality of Idea.
+- By: human (public release and attribution policy) and agent (hygiene audit and bounded remediation)
