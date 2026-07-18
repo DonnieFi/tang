@@ -6,9 +6,9 @@ with citations. Tang does not copy whole transcripts into a new tool. It builds
 a small, redacted, source-cited Context Pack and records a continuation only
 after you confirm it.
 
-Tang v0.2.7 is still a release candidate. The source repository is available,
-but the final tagged wheel download does not exist until the release gate is
-approved and published.
+Tang v0.2.7 is still a release candidate and the **minimum reviewed build**.
+The source repository is available, but the final tagged wheel download does
+not exist until the release gate is approved and published.
 
 ## What you need
 

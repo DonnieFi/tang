@@ -48,6 +48,7 @@ def test_supported_install_contract_has_one_skill_path() -> None:
         assert "npx" not in document.lower()
 
     assert 'tang skill install opencode --project-root "$PWD"' in guide
+    assert "**minimum reviewed build**" in guide
 
     codex_skill = (ROOT / "skills" / "tang" / "SKILL.md").read_text(
         encoding="utf-8"

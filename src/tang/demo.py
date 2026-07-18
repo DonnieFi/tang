@@ -288,17 +288,14 @@ def run_demo(*, width: int, color: bool, ascii_only: bool) -> int:
             f"and opaque checkpoint {cited}"
         )
         print(
-            "NEXT ACTION: Continue in the confirmed OpenCode handle and verify "
-            f"that checkpoint invariant {cited}"
+            "NEXT ACTION: Verify that checkpoint invariant, then continue in "
+            f"confirmed OpenCode {handles[target]} {cited}"
         )
         print(
             "MULTIVERSE: selected sources "
             f"{handles[selected[0]]} + {handles[selected[1]]} merge into "
-            f"{handles['codex:multiverse:c']}; that work branches to "
-            f"{handles['codex:multiverse:d']} and {handles['codex:multiverse:e']}, "
-            f"then {handles['codex:multiverse:e']} + "
-            f"{handles['grok:multiverse:f']} merge into {handles[source]}, then "
-            f"continue into confirmed OpenCode {handles[target]}."
+            f"{handles['codex:multiverse:c']}; the map below shows the later "
+            f"branches, merges, and confirmed OpenCode {handles[target]}."
         )
         print(
             f"LINK: {handles[source]} -> {handles[target]} "

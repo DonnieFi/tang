@@ -223,6 +223,7 @@ def test_skill_instructions_require_host_selection_without_invented_ids() -> Non
         "Never guess among candidates",
         "source_ids` exactly match the private selection",
         "tang graph <target_handle>",
+        "bare `tang graph` may focus the one latest confirmed target",
         "Do not ask for another synthesis or summary after linking",
         "one canonical continuation command",
         "idempotent replay",
