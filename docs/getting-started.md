@@ -189,6 +189,9 @@ Codex/Grok path remains ready; use `tang doctor --require-opencode` when
 preparing the OpenCode workflow. Read the individual messages; a nonzero result
 does not necessarily mean the CLI installation itself failed.
 
+`tang index` reports `refreshed` separately from `indexed`: it counts stored
+Capsules whose derived display labels changed without rereading native history.
+
 ### Separate-host smoke checklist
 
 Before recording or publishing a candidate, test the exact transferred wheel
@@ -305,6 +308,9 @@ these results. Some Codex hosts do not provide that identity. In that case the
 skill continues with the same explicit selection flow and clearly says that the
 active session may appear; it never guesses which result is active. Link-time
 self-link rejection and explicit target confirmation still apply.
+This does not relax direct terminal use of `--exclude-current`: without a
+supplied native ID, that flag still requires one unambiguous indexed Codex
+candidate and otherwise refuses rather than guessing.
 
 Use the short handle directly in human commands. Handles are case-insensitive,
 remain stable across refreshes in the project's `.tang/tang.db`, and reset only

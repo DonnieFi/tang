@@ -130,6 +130,18 @@ def test_display_name_prefers_a_redacted_title_then_a_bounded_user_goal(
     assert "[session]" in title_capsule.content["display_name"]
     assert title_capsule.content["session_header"]["title_origin"] == "native"
 
+    native_sentence_title = replace(
+        source,
+        title="Prepare the release. Give reviewers the complete test evidence.",
+    )
+    native_sentence_capsule = DiscoveryCapsuleBuilder().build(
+        native_sentence_title, read, "project-a"
+    )
+    assert native_sentence_capsule.content["display_name"] == (
+        "Prepare the release. Give reviewers the complete test evidence."
+    )
+    assert native_sentence_capsule.content["session_header"]["title_origin"] == "native"
+
     long_goal = "Recover the migration checkpoint " + "x" * 200
     untitled = replace(source, title=None)
     goal_read = TurnBatch(

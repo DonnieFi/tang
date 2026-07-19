@@ -291,7 +291,9 @@ class DiscoveryCapsuleBuilder:
                 "",
             )
         if candidate:
-            normalized = _display_goal(candidate)
+            normalized = (
+                candidate if title_origin == "native" else _display_goal(candidate)
+            )
             if normalized:
                 return _bounded(
                     conceal_native_session_ids(normalized),

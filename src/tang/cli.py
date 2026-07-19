@@ -325,6 +325,7 @@ def _index_document(result: IndexResult) -> dict[str, object]:
         ],
         "excluded": result.excluded,
         "indexed": result.indexed,
+        "refreshed": result.refreshed,
         "schema_version": 1,
         "status": result.status,
         "unchanged": result.unchanged,
@@ -489,6 +490,7 @@ def _run_index(args: argparse.Namespace) -> int:
     else:
         print(
             f"Indexed {result.indexed}; deleted {result.deleted}; "
+            f"refreshed {result.refreshed}; "
             f"unchanged {result.unchanged}; "
             f"excluded {result.excluded}; diagnostics {len(result.diagnostics)}; "
             f"status {result.status}."

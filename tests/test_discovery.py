@@ -235,6 +235,27 @@ def test_search_matches_singular_and_plural_word_forms(
         connection.close()
 
 
+def test_search_keeps_quoted_phrase_matching_with_porter_stemming(
+    codex_fixture_home: Path, tmp_path: Path
+) -> None:
+    current = tmp_path / "current"
+    foreign = tmp_path / "foreign"
+    current.mkdir()
+    foreign.mkdir()
+    database = tmp_path / "tang.db"
+    seed_discovery(database, current, foreign, codex_fixture_home)
+    connection = open_database(database)
+    try:
+        service = DiscoveryService(TangRepository(connection))
+        project_key = resolve_project(current).key
+        assert [
+            item.source_id for item in service.search(project_key, '"forge exact"')
+        ] == ["codex:discovery:alpha"]
+        assert service.search(project_key, '"forge missing"') == ()
+    finally:
+        connection.close()
+
+
 def test_search_limit_is_explicit_and_bounded(
     codex_fixture_home: Path, tmp_path: Path
 ) -> None:

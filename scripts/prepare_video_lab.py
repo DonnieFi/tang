@@ -171,7 +171,10 @@ def show_next(project: Path) -> None:
     print()
     print(card.prompt)
     print()
-    print(f"After the real response, run: done {project}")
+    print(
+        "After the real response, run: "
+        f"python scripts/prepare_video_lab.py done {project}"
+    )
 
 
 def mark_done(project: Path) -> None:
@@ -200,7 +203,13 @@ def show_status(project: Path) -> None:
 
 def _require_complete(project: Path) -> None:
     state = _load(project)
-    if len(set(state["completed"])) != len(CARDS):
+    completed = state["completed"]
+    expected = {card.identifier for card in CARDS}
+    if (
+        not isinstance(completed, list)
+        or set(completed) != expected
+        or len(completed) != len(CARDS)
+    ):
         raise VideoLabError("complete all nine cards before the filming runbook")
 
 

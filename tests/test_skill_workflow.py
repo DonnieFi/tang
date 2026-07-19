@@ -235,6 +235,7 @@ def test_skill_instructions_require_host_selection_without_invented_ids() -> Non
         "may appear in these results",
         "Do not infer which result is active",
         "Self-link rejection and exact-target confirmation",
+        "if the user recognizes the active session in the displayed results, do not select it as a source",
         "only into that active session",
         "Do not accept a historical `--to` handle",
         "normal-terminal command `tang link --from <source-handle> --to <target-handle>`",

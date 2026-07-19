@@ -46,6 +46,7 @@ class IndexResult:
     excluded: int
     warnings: tuple[IndexWarning, ...]
     diagnostics: tuple[IndexDiagnostic, ...] = ()
+    refreshed: int = 0
 
     @property
     def status(self) -> str:
@@ -92,28 +93,30 @@ class ProjectIndexer:
         *,
         now: datetime | None = None,
     ) -> IndexResult:
-        indexed = deleted = unchanged = excluded = 0
+        indexed = deleted = unchanged = excluded = refreshed_count = 0
         warnings: list[IndexWarning] = []
         diagnostics: list[IndexDiagnostic] = []
         timestamp = now or datetime.now(timezone.utc)
 
         # Existing Capsule labels are already redacted, bounded, and persisted.
-        # Backfill them before scanning so a normal incremental index repairs
-        # legacy titleless records without rereading their native transcripts.
+        # Refresh their current algorithm before deriving session titles from
+        # them, so one transaction has one authoritative label source.
         with self._repository.transaction():
-            self._repository.backfill_untitled_sessions(active_project.key)
             for session in self._repository.sessions_for_project(active_project.key):
                 capsule = self._repository.get_capsule(session.source.identity.canonical)
                 if capsule is None:
                     continue
-                refreshed = self._capsules.refresh_display_label(capsule)
-                if refreshed is None:
+                refreshed_capsule = self._capsules.refresh_display_label(capsule)
+                if refreshed_capsule is None:
                     continue
-                self._repository.put_capsule(refreshed)
+                self._repository.put_capsule(refreshed_capsule)
                 if not isinstance(capsule.content.get("source_title"), str):
                     self._repository.set_derived_title(
-                        refreshed.source_id, str(refreshed.content["display_name"])
+                        refreshed_capsule.source_id,
+                        str(refreshed_capsule.content["display_name"]),
                     )
+                refreshed_count += 1
+            self._repository.backfill_untitled_sessions(active_project.key)
 
         for adapter in adapters:
             prior_checkpoint = self._repository.get_checkpoint(
@@ -257,4 +260,5 @@ class ProjectIndexer:
             excluded,
             tuple(warnings),
             tuple(diagnostics),
+            refreshed_count,
         )

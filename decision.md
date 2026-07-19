@@ -462,3 +462,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) leave generic labels; (b) generate model summaries; (c) select an existing imperative task sentence from the already-redacted Capsule and map Tang commands to fixed workflow labels.
 - Decision: (c) — improve recognition without storing synthesis, rereading unchanged native transcripts, or retaining new metadata. Capsule display-name version 3 refreshes compatible existing labels from stored evidence during normal index. Serves: Design, Potential Impact, Technological Implementation.
 - By: human (functional-test evidence) and agent (privacy-preserving title heuristic)
+
+## 2026-07-19T02:15:00Z · tang-2be.41 · Make label refresh observable without rewriting native evidence
+- Context: Release review found documentation lag on label version and stemming, native multi-sentence titles could be shortened by a derived-label helper, and an index could update labels while reporting no visible work.
+- Options: (a) leave refresh implicit and accept title mutation; (b) count label changes as indexed native sessions; (c) preserve native titles verbatim, refresh Capsules before title backfill, and expose a separate `refreshed` count.
+- Decision: (c) — accurately represents label-only derived-data maintenance without claiming a native reread or synthesizing new content. Serves: Design, Technological Implementation, Quality of Idea.
+- By: agent (review remediation under approved release-polish scope)

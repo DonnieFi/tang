@@ -207,14 +207,18 @@ Store at most 8 KiB of redacted visible text per session:
   count, and whether the title was native, derived from a user goal, or a
   no-user-task fallback.
 
-The Capsule document keeps `schema_version: 1`; `display_name_version: 2`
+The Capsule document keeps `schema_version: 1`; `display_name_version: 3`
 identifies the current derived-label algorithm. Its `session_header` uses
 `version: 1` and only the optional `model_provider`, `model_id`, and `effort`
 fields plus deterministic `visible_turn_count`, `visible_text_bytes`, and a
 `title_origin` of `native`, `derived_goal`, or `no_user_task`. Fields are
 harness-dependent rather than a promise of uniform host metadata.
 
-Index Discovery Capsules with normal FTS5 for reliable search, snippets, updates, and deletion. Do not store system prompts, hidden reasoning, tool payloads/results, file bodies, or full transcripts. Native logs remain the source of truth.
+Index Discovery Capsules with SQLite FTS5 using the Porter tokenizer for
+reliable word-form search (for example, `book` also finds `books`), snippets,
+updates, and deletion. Quoted phrases retain FTS phrase semantics. Do not store
+system prompts, hidden reasoning, tool payloads/results, file bodies, or full
+transcripts. Native logs remain the source of truth.
 
 Tang never writes a generated session summary. A Context Pack and its live
 Continuation Brief remain on-demand artifacts; an adapter-native summary may be

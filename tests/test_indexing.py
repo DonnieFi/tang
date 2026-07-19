@@ -196,6 +196,7 @@ def test_incremental_index_backfills_legacy_title_from_capsule_without_reread(
 
         assert first.indexed > 0
         assert second.indexed == 0
+        assert second.refreshed == 0
         refreshed = repository.get_session(source_id)
         assert refreshed is not None
         assert refreshed.source.title == display_name
@@ -268,6 +269,7 @@ def test_incremental_index_refreshes_pre_label_version_capsules(
 
         assert first.indexed == 1
         assert refreshed.indexed == 0
+        assert refreshed.refreshed == 1
         assert reads == 0
         rebuilt = repository.get_capsule(source_id)
         assert rebuilt is not None
@@ -338,6 +340,7 @@ def test_index_json_and_human_output_are_deterministic(
         "diagnostics": [],
         "excluded": 1,
         "indexed": 4,
+        "refreshed": 0,
         "schema_version": 1,
         "status": "partial",
         "unchanged": 0,
@@ -352,7 +355,7 @@ def test_index_json_and_human_output_are_deterministic(
     assert main(arguments) == 1
     second = capsys.readouterr()
     assert second.out == (
-        "Indexed 0; deleted 0; unchanged 0; excluded 0; diagnostics 0; "
+        "Indexed 0; deleted 0; refreshed 0; unchanged 0; excluded 0; diagnostics 0; "
         "status partial.\n"
     )
     assert "warning:" in second.err
@@ -451,6 +454,7 @@ def test_foreign_adapter_damage_is_a_complete_index_with_qualified_diagnostics(
 
     assert document["status"] == "complete"
     assert document["indexed"] == 1
+    assert document["refreshed"] == 0
     assert document["excluded"] == 1
     assert document["warning_count"] == 0
     assert document["warnings"] == []
@@ -468,7 +472,7 @@ def test_foreign_adapter_damage_is_a_complete_index_with_qualified_diagnostics(
     assert main(arguments) == 0
     repeated = capsys.readouterr()
     assert repeated.out == (
-        "Indexed 0; deleted 0; unchanged 0; excluded 0; diagnostics 4; "
+        "Indexed 0; deleted 0; refreshed 0; unchanged 0; excluded 0; diagnostics 4; "
         "status complete.\n"
     )
     assert repeated.err.count("diagnostic[foreign]") == 4

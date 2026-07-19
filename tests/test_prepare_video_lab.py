@@ -30,6 +30,7 @@ def test_video_lab_director_tracks_manual_cards_without_harness_automation(
     assert "CODEX · PLACES · codex-places" in first
     assert "exactly five" in first
     assert "start a fresh session" in first
+    assert "python scripts/prepare_video_lab.py done" in first
 
     assert module.main(["done", str(project)]) == 0
     assert module.main(["next", str(project)]) == 0
@@ -83,3 +84,22 @@ def test_video_lab_film_and_voiceover_separate_capture_from_narration(
     voiceover = capsys.readouterr().out
     assert "BOOK-MERGE VOICEOVER" in voiceover
     assert "Tang does not persist that synthesis" in voiceover
+
+
+def test_video_lab_film_refuses_a_hand_edited_unknown_completion(
+    tmp_path: Path, capsys
+) -> None:
+    module = _module()
+    project = tmp_path / "video-lab"
+    assert module.main(["init", str(project)]) == 0
+    state_path = project / ".tang-video-lab.json"
+    state = module.json.loads(state_path.read_text(encoding="utf-8"))
+    state["completed"] = [
+        *(card.identifier for card in module.CARDS[:-1]),
+        "not-a-video-card",
+    ]
+    state_path.write_text(module.json.dumps(state), encoding="utf-8")
+    capsys.readouterr()
+
+    assert module.main(["film", str(project)]) == 2
+    assert "complete all nine cards" in capsys.readouterr().err
