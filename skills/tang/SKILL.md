@@ -7,6 +7,17 @@ description: Find and continue prior coding-agent work from the current project 
 
 Continue prior project work in the active Codex session. Keep selection interactive through host-native questions; keep Tang CLI calls non-interactive and JSON-based.
 
+## One-step predecessor recall
+
+When the user invokes `$tang context` or `$tang context all`, retrieve the
+active session's confirmed predecessor Context Pack before normal discovery. If
+the host supplied its native Codex ID, run `tang context all
+--current-native-id <native-id> --json` privately; otherwise run bare `tang
+context all --json`, which refuses an ambiguous latest target. Use the returned
+cited evidence to write the three-section Continuation Brief in the same
+response. Do not ask the user to paste a Context Pack, re-confirm an existing
+link, or create or change any link.
+
 ## Recover context
 
 1. Run `tang doctor --json` when CLI, database, FTS5, or adapter readiness is unknown. Treat `database: not_initialized` as expected before the first index; doctor does not create it. Explain any degraded component and stop if the CLI is unavailable.

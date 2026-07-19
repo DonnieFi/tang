@@ -5,7 +5,20 @@ description: Recover, compare, or continue earlier project work in the active Op
 
 # Tang
 
-Use Tang only for the current project. Run `tang doctor --json`, then `tang index --json`; treat index exit 1 as partial evidence and disclose its warnings.
+Use Tang only for the current project.
+
+## One-step predecessor recall
+
+When the OpenCode command request is exactly `context` or `context all`, call
+`tang_predecessor_context` privately before the normal recovery workflow. It
+resolves only the exact active host session and returns its confirmed
+predecessor Context Pack. If it returns a pack, write the three-section
+Continuation Brief in the same response using its citations. Do not ask the
+user to paste evidence, re-confirm an existing edge, create an edge, or run
+discovery first. If it returns a fixed unavailable code, explain it and stop.
+
+For normal recovery, run `tang doctor --json`, then `tang index --json`; treat
+index exit 1 as partial evidence and disclose its warnings.
 
 Use `tang browse --json --page 1` or `tang search QUERY --json --page 1`. Present only the returned handles, redacted fields, and current page choices. Follow only the returned page controls, and ask before changing pages. Keep canonical IDs private. Ask the user to select exact displayed choices; never infer a source from prose, recency, or a title. When indexing is partial, never imply that omitted sessions are absent.
 

@@ -345,6 +345,11 @@ same cited source evidence; it deliberately excludes the target's own turns.
 Pass that target handle explicitly alongside the predecessors if you need it.
 Tang never stores a generated session summary.
 
+Inside a linked current host session, `$tang context` in Codex or `/tang
+context` in OpenCode performs that predecessor recall and writes the cited
+brief in one request. Neither shorthand records nor changes a continuation
+edge.
+
 For scripts, add `--json` to `index`, `browse`, `search`, or `context`. Add an
 explicit `--page N` to page JSON results in five-choice groups; otherwise JSON
 returns the complete deterministic result set for automation. Tang JSON uses

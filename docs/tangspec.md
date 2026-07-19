@@ -272,6 +272,11 @@ The skill workflow:
 7. Resolve and confirm the current session if necessary.
 8. Record explicit continuation edges and show the Multiverse Map.
 
+For an already linked, host-identified current Codex or OpenCode session, the
+skill also supports a one-step `context` shorthand: resolve that exact active
+target privately, reread only its confirmed predecessor evidence, and write the
+cited Continuation Brief without a new confirmation or graph mutation.
+
 Scaffold `skills/tang` with the official skill initializer. `SKILL.md` contains only required frontmatter fields and imperative workflow instructions; `agents/openai.yaml` contains matching user-facing metadata.
 
 ## Installation And Distribution

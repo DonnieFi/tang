@@ -11,7 +11,8 @@ ROOT = Path(__file__).parents[1]
 
 
 def test_release_metadata_and_manifest_are_explicit() -> None:
-    project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
+    configuration = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    project = configuration["project"]
     manifest = (ROOT / "MANIFEST.in").read_text()
 
     assert project["name"] == "tang-multiverse"
@@ -19,11 +20,19 @@ def test_release_metadata_and_manifest_are_explicit() -> None:
     assert project["requires-python"] == ">=3.11"
     assert project["license"] == "MIT"
     assert project["scripts"] == {"tang": "tang.cli:main"}
+    opencode_tools = configuration["tool"]["setuptools"]["data-files"][
+        "share/tang/opencode/tools"
+    ]
+    assert opencode_tools == [
+        ".opencode/tools/tang_current_target.ts",
+        ".opencode/tools/tang_predecessor_context.ts",
+    ]
     assert project["urls"]["Repository"] == "https://github.com/DonnieFi/tang.git"
     assert "recursive-include tests/fixtures" in manifest
     assert "include SECURITY.md" in manifest
     assert "include CONTEXT.md" in manifest
     assert "include docs/getting-started.md" in manifest
+    assert "include docs/demo_script.md" in manifest
     assert "include docs/video-runbook.md" in manifest
     assert "include docs/assets/tang-multiverse-demo.svg" in manifest
     assert "include docs/assets/tang-mascot-concept.png" in manifest

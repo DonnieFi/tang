@@ -353,6 +353,9 @@ def test_opencode_skill_command_and_tool_preserve_workflow_contract() -> None:
     skill = (root / "skills/opencode/tang/SKILL.md").read_text()
     command = (root / ".opencode/commands/tang.md").read_text()
     tool = (root / ".opencode/tools/tang_current_target.ts").read_text()
+    predecessor_tool = (
+        root / ".opencode/tools/tang_predecessor_context.ts"
+    ).read_text()
 
     assert skill.startswith("---\nname: tang\ndescription:")
     for phrase in (
@@ -373,10 +376,19 @@ def test_opencode_skill_command_and_tool_preserve_workflow_contract() -> None:
         "An isolated current node is a valid map",
         "Do not persist the synthesis",
         "Do not ask for another synthesis or summary after linking",
+        "One-step predecessor recall",
+        "tang_predecessor_context",
+        "Do not ask the\nuser to paste evidence",
     ):
         assert phrase in skill
     assert "Load the `tang` skill" in command
     assert "do not substitute" in command
+    assert "$ARGUMENTS" in command
+    assert "exactly `context` or `context all`" in command
+    assert "Do not ask the user to supply a Context Pack" in command
+    assert skill.index("## One-step predecessor recall") < skill.index(
+        "For normal recovery"
+    )
     assert "context.sessionID" in tool
     assert "context.directory" in tool
     assert "context.worktree" in tool
@@ -386,3 +398,14 @@ def test_opencode_skill_command_and_tool_preserve_workflow_contract() -> None:
     assert "@opencode-ai/plugin" not in tool
     assert 'stderr: "ignore"' in tool
     assert "tang_contract_probe" not in tool
+    assert "opencode-target" in predecessor_tool
+    assert '"context"' in predecessor_tool
+    assert '"all"' in predecessor_tool
+    assert '"--for"' in predecessor_tool
+    assert "host-id-match" in predecessor_tool
+    assert "predecessor-context-unavailable" in predecessor_tool
+    assert "context.abort" in predecessor_tool
+    assert "context.sessionID" in predecessor_tool
+    assert 'stderr: "ignore"' in predecessor_tool
+    assert "shell:" not in predecessor_tool
+    assert "native_id" not in predecessor_tool

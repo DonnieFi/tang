@@ -97,6 +97,7 @@ def test_opencode_install_is_idempotent_change_safe_and_cli_accessible(
     assert (config / "skills/tang/SKILL.md").is_file()
     assert (config / "commands/tang.md").is_file()
     assert (config / "tools/tang_current_target.ts").is_file()
+    assert (config / "tools/tang_predecessor_context.ts").is_file()
     unrelated = config / "package.json"
     unrelated.write_text('{"dependencies":{"user-owned":"1.0.0"}}')
     if os.name == "posix":
@@ -104,6 +105,9 @@ def test_opencode_install_is_idempotent_change_safe_and_cli_accessible(
         assert (config / "skills/tang/SKILL.md").stat().st_mode & 0o777 == 0o600
         assert (config / "commands/tang.md").stat().st_mode & 0o777 == 0o600
         assert (config / "tools/tang_current_target.ts").stat().st_mode & 0o777 == 0o600
+        assert (
+            (config / "tools/tang_predecessor_context.ts").stat().st_mode & 0o777
+        ) == 0o600
 
     command = config / "commands/tang.md"
     command.write_text("local customization")
@@ -176,6 +180,7 @@ def test_bundled_opencode_paths_resolve_installed_wheel_data(
     (installed / "skills/tang/SKILL.md").write_text("installed")
     (installed / "commands/tang.md").write_text("installed")
     (installed / "tools/tang_current_target.ts").write_text("installed")
+    (installed / "tools/tang_predecessor_context.ts").write_text("installed")
     monkeypatch.setattr("tang.skill_install.sys.prefix", str(tmp_path))
     monkeypatch.setattr(
         "tang.skill_install.__file__",
@@ -188,5 +193,9 @@ def test_bundled_opencode_paths_resolve_installed_wheel_data(
         (
             installed / "tools/tang_current_target.ts",
             Path("tools/tang_current_target.ts"),
+        ),
+        (
+            installed / "tools/tang_predecessor_context.ts",
+            Path("tools/tang_predecessor_context.ts"),
         ),
     )

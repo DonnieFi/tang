@@ -468,3 +468,15 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) leave refresh implicit and accept title mutation; (b) count label changes as indexed native sessions; (c) preserve native titles verbatim, refresh Capsules before title backfill, and expose a separate `refreshed` count.
 - Decision: (c) — accurately represents label-only derived-data maintenance without claiming a native reread or synthesizing new content. Serves: Design, Technological Implementation, Quality of Idea.
 - By: agent (review remediation under approved release-polish scope)
+
+## 2026-07-19T15:00:00Z · tang-2be.42 · Make predecessor recall a one-step host action
+- Context: Functional filming found that `/tang` merely loaded instructions, then required a second natural-language request to fetch O7's already confirmed predecessor pack and a third request to use it.
+- Options: (a) retain the multi-turn instructional flow; (b) have a shorthand guess historical sources; (c) make `context` shorthand call a private exact-host target bridge and retrieve only explicit confirmed predecessors.
+- Decision: (c) — OpenCode receives an argument-aware `/tang context` command plus a private orchestration tool; Codex receives matching shortcut instructions. It fails closed when the active host target is not exact and never creates or changes edges. Serves: Design, Potential Impact, Technological Implementation.
+- By: human (functional-test finding and requested fix) and agent (bounded host integration)
+
+## 2026-07-19T15:05:00Z · tang-2be.42 · Include one-step recall in the approved v0.2.9 release
+- Context: The one-step host recall tool changes the unreleased v0.2.9 candidate's installed OpenCode assets before any v0.2.9 tag or public artifact exists.
+- Options: (a) advance an unreleased candidate to v0.2.10; (b) retain v0.2.9 and rebuild the final artifact from the reviewed release commit.
+- Decision: (b) — the human explicitly selected v0.2.9 as the release name; rebuild and publish only the matching final reviewed artifact. Serves: Quality of Idea, Technological Implementation.
+- By: human (release naming authority)

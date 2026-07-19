@@ -51,6 +51,10 @@ def bundled_opencode_paths() -> tuple[tuple[Path, Path], ...]:
                 development / ".opencode" / "tools" / "tang_current_target.ts",
                 Path("tools/tang_current_target.ts"),
             ),
+            (
+                development / ".opencode" / "tools" / "tang_predecessor_context.ts",
+                Path("tools/tang_predecessor_context.ts"),
+            ),
         )
     installed = Path(sys.prefix) / "share" / "tang" / "opencode"
     return (
@@ -59,6 +63,10 @@ def bundled_opencode_paths() -> tuple[tuple[Path, Path], ...]:
         (
             installed / "tools" / "tang_current_target.ts",
             Path("tools/tang_current_target.ts"),
+        ),
+        (
+            installed / "tools" / "tang_predecessor_context.ts",
+            Path("tools/tang_predecessor_context.ts"),
         ),
     )
 

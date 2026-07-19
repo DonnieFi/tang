@@ -126,6 +126,10 @@ The OpenCode command, skill, and private current-target bridge are bundled with
 the same Tang wheel. Tang reads supported OpenCode transcripts independently
 of the model provider used for that session.
 
+After an explicitly confirmed continuation, `$tang context` in Codex or
+`/tang context` in OpenCode recalls the active session's confirmed predecessors
+and writes the cited Continuation Brief in one turn. It never creates a link.
+
 ### Choose your entry point
 
 - **Codex:** install the bundled skill with `tang skill install codex`, start a
@@ -329,6 +333,10 @@ Linux gate runs kept search and Context Pack generation under 0.2 seconds each,
 the search/context/link/graph core under 0.6 seconds, and the complete isolated
 demo under 2 seconds. These are observed release-host timings, not universal
 performance guarantees.
+
+For a filmed, real-session rehearsal, use the [video runbook](docs/video-runbook.md)
+to prepare isolated source sessions and the [voice-over script](docs/demo_script.md)
+as a separate narration track.
 
 Release-candidate reviewers can run the isolated clean-wheel acceptance script
 from a matching source checkout. It records the wheel hash, environment, exit

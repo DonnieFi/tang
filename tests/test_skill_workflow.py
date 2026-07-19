@@ -239,5 +239,9 @@ def test_skill_instructions_require_host_selection_without_invented_ids() -> Non
         "only into that active session",
         "Do not accept a historical `--to` handle",
         "normal-terminal command `tang link --from <source-handle> --to <target-handle>`",
+        "## One-step predecessor recall",
+        "`$tang context` or `$tang context all`",
+        "Do not ask the user to paste a Context Pack",
+        "or create or change any link",
     )
     assert all(phrase in text for phrase in required)

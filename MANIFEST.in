@@ -5,6 +5,7 @@ include SECURITY.md
 include README.md
 include CONTEXT.md
 include docs/getting-started.md
+include docs/demo_script.md
 include docs/tangspec.md
 include docs/video-runbook.md
 include docs/assets/README.md
