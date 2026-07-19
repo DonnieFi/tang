@@ -120,7 +120,7 @@ Tang rejects self-links and links that introduce a cycle. A Multiverse is a weak
 | `tang index` | Incrementally index the current project. |
 | `tang browse` | List indexed sessions with harness, time, title, health, and capability status. |
 | `tang search QUERY` | Search Discovery Capsules with project, harness, time, and health filters. |
-| `tang context SESSION...` | Emit a deterministic Markdown or JSON Context Pack using the compact budget. |
+| `tang context [SESSION...]` | Emit a deterministic Markdown or JSON Context Pack using the compact budget. Bare `context` and `context all` recall every confirmed predecessor of one unambiguous latest target; `context N` limits ancestry to N link hops. |
 | `tang link --from SESSION... --current` | Link selected sources into the current session after target confirmation. |
 | `tang link --from SESSION... --to SESSION` | Explicit scripting and ambiguity-resolution path. |
 | `tang graph [SESSION]` | Render the containing Multiverse Map in the terminal. |
@@ -194,8 +194,16 @@ Store at most 8 KiB of redacted visible text per session:
 - First user goal.
 - Several recent visible user and agent excerpts.
 - Stable session citation and display metadata.
+- Bounded, evidence-qualified header facts: native model/provider when exposed,
+  Codex effort when exposed, visible-turn count, approximate visible-text byte
+  count, and whether the title was native, derived from a user goal, or a
+  no-user-task fallback.
 
 Index Discovery Capsules with normal FTS5 for reliable search, snippets, updates, and deletion. Do not store system prompts, hidden reasoning, tool payloads/results, file bodies, or full transcripts. Native logs remain the source of truth.
+
+Tang never writes a generated session summary. A Context Pack and its live
+Continuation Brief remain on-demand artifacts; an adapter-native summary may be
+retained only when separately bounded and redacted.
 
 Apply the same best-effort redactor when creating capsules, showing snippets, reading context, producing annotations, and rendering graph labels. Redaction protects against accidental disclosure; it is not encryption and does not guarantee protection against forensic recovery.
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -105,6 +106,12 @@ class DiscoveryRow:
     display_name: str | None = None
     first_user_excerpt: str | None = None
     snippet: str | None = None
+    model_provider: str | None = None
+    model_id: str | None = None
+    effort: str | None = None
+    title_origin: str | None = None
+    visible_turn_count: int | None = None
+    visible_text_bytes: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -444,6 +451,55 @@ class TangRepository:
             for row in rows
         )
 
+    def confirmed_predecessors(
+        self, anchor_id: str, project_key: str, *, max_hops: int | None = None
+    ) -> tuple[str, ...]:
+        """Return deterministic confirmed ancestors of one project session.
+
+        ``max_hops`` counts continuation edges backward from ``anchor_id``.
+        ``None`` includes the complete confirmed ancestry.  The anchor itself is
+        deliberately omitted because a Context Pack contains predecessor
+        evidence, not the active continuation target.
+        """
+
+        if max_hops is not None and max_hops < 1:
+            raise ValueError("ancestor depth must be at least 1")
+        anchor = self.get_session(anchor_id)
+        if anchor is None or anchor.project_key != project_key:
+            raise ValueError("anchor session is not indexed in the current project")
+
+        incoming: dict[str, list[str]] = {}
+        for edge in self.continuations_for_project(project_key):
+            incoming.setdefault(edge.target_id, []).append(edge.source_id)
+        for sources in incoming.values():
+            sources.sort()
+
+        found: set[str] = set()
+        pending: deque[tuple[str, int]] = deque(((anchor_id, 0),))
+        while pending:
+            target_id, depth = pending.popleft()
+            if max_hops is not None and depth >= max_hops:
+                continue
+            for source_id in incoming.get(target_id, []):
+                if source_id in found:
+                    continue
+                found.add(source_id)
+                pending.append((source_id, depth + 1))
+
+        sessions = {
+            session.source.identity.canonical: session
+            for session in self.sessions_for_project(project_key)
+        }
+        return tuple(
+            sorted(
+                found,
+                key=lambda source_id: (
+                    sessions[source_id].source.updated_at,
+                    source_id,
+                ),
+            )
+        )
+
     def purge_all(self) -> PurgeResult:
         """Delete every currently defined Tang-derived row in one transaction."""
 
@@ -730,6 +786,16 @@ class TangRepository:
         capabilities = content.get("capabilities", [])
         raw_excerpts = content.get("excerpts", [])
         excerpts = raw_excerpts if isinstance(raw_excerpts, list) else []
+        raw_header = content.get("session_header")
+        header = raw_header if isinstance(raw_header, dict) else {}
+
+        def optional_text(key: str) -> str | None:
+            value = header.get(key)
+            return value if isinstance(value, str) else None
+
+        def optional_count(key: str) -> int | None:
+            value = header.get(key)
+            return value if type(value) is int and value >= 0 else None
         first_user_excerpt = next(
             (
                 excerpt.get("text")
@@ -759,4 +825,10 @@ class TangRepository:
             ),
             first_user_excerpt=first_user_excerpt,
             snippet=snippet if snippet is not None else first_user_excerpt,
+            model_provider=optional_text("model_provider"),
+            model_id=optional_text("model_id"),
+            effort=optional_text("effort"),
+            title_origin=optional_text("title_origin"),
+            visible_turn_count=optional_count("visible_turn_count"),
+            visible_text_bytes=optional_count("visible_text_bytes"),
         )

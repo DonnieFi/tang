@@ -17,6 +17,7 @@ from tang.adapters.base import (
     BatchStatus,
     OpaqueSourceLocator,
     ScanBatch,
+    SessionHeader,
     SessionHealth,
     SessionIdentity,
     SourceFingerprint,
@@ -156,7 +157,10 @@ class GrokAdapter:
                 current_validated.add(identity.canonical)
             else:
                 current_validated.discard(identity.canonical)
-            if previous.get(identity.canonical) != record.fingerprint.value:
+            if (
+                previous.get(identity.canonical) != record.fingerprint.value
+                or identity.canonical not in validated
+            ):
                 records.append(record)
 
         protected = {
@@ -187,7 +191,7 @@ class GrokAdapter:
             self.source_namespace,
             json.dumps(
                 {
-                    "schema_version": 2,
+                    "schema_version": 3,
                     "fingerprints": current,
                     "validated": sorted(current_validated),
                 },
@@ -533,6 +537,7 @@ class GrokAdapter:
                 updated_at=updated_at,
                 title=title,
                 health=SessionHealth.UNKNOWN,
+                header=SessionHeader(model_id=summary.get("current_model_id")),
             ),
             tuple(warnings),
             summary_valid,
@@ -658,16 +663,17 @@ class GrokAdapter:
             payload = json.loads(checkpoint.cursor)
             fingerprints = payload["fingerprints"]
             schema_version = payload.get("schema_version")
-            if schema_version not in {1, 2} or not isinstance(fingerprints, dict):
+            if schema_version not in {1, 2, 3} or not isinstance(fingerprints, dict):
                 raise ValueError
             if not all(
                 isinstance(key, str) and isinstance(value, str)
                 for key, value in fingerprints.items()
             ):
                 raise ValueError
-            if schema_version == 1:
+            if schema_version in {1, 2}:
                 # Revalidate legacy checkpoint entries once before treating them
-                # as safe to skip; v1 did not record structural validity.
+                # as safe to skip. Earlier formats predate derived Capsule
+                # header metadata and must re-emit records for one refresh.
                 return fingerprints, frozenset()
             validated = payload["validated"]
             if (

@@ -31,6 +31,7 @@ from tang.adapters.base import (
     BatchStatus,
     OpaqueSourceLocator,
     ScanBatch,
+    SessionHeader,
     SessionHealth,
     SessionIdentity,
     SourceFingerprint,
@@ -131,7 +132,7 @@ class OpenCodeAdapter:
 
     def scan(self, checkpoint: AdapterCheckpoint | None) -> ScanBatch:
         warnings: list[AdapterWarning] = []
-        scopes = self._decode_checkpoint(checkpoint, warnings)
+        scopes, refresh_headers = self._decode_checkpoint(checkpoint, warnings)
         previous = scopes.get(self._checkpoint_scope, {})
         try:
             version = self._run_cli(("--version",), "version").strip()
@@ -168,7 +169,10 @@ class OpenCodeAdapter:
             if record is None:
                 continue
             current[record.identity.canonical] = record.fingerprint.value
-            if previous.get(record.identity.canonical) != record.fingerprint.value:
+            if (
+                refresh_headers
+                or previous.get(record.identity.canonical) != record.fingerprint.value
+            ):
                 records.append(record)
 
         protected = {
@@ -204,7 +208,7 @@ class OpenCodeAdapter:
             self.adapter_key,
             self.source_namespace,
             json.dumps(
-                {"schema_version": 2, "scopes": next_scopes},
+                {"schema_version": 3, "scopes": next_scopes},
                 sort_keys=True,
                 separators=(",", ":"),
             ),
@@ -291,6 +295,11 @@ class OpenCodeAdapter:
 
         warnings: list[AdapterWarning] = []
         turns = self._visible_turns(messages, identity, selection, warnings)
+        model = info.get("model")
+        header = SessionHeader(
+            model_provider=(model.get("providerID") if isinstance(model, dict) else None),
+            model_id=(model.get("id") if isinstance(model, dict) else None),
+        )
         time_value = info.get("time")
         updated = time_value.get("updated") if isinstance(time_value, dict) else None
         if not self._nonnegative_integer(updated):
@@ -314,6 +323,7 @@ class OpenCodeAdapter:
             status=BatchStatus.PARTIAL if warnings else BatchStatus.COMPLETE,
             turns=turns,
             warnings=tuple(warnings),
+            header=header,
         )
 
     def _catalog_record(
@@ -656,9 +666,9 @@ class OpenCodeAdapter:
         self,
         checkpoint: AdapterCheckpoint | None,
         warnings: list[AdapterWarning],
-    ) -> dict[str, dict[str, str]]:
+    ) -> tuple[dict[str, dict[str, str]], bool]:
         if checkpoint is None:
-            return {}
+            return {}, False
         if (
             checkpoint.adapter != self.adapter_key
             or checkpoint.source_namespace != self.source_namespace
@@ -669,7 +679,7 @@ class OpenCodeAdapter:
                     "The checkpoint belongs to another adapter namespace; a full scan ran.",
                 )
             )
-            return {}
+            return {}, False
         try:
             payload = json.loads(checkpoint.cursor)
             if not isinstance(payload, dict):
@@ -682,9 +692,10 @@ class OpenCodeAdapter:
                         "The legacy OpenCode checkpoint was discarded for a safe worktree-scoped full scan.",
                     )
                 )
-                return {}
+                return {}, False
             scopes = payload["scopes"]
-            if payload.get("schema_version") != 2 or not isinstance(scopes, dict):
+            schema_version = payload.get("schema_version")
+            if schema_version not in {2, 3} or not isinstance(scopes, dict):
                 raise ValueError
             decoded: dict[str, dict[str, str]] = {}
             for scope, fingerprints in scopes.items():
@@ -694,7 +705,7 @@ class OpenCodeAdapter:
                 ):
                     raise ValueError
                 decoded[scope] = self._validated_fingerprints(fingerprints)
-            return decoded
+            return decoded, schema_version == 2
         except (json.JSONDecodeError, KeyError, TypeError, ValueError):
             warnings.append(
                 AdapterWarning(
@@ -702,7 +713,7 @@ class OpenCodeAdapter:
                     "The checkpoint was invalid; a full scan ran.",
                 )
             )
-            return {}
+            return {}, False
 
     def _validated_fingerprints(self, value: object) -> dict[str, str]:
         if not isinstance(value, dict) or not all(

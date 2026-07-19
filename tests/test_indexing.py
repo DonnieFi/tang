@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
@@ -198,6 +199,79 @@ def test_incremental_index_backfills_legacy_title_from_capsule_without_reread(
         refreshed = repository.get_session(source_id)
         assert refreshed is not None
         assert refreshed.source.title == display_name
+    finally:
+        connection.close()
+
+
+def test_incremental_index_refreshes_pre_label_version_capsules(
+    copied_codex_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    current = tmp_path / "current"
+    current.mkdir()
+    database = tmp_path / "data" / "tang.db"
+    connection = open_database(database)
+    repository = TangRepository(connection)
+    point_codex_at_project(copied_codex_home, current)
+    adapter = CodexAdapter(copied_codex_home, source_namespace="label-refresh")
+    project = resolve_project(current)
+    indexer = ProjectIndexer(repository)
+    try:
+        first = indexer.index((adapter,), project, now=NOW)
+        source_id = repository.sessions_for_project(project.key)[0].source.identity.canonical
+        capsule = repository.get_capsule(source_id)
+        assert capsule is not None
+        legacy = dict(capsule.content)
+        legacy.pop("display_name_version")
+        checkpoint = repository.get_checkpoint(
+            adapter.adapter_key, adapter.source_namespace, project.key
+        )
+        assert checkpoint is not None
+        legacy_checkpoint = json.loads(checkpoint.cursor)
+        legacy_checkpoint["schema_version"] = 2
+        with repository.transaction():
+            repository.put_capsule(
+                replace(
+                    capsule,
+                    content=legacy,
+                    byte_count=len(
+                        json.dumps(
+                            legacy,
+                            ensure_ascii=False,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        ).encode("utf-8")
+                    ),
+                )
+            )
+            repository.put_checkpoint(
+                AdapterCheckpoint(
+                    adapter.adapter_key,
+                    adapter.source_namespace,
+                    json.dumps(
+                        legacy_checkpoint, sort_keys=True, separators=(",", ":")
+                    ),
+                ),
+                project.key,
+                NOW,
+            )
+
+        reads = 0
+        original = adapter.read
+
+        def counted(*args, **kwargs):  # type: ignore[no-untyped-def]
+            nonlocal reads
+            reads += 1
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(adapter, "read", counted)
+        refreshed = indexer.index((adapter,), project, now=NOW)
+
+        assert first.indexed == 1
+        assert refreshed.indexed == 1
+        assert reads == 1
+        rebuilt = repository.get_capsule(source_id)
+        assert rebuilt is not None
+        assert rebuilt.content["display_name_version"] == 2
     finally:
         connection.close()
 

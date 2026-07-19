@@ -147,7 +147,13 @@ class ProjectIndexer:
                 stored_fingerprint = self._repository.fingerprint_for(
                     source.identity.canonical
                 )
-                if stored_fingerprint == source.fingerprint:
+                existing_capsule = self._repository.get_capsule(
+                    source.identity.canonical
+                )
+                if (
+                    stored_fingerprint == source.fingerprint
+                    and not self._capsules.needs_label_refresh(existing_capsule)
+                ):
                     unchanged += 1
                     continue
                 read = adapter.read(source, TurnSelection())
@@ -170,10 +176,9 @@ class ProjectIndexer:
                     # from forcing full rescans forever; any native content change
                     # changes the fingerprint and makes it eligible for retry.
                     continue
+                source = replace(source, header=source.header.merged_with(read.header))
                 try:
-                    capsule = self._capsules.build(
-                        source, read, active_project.key
-                    )
+                    capsule = self._capsules.build(source, read, active_project.key)
                 except ValueError:
                     warnings.append(
                         IndexWarning(

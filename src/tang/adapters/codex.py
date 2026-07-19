@@ -16,6 +16,7 @@ from tang.adapters.base import (
     BatchStatus,
     OpaqueSourceLocator,
     ScanBatch,
+    SessionHeader,
     SessionHealth,
     SessionIdentity,
     SourceFingerprint,
@@ -169,7 +170,10 @@ class CodexAdapter:
                 current_validated.add(identity.canonical)
             else:
                 current_validated.discard(identity.canonical)
-            if previous.get(identity.canonical) != record.fingerprint.value:
+            if (
+                previous.get(identity.canonical) != record.fingerprint.value
+                or identity.canonical not in validated
+            ):
                 records.append(record)
 
         protected = {
@@ -200,7 +204,7 @@ class CodexAdapter:
             self.source_namespace,
             json.dumps(
                 {
-                    "schema_version": 2,
+                    "schema_version": 4,
                     "fingerprints": current,
                     "validated": sorted(current_validated),
                 },
@@ -404,6 +408,8 @@ class CodexAdapter:
         metadata: dict[str, Any] | None = None
         latest: datetime | None = None
         last_lifecycle: str | None = None
+        model_id: str | None = None
+        effort: str | None = None
         source_valid = True
         with log_path.open("r", encoding="utf-8") as source:
             for line_number, line in enumerate(source, start=1):
@@ -452,6 +458,11 @@ class CodexAdapter:
                     event_type = row["payload"].get("type")
                     if event_type in {"task_started", "task_complete"}:
                         last_lifecycle = event_type
+                if row.get("type") == "turn_context" and isinstance(
+                    row.get("payload"), dict
+                ):
+                    model_id = row["payload"].get("model")
+                    effort = row["payload"].get("effort")
                 warning_count = len(warnings)
                 self._visible_message(row, identity, line_number, warnings)
                 if len(warnings) != warning_count:
@@ -523,6 +534,11 @@ class CodexAdapter:
                     if last_lifecycle == "task_complete"
                     else SessionHealth.UNKNOWN
                 ),
+                header=SessionHeader(
+                    model_provider=metadata.get("model_provider"),
+                    model_id=model_id,
+                    effort=effort,
+                ),
             ),
             tuple(warnings),
             source_valid,
@@ -583,16 +599,17 @@ class CodexAdapter:
             payload = json.loads(checkpoint.cursor)
             fingerprints = payload["fingerprints"]
             schema_version = payload.get("schema_version")
-            if schema_version not in {1, 2} or not isinstance(fingerprints, dict):
+            if schema_version not in {1, 2, 3, 4} or not isinstance(fingerprints, dict):
                 raise ValueError
             if not all(
                 isinstance(key, str) and isinstance(value, str)
                 for key, value in fingerprints.items()
             ):
                 raise ValueError
-            if schema_version == 1:
+            if schema_version in {1, 2, 3}:
                 # Revalidate legacy checkpoint entries once before treating them
-                # as safe to skip; v1 did not record structural validity.
+                # as safe to skip. Earlier forms predate one or more derived
+                # Capsule headers and must re-emit records for a safe refresh.
                 return fingerprints, frozenset()
             validated = payload["validated"]
             if (

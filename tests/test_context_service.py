@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -71,6 +71,292 @@ def readable(source_record: SourceRecord, text: str) -> TurnBatch:
             ),
         ),
     )
+
+
+def test_confirmed_predecessors_follow_merge_history_by_depth(
+    codex_fixture_home: Path, tmp_path: Path
+) -> None:
+    template = CodexAdapter(codex_fixture_home).scan(None).records[0]
+    left = replace(source(template, "left"), updated_at=NOW)
+    right = replace(source(template, "right"), updated_at=NOW + timedelta(seconds=1))
+    merge = replace(source(template, "merge"), updated_at=NOW + timedelta(seconds=2))
+    target = replace(source(template, "target"), updated_at=NOW + timedelta(seconds=3))
+    connection = open_database(tmp_path / "tang.db")
+    repository = TangRepository(connection)
+    try:
+        with repository.transaction():
+            for item in (left, right, merge, target):
+                repository.upsert_session(item, "project", NOW)
+            for source_id, target_id in (
+                (left.identity.canonical, merge.identity.canonical),
+                (right.identity.canonical, merge.identity.canonical),
+                (merge.identity.canonical, target.identity.canonical),
+            ):
+                repository.put_continuation(
+                    StoredContinuation(source_id, target_id, "project", "explicit", NOW)
+                )
+
+        assert repository.confirmed_predecessors(
+            target.identity.canonical, "project"
+        ) == (left.identity.canonical, right.identity.canonical, merge.identity.canonical)
+        assert repository.confirmed_predecessors(
+            target.identity.canonical, "project", max_hops=1
+        ) == (merge.identity.canonical,)
+        assert repository.confirmed_predecessors(
+            target.identity.canonical, "project", max_hops=2
+        ) == (left.identity.canonical, right.identity.canonical, merge.identity.canonical)
+    finally:
+        connection.close()
+
+
+def test_context_cli_revisits_latest_confirmed_predecessors(
+    codex_fixture_home: Path, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    template = CodexAdapter(codex_fixture_home).scan(None).records[0]
+    prior = replace(source(template, "prior"), updated_at=NOW)
+    target = replace(source(template, "target"), updated_at=NOW + timedelta(seconds=1))
+    project = tmp_path / "project"
+    project.mkdir()
+    database = tmp_path / "tang.db"
+    project_key = resolve_project(project).key
+    connection = open_database(database)
+    try:
+        repository = TangRepository(connection)
+        with repository.transaction():
+            repository.upsert_session(prior, project_key, NOW)
+            repository.upsert_session(target, project_key, NOW)
+            repository.put_continuation(
+                StoredContinuation(
+                    prior.identity.canonical,
+                    target.identity.canonical,
+                    project_key,
+                    "explicit",
+                    NOW,
+                )
+            )
+    finally:
+        connection.close()
+    adapter = RecordingAdapter(
+        {
+            prior.identity.canonical: readable(prior, "recovered predecessor"),
+            target.identity.canonical: readable(target, "current target"),
+        }
+    )
+    monkeypatch.setattr(
+        "tang.cli.configured_adapters", lambda *_args, **_kwargs: (adapter,)
+    )
+    common = ["--database", str(database), "--cwd", str(project), "--json"]
+
+    assert main(["context", *common]) == 0
+    bare = json.loads(capsys.readouterr().out)
+    assert [section["source_id"] for section in bare["untrusted_data_envelope"]["sources"]] == [
+        prior.identity.canonical
+    ]
+
+    assert main(["context", "all", "--for", "C2", *common]) == 0
+    named = json.loads(capsys.readouterr().out)
+    assert [section["source_id"] for section in named["untrusted_data_envelope"]["sources"]] == [
+        prior.identity.canonical
+    ]
+
+    assert main(["context", "1", "--for", "C2", *common]) == 0
+    depth_one = json.loads(capsys.readouterr().out)
+    assert [section["source_id"] for section in depth_one["untrusted_data_envelope"]["sources"]] == [
+        prior.identity.canonical
+    ]
+
+
+def test_context_cli_refuses_ambiguous_or_missing_confirmed_anchor(
+    codex_fixture_home: Path, tmp_path: Path, capsys
+) -> None:
+    template = CodexAdapter(codex_fixture_home).scan(None).records[0]
+    project = tmp_path / "project"
+    project.mkdir()
+    database = tmp_path / "tang.db"
+    connection = open_database(database)
+    try:
+        repository = TangRepository(connection)
+        with repository.transaction():
+            repository.upsert_session(source(template, "only"), resolve_project(project).key, NOW)
+    finally:
+        connection.close()
+
+    assert main(["context", "--database", str(database), "--cwd", str(project)]) == 2
+    refused = capsys.readouterr()
+    assert refused.out == ""
+    assert "no confirmed target" in refused.err
+
+
+def test_context_cli_prefers_exact_current_target_over_terminal_history(
+    codex_fixture_home: Path, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    template = CodexAdapter(codex_fixture_home).scan(None).records[0]
+    prior = replace(source(template, "prior"), updated_at=NOW)
+    current = replace(source(template, "current"), updated_at=NOW + timedelta(seconds=1))
+    other_prior = replace(source(template, "other-prior"), updated_at=NOW)
+    other_target = replace(source(template, "other-target"), updated_at=NOW + timedelta(seconds=2))
+    project = tmp_path / "project"
+    project.mkdir()
+    database = tmp_path / "tang.db"
+    project_key = resolve_project(project).key
+    connection = open_database(database)
+    try:
+        repository = TangRepository(connection)
+        with repository.transaction():
+            for item in (prior, current, other_prior, other_target):
+                repository.upsert_session(item, project_key, NOW)
+            repository.put_continuation(
+                StoredContinuation(
+                    prior.identity.canonical,
+                    current.identity.canonical,
+                    project_key,
+                    "explicit",
+                    NOW,
+                )
+            )
+            repository.put_continuation(
+                StoredContinuation(
+                    other_prior.identity.canonical,
+                    other_target.identity.canonical,
+                    project_key,
+                    "explicit",
+                    NOW + timedelta(seconds=1),
+                )
+            )
+    finally:
+        connection.close()
+    adapter = RecordingAdapter(
+        {
+            prior.identity.canonical: readable(prior, "current predecessor"),
+            current.identity.canonical: readable(current, "current"),
+            other_prior.identity.canonical: readable(other_prior, "other predecessor"),
+            other_target.identity.canonical: readable(other_target, "other target"),
+        }
+    )
+    monkeypatch.setattr(
+        "tang.cli.configured_adapters", lambda *_args, **_kwargs: (adapter,)
+    )
+
+    assert main(
+        [
+            "context",
+            "--current-native-id",
+            "current",
+            "--database",
+            str(database),
+            "--cwd",
+            str(project),
+            "--json",
+        ]
+    ) == 0
+    document = json.loads(capsys.readouterr().out)
+    assert [section["source_id"] for section in document["untrusted_data_envelope"]["sources"]] == [
+        prior.identity.canonical
+    ]
+
+
+def test_confirmed_predecessors_reject_a_foreign_anchor(
+    codex_fixture_home: Path, tmp_path: Path
+) -> None:
+    template = CodexAdapter(codex_fixture_home).scan(None).records[0]
+    foreign = source(template, "foreign")
+    connection = open_database(tmp_path / "tang.db")
+    repository = TangRepository(connection)
+    try:
+        with repository.transaction():
+            repository.upsert_session(foreign, "foreign-project", NOW)
+        with pytest.raises(ValueError, match="current project"):
+            repository.confirmed_predecessors(foreign.identity.canonical, "project")
+    finally:
+        connection.close()
+
+
+def test_context_cli_history_keeps_readable_ancestor_when_one_is_tombstoned(
+    codex_fixture_home: Path, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    template = CodexAdapter(codex_fixture_home).scan(None).records[0]
+    available = source(template, "available")
+    unavailable = source(template, "unavailable")
+    target = source(template, "target")
+    project = tmp_path / "project"
+    project.mkdir()
+    database = tmp_path / "tang.db"
+    project_key = resolve_project(project).key
+    connection = open_database(database)
+    try:
+        repository = TangRepository(connection)
+        with repository.transaction():
+            for item in (available, unavailable, target):
+                repository.upsert_session(item, project_key, NOW)
+            for predecessor in (available, unavailable):
+                repository.put_continuation(
+                    StoredContinuation(
+                        predecessor.identity.canonical,
+                        target.identity.canonical,
+                        project_key,
+                        "explicit",
+                        NOW,
+                    )
+                )
+            repository.delete_session(unavailable.identity.canonical)
+    finally:
+        connection.close()
+    adapter = RecordingAdapter(
+        {available.identity.canonical: readable(available, "available evidence")}
+    )
+    monkeypatch.setattr(
+        "tang.cli.configured_adapters", lambda *_args, **_kwargs: (adapter,)
+    )
+
+    assert main(
+        ["context", "all", "--database", str(database), "--cwd", str(project), "--json"]
+    ) == 0
+    document = json.loads(capsys.readouterr().out)
+    assert document["status"] == "partial"
+    assert [section["source_id"] for section in document["untrusted_data_envelope"]["sources"]] == [
+        available.identity.canonical
+    ]
+    assert "source-unavailable" in document["warnings"][0]
+
+
+def test_context_cli_refuses_tied_latest_confirmed_targets(
+    codex_fixture_home: Path, tmp_path: Path, capsys
+) -> None:
+    template = CodexAdapter(codex_fixture_home).scan(None).records[0]
+    source_one = source(template, "source-one")
+    target_one = source(template, "target-one")
+    source_two = source(template, "source-two")
+    target_two = source(template, "target-two")
+    project = tmp_path / "project"
+    project.mkdir()
+    database = tmp_path / "tang.db"
+    project_key = resolve_project(project).key
+    connection = open_database(database)
+    try:
+        repository = TangRepository(connection)
+        with repository.transaction():
+            for item in (source_one, target_one, source_two, target_two):
+                repository.upsert_session(item, project_key, NOW)
+            for predecessor, target in (
+                (source_one, target_one),
+                (source_two, target_two),
+            ):
+                repository.put_continuation(
+                    StoredContinuation(
+                        predecessor.identity.canonical,
+                        target.identity.canonical,
+                        project_key,
+                        "explicit",
+                        NOW,
+                    )
+                )
+    finally:
+        connection.close()
+
+    assert main(["context", "--database", str(database), "--cwd", str(project)]) == 2
+    refused = capsys.readouterr()
+    assert refused.out == ""
+    assert "multiple targets share the latest confirmation" in refused.err
 
 
 def test_context_validates_all_projects_before_reread(codex_fixture_home: Path, tmp_path: Path) -> None:

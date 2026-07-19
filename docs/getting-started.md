@@ -296,6 +296,8 @@ when `tang purge --all` removes all derived project data:
 
 ```bash
 tang context G1 C2
+tang context all
+tang context 2 --for C2
 tang graph C2
 tang resume C2
 ```
@@ -312,6 +314,12 @@ Pass one or more handles—or exact IDs from JSON—to build a Context Pack:
 ```bash
 tang context <handle-or-source-id> [<another-handle-or-source-id> ...]
 ```
+
+After an explicitly confirmed continuation, `tang context` (or `tang context
+all`) recalls every confirmed predecessor of the one latest confirmed target.
+Use `tang context N` to include at most `N` predecessor-link hops, or add
+`--for HANDLE` when you want a particular confirmed target. This rereads the
+same cited source evidence; Tang never stores a generated session summary.
 
 For scripts, add `--json` to `index`, `browse`, `search`, or `context`. Add an
 explicit `--page N` to page JSON results in five-choice groups; otherwise JSON
@@ -404,7 +412,10 @@ global file manually if you no longer need it.
 
 The database contains project-scoped session metadata, small redacted Discovery
 Capsules, adapter checkpoints, search rows, and explicitly confirmed graph
-edges. It does not store Codex's generated Continuation Brief.
+edges. Capsule headers may retain an evidenced model/provider, Codex effort,
+visible-turn count, approximate visible-text size, and title origin. It does
+not store Codex's generated Continuation Brief or a Tang-generated session
+summary.
 
 ## Early FAQ
 

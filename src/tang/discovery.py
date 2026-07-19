@@ -43,6 +43,12 @@ class DiscoveryItem:
     title: str | None
     capabilities: tuple[str, ...]
     snippet: str | None
+    model_provider: str | None
+    model_id: str | None
+    effort: str | None
+    title_origin: str | None
+    visible_turn_count: int | None
+    visible_text_bytes: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,6 +184,12 @@ class DiscoveryService:
             title=title,
             capabilities=row.capabilities,
             snippet=self._bounded_snippet(snippet),
+            model_provider=row.model_provider,
+            model_id=row.model_id,
+            effort=row.effort,
+            title_origin=row.title_origin,
+            visible_turn_count=row.visible_turn_count,
+            visible_text_bytes=row.visible_text_bytes,
         )
 
     def _display_name(self, row: DiscoveryRow) -> str:

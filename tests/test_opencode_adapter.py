@@ -216,6 +216,8 @@ def test_scan_and_read_supported_visible_opencode_turns(
     assert record.fingerprint.value == "1784224860000"
     assert "opencode-session-v1" not in repr(record.locator)
     assert read.status is BatchStatus.COMPLETE
+    assert read.header.model_provider == "openai"
+    assert read.header.model_id == "gpt-5.6"
     assert [turn.role for turn in read.turns] == [TurnRole.USER, TurnRole.AGENT]
     assert [turn.ordinal for turn in read.turns] == [0, 1]
     assert [turn.citation_locator for turn in read.turns] == [
@@ -356,7 +358,7 @@ def test_linked_worktree_scans_keep_directory_scoped_sessions_and_checkpoints(
         )
         assert checkpoint is not None
         checkpoint_document = json.loads(checkpoint.cursor)
-        assert checkpoint_document["schema_version"] == 2
+        assert checkpoint_document["schema_version"] == 3
         assert len(checkpoint_document["scopes"]) == 2
 
         state["catalog"] = [*linked_catalog]
@@ -412,7 +414,7 @@ def test_legacy_checkpoint_forces_safe_full_scan_without_removals(
     assert scan.removed == ()
     assert [warning.code for warning in scan.warnings] == ["checkpoint-upgraded"]
     assert scan.next_checkpoint is not None
-    assert json.loads(scan.next_checkpoint.cursor)["schema_version"] == 2
+    assert json.loads(scan.next_checkpoint.cursor)["schema_version"] == 3
 
 
 def test_catalog_includes_child_sessions_and_filters_exact_directory(

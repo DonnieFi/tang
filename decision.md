@@ -420,3 +420,15 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) rewrite public history broadly; (b) preserve auditable history and remediate only current public/package surfaces; (c) make no changes before submission.
 - Decision: (b) — retain the intentional `red@deba.lan` commit attribution and synthetic test canaries, add a security-reporting policy, remove stale private-repository language and the named origin product from the approved spec, and verify that wheel/sdist contents exclude local agent state and real session data. Repository description, topics, and the first tagged release remain explicit publication actions. Serves: Design, Technological Implementation, Quality of Idea.
 - By: human (public release and attribution policy) and agent (hygiene audit and bounded remediation)
+
+## 2026-07-18T22:24:35Z · tang-tjx · Retain bounded session headers, not generated summaries
+- Context: Recovery decisions benefit from knowing model, Codex effort, session size, and title provenance, but persistent model synthesis or opaque native metadata would weaken Tang's privacy and cross-harness honesty.
+- Options: (a) retain only titles and timestamps; (b) persist arbitrary native metadata or a Tang-generated summary; (c) retain a fixed allowlist of evidence-qualified header facts inside the existing bounded Capsule.
+- Decision: (c) — store optional model/provider, Codex effort, visible-turn count, visible-text byte estimate, and title origin; omit incomparable agent/mode and client-version fields, arbitrary blobs, and generated summaries. Serves: Design, Potential Impact, Technological Implementation.
+- By: human (requested header information) and agent (privacy-preserving cross-harness contract)
+
+## 2026-07-18T22:45:00Z · tang-het · Recall confirmed predecessor evidence without synthesizing it
+- Context: `tang resume HANDLE` reopens a native session but intentionally cannot inject predecessor text; users need a low-friction way to reread the exact evidence behind confirmed continuation edges from a plain terminal or a harness skill.
+- Options: (a) reopen a session and rely on native history alone; (b) generate and persist a rolling summary; (c) traverse only explicit, project-scoped confirmed predecessor edges and build an on-demand cited Context Pack.
+- Decision: (c) — bare `tang context` and `context all` use the unique latest confirmed target, `context N` bounds ancestry by hops, and an exact host current ID takes precedence when supplied. Ties refuse and explicit source selection remains unchanged. Serves: Design, Potential Impact, Technological Implementation.
+- By: human (required joined-session recall) and agent (provenance-preserving implementation)

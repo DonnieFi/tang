@@ -60,7 +60,7 @@ def test_every_release_command_has_stdout_only_help(arguments: tuple[str, ...]) 
     "arguments",
     [
         ("search",),
-        ("context",),
+        ("context", "--for"),
         ("link",),
         ("purge", "--all"),
         ("resume",),

@@ -38,6 +38,7 @@ def test_scan_and_read_synthetic_verified_shape(fixture_home: Path) -> None:
     assert record.identity.canonical == f"grok:fixture:{SESSION_ID}"
     assert record.project_hint == "/work/tang-demo"
     assert record.title == "Design the cache boundary"
+    assert record.header.model_id == "fixture-model"
 
     read = adapter.read(record, TurnSelection())
     assert read.status is BatchStatus.COMPLETE
@@ -109,9 +110,9 @@ def test_legacy_checkpoint_is_revalidated_once_before_fast_skipping(
     monkeypatch.setattr(adapter, "_source_record", counted)
     upgraded = adapter.scan(legacy)
 
-    assert upgraded.records == ()
+    assert len(upgraded.records) == 1
     assert calls == 1
-    assert json.loads(upgraded.next_checkpoint.cursor)["schema_version"] == 2
+    assert json.loads(upgraded.next_checkpoint.cursor)["schema_version"] == 3
 
 
 def test_scan_is_stable_and_read_only(fixture_home: Path) -> None:

@@ -99,7 +99,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     context = subparsers.add_parser("context", help="build a cited Context Pack")
     context.add_argument(
-        "sessions", nargs="+", help="project handles or exact IDs from JSON"
+        "sessions",
+        nargs="*",
+        help=(
+            "project handles or exact IDs from JSON; use all or a positive "
+            "depth for confirmed predecessor context"
+        ),
+    )
+    context.add_argument(
+        "--for",
+        dest="anchor",
+        help="confirmed target handle for all/depth predecessor context",
+    )
+    context.add_argument(
+        "--current-native-id",
+        help="exact current Codex native ID supplied privately by a host",
     )
     context.add_argument("--json", action="store_true", dest="as_json")
     context.add_argument("--database", type=Path)
@@ -492,6 +506,14 @@ def _discovery_document(
         "display_name": item.display_name,
         "harness": item.harness,
         "health": item.health.value,
+        "session_header": {
+            "effort": item.effort,
+            "model_id": item.model_id,
+            "model_provider": item.model_provider,
+            "title_origin": item.title_origin,
+            "visible_text_bytes": item.visible_text_bytes,
+            "visible_turn_count": item.visible_turn_count,
+        },
         "session_handle": item.handle,
         "snippet": item.snippet,
         "source_id": item.source_id,
@@ -546,6 +568,9 @@ def _show_discovery_page(page: DiscoveryPage) -> None:
             item.display_name, display_limit, ascii_only=ascii_only
         )
         session = Text(display_name, style="bold")
+        header_label = _header_label(item)
+        if header_label:
+            session.append(f"\n{header_label}", style="dim")
         session.append(f"\n{capability}", style="dim")
         snippet = " ".join(item.snippet.split())
         if snippet:
@@ -591,6 +616,26 @@ def _truncate_discovery_text(value: str, limit: int, *, ascii_only: bool) -> str
         return value
     suffix = "..." if ascii_only else "…"
     return f"{value[: limit - len(suffix)].rstrip()}{suffix}"
+
+
+def _header_label(item: DiscoveryItem) -> str:
+    """Compact, non-sensitive session facts for the human discovery table."""
+
+    parts: list[str] = []
+    model = " / ".join(
+        value for value in (item.model_provider, item.model_id) if value
+    )
+    if model:
+        parts.append(model)
+    if item.effort:
+        parts.append(f"effort {item.effort}")
+    if item.visible_turn_count is not None:
+        parts.append(f"{item.visible_turn_count} turns")
+    if item.visible_text_bytes is not None:
+        parts.append(f"~{item.visible_text_bytes / 1024:.1f} KiB visible")
+    if item.title_origin:
+        parts.append(item.title_origin.replace("_", " "))
+    return " · ".join(parts)
 
 
 def _run_discovery(args: argparse.Namespace) -> int:
@@ -688,10 +733,7 @@ def _run_context(args: argparse.Namespace) -> int:
             ),
         )
         try:
-            source_ids = tuple(
-                repository.resolve_session_token(token, project.key)
-                for token in args.sessions
-            )
+            source_ids = _context_source_ids(args, repository, project)
             pack = service.generate(
                 source_ids, project.key
             )
@@ -702,6 +744,75 @@ def _run_context(args: argparse.Namespace) -> int:
         connection.close()
     print(pack.to_json() if args.as_json else pack.to_markdown(), end="")
     return 0
+
+
+def _context_source_ids(
+    args: argparse.Namespace, repository: TangRepository, project: ProjectIdentity
+) -> tuple[str, ...]:
+    """Resolve explicit sources or confirmed predecessor evidence for context."""
+
+    sessions = tuple(args.sessions)
+    history_token: str | None = None
+    if len(sessions) == 1 and sessions[0].lower() == "all":
+        history_token = "all"
+    elif len(sessions) == 1 and sessions[0].isdigit():
+        depth = int(sessions[0])
+        if depth < 1:
+            raise ContextGenerationError("ancestor depth must be at least 1")
+        history_token = sessions[0]
+
+    if sessions and history_token is None:
+        if args.anchor is not None or args.current_native_id is not None:
+            raise ContextGenerationError(
+                "--for and --current-native-id apply only to all/depth predecessor context"
+            )
+        return tuple(
+            repository.resolve_session_token(token, project.key) for token in sessions
+        )
+
+    anchor_id = _context_anchor(args, repository, project)
+    max_hops = None if history_token in (None, "all") else int(history_token)
+    source_ids = repository.confirmed_predecessors(
+        anchor_id, project.key, max_hops=max_hops
+    )
+    if not source_ids:
+        raise ContextGenerationError(
+            "the confirmed target has no predecessor sessions; pass explicit handles "
+            "or record a confirmed link first"
+        )
+    return source_ids
+
+
+def _context_anchor(
+    args: argparse.Namespace, repository: TangRepository, project: ProjectIdentity
+) -> str:
+    if args.anchor is not None:
+        if args.current_native_id is not None:
+            raise ContextGenerationError("--for cannot be combined with --current-native-id")
+        return repository.resolve_session_token(args.anchor, project.key)
+
+    if args.current_native_id is not None:
+        resolution = resolve_current_target(
+            _indexed_codex_candidates(repository, project),
+            project,
+            current_native_id=args.current_native_id,
+        )
+        if resolution.kind is TargetResolutionKind.RESOLVED and resolution.target:
+            return resolution.target.identity.canonical
+        raise ContextGenerationError(
+            "the supplied current session could not be resolved; run tang index first"
+        )
+
+    latest_targets = _latest_confirmed_graph_targets(repository, project.key)
+    if len(latest_targets) == 1:
+        return latest_targets[0]
+    if len(latest_targets) > 1:
+        raise ContextGenerationError(
+            "multiple targets share the latest confirmation; pass context all --for HANDLE"
+        )
+    raise ContextGenerationError(
+        "no confirmed target is available; pass explicit handles or record a confirmed link first"
+    )
 
 
 def _run_resume(args: argparse.Namespace) -> int:

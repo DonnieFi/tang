@@ -101,9 +101,9 @@ def test_legacy_checkpoint_is_revalidated_once_before_fast_skipping(
     monkeypatch.setattr(adapter, "_source_record", counted)
     upgraded = adapter.scan(legacy)
 
-    assert upgraded.records == ()
+    assert len(upgraded.records) == 1
     assert calls == 1
-    assert json.loads(upgraded.next_checkpoint.cursor)["schema_version"] == 2
+    assert json.loads(upgraded.next_checkpoint.cursor)["schema_version"] == 4
 
 
 def test_thread_session_link_does_not_replace_native_log_identity(

@@ -202,6 +202,10 @@ Native harness logs remain the source of truth. Tang stores only derived continu
 
 - Each canonical project owns its local SQLite database at `.tang/tang.db`; Tang creates it with user-only permissions (`0700` directory, `0600` database) on supported POSIX systems.
 - Discovery Capsules contain at most 8 KiB of redacted visible text per session.
+- Browse and JSON discovery also show bounded session headers when native evidence
+  exists: model/provider, Codex effort, visible-turn count, approximate visible
+  text size, and whether the title is native or derived. Tang does not persist a
+  generated session summary.
 - System prompts, hidden reasoning, tool payloads, tool results, file bodies, and full transcripts are excluded.
 - Selected native sources are reread and redacted when a Context Pack is created.
 - Recovered content is wrapped as untrusted historical evidence, never executable instruction.
@@ -253,7 +257,7 @@ OpenCode. The CLI stays scriptable and does not introduce a competing selector.
 | `tang index` | Incrementally index sessions for the current project |
 | `tang browse [--page N]` | Show up to five numbered, redacted sessions with short project handles such as `C1` or `G2` |
 | `tang search QUERY [--page N] [--limit N]` | Search redacted Discovery Capsules and show numbered choices; simple keywords or quoted phrases are recommended |
-| `tang context SESSION...` | Produce a compact Markdown or JSON Context Pack |
+| `tang context [SESSION...]` | Produce a compact Markdown or JSON Context Pack; bare context and `context all` recall confirmed predecessors of the latest unambiguous target, while `context N` limits link depth |
 | `tang link --from SESSION... --current` | Record selected sources into an explicitly confirmed current Codex session |
 | `tang link --from SESSION... --to SESSION` | Record selected sources into an explicitly confirmed target, including the OpenCode skill's current target |
 | `tang graph [SESSION]` | Render the containing Multiverse Map |

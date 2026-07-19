@@ -53,6 +53,15 @@ def test_capsule_contains_redacted_permitted_evidence_and_citations(
         "native-reread",
         "visible-user-agent-turns",
     ]
+    assert capsule.content["session_header"] == {
+        "effort": "high",
+        "model_id": "gpt-5.6-sol",
+        "model_provider": "openai",
+        "title_origin": "derived_goal",
+        "version": 1,
+        "visible_text_bytes": sum(len(turn.text.encode("utf-8")) for turn in warned.turns),
+        "visible_turn_count": len(warned.turns),
+    }
     assert secret not in rendered
     assert "/home/alice" not in rendered
     assert "ignored-warning" not in rendered
@@ -119,6 +128,7 @@ def test_display_name_prefers_a_redacted_title_then_a_bounded_user_goal(
     assert native_id not in title_capsule.content["display_name"]
     assert "[REDACTED:credential]" in title_capsule.content["display_name"]
     assert "[session]" in title_capsule.content["display_name"]
+    assert title_capsule.content["session_header"]["title_origin"] == "native"
 
     long_goal = "Recover the migration checkpoint " + "x" * 200
     untitled = replace(source, title=None)
@@ -167,7 +177,45 @@ def test_display_name_has_a_neutral_fallback_without_a_title_or_user_turn(
         replace(source, title=None), agent_only, "project-a"
     )
 
-    assert capsule.content["display_name"] == "Codex session · 2026-07-14T20:01:02Z"
+    assert capsule.content["display_name"] == "Codex session · no user task captured"
+    assert capsule.content["session_header"]["title_origin"] == "no_user_task"
+
+
+def test_display_name_skips_host_envelopes_for_goal_and_search_evidence(
+    codex_fixture_home: Path,
+) -> None:
+    source, _read = fixture_source_and_read(codex_fixture_home)
+    wrapped = TurnBatch(
+        identity=source.identity,
+        status=BatchStatus.COMPLETE,
+        turns=(
+            VisibleTurn(
+                ordinal=0,
+                role=TurnRole.USER,
+                text="<environment_context><cwd>/private/project</cwd></environment_context>",
+                citation_locator="jsonl:1",
+                timestamp=source.updated_at,
+            ),
+            VisibleTurn(
+                ordinal=1,
+                role=TurnRole.USER,
+                text="Repair the migration checkpoint and verify the release wheel.",
+                citation_locator="jsonl:2",
+                timestamp=source.updated_at,
+            ),
+        ),
+    )
+
+    capsule = DiscoveryCapsuleBuilder().build(
+        replace(source, title=None), wrapped, "project-a"
+    )
+
+    assert capsule.content["display_name"] == (
+        "Repair the migration checkpoint and verify the release wheel."
+    )
+    assert "environment_context" not in capsule.search_text
+    assert [excerpt["ordinal"] for excerpt in capsule.content["excerpts"]] == [1]
+    assert capsule.content["display_name_version"] == 2
 
 
 def test_capsule_repository_update_delete_and_fts(codex_fixture_home: Path, tmp_path: Path) -> None:

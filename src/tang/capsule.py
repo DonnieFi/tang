@@ -23,6 +23,23 @@ _MAX_DISPLAY_NAME_CHARACTERS = 96
 _MAX_EXCERPT_CHARACTERS = 2_048
 _MAX_RECENT_EXCERPTS = 4
 _TRUNCATED = "…[Truncated]"
+_DISPLAY_NAME_VERSION = 2
+_SESSION_HEADER_VERSION = 1
+
+# These are host-provided envelopes that Codex records as visible ``user``
+# messages before a developer's actual request. They are useful to the host,
+# but are neither a session title nor recoverable user intent. Keep this list
+# deliberately narrow: ordinary Markdown, XML, and instruction text remain
+# evidence unless they use one of the exact host wrapper prefixes.
+_HOST_ENVELOPE_PREFIXES = (
+    "# agents.md instructions for ",
+    "<environment_context>",
+    "<permissions instructions>",
+    "<skills_instructions>",
+    "<apps_instructions>",
+    "<plugins_instructions>",
+    "<recommended_plugins>",
+)
 
 
 def _canonical(content: dict[str, object]) -> bytes:
@@ -36,6 +53,12 @@ def _bounded(text: str, limit: int) -> tuple[str, bool]:
         return text, False
     keep = max(1, limit - len(_TRUNCATED))
     return text[:keep].rstrip() + _TRUNCATED, True
+
+
+def _is_host_envelope(text: str) -> bool:
+    """Recognize only documented host wrappers, never arbitrary user prose."""
+
+    return text.lstrip().casefold().startswith(_HOST_ENVELOPE_PREFIXES)
 
 
 class DiscoveryCapsuleBuilder:
@@ -61,10 +84,11 @@ class DiscoveryCapsuleBuilder:
         title, title_truncated = _bounded(
             title_result.text, TITLE_CHARACTER_LIMIT
         )
+        session_header, header_redaction_count = self._session_header(source, read)
 
         selected_ordinals = self._selected_ordinals(read.turns)
         excerpts: list[dict[str, object]] = []
-        redaction_count = title_result.redaction_count
+        redaction_count = title_result.redaction_count + header_redaction_count
         for turn in read.turns:
             if turn.ordinal not in selected_ordinals:
                 continue
@@ -72,7 +96,7 @@ class DiscoveryCapsuleBuilder:
             excerpts.append(excerpt)
             redaction_count += count
 
-        display_name, display_name_truncated = self._display_name(
+        display_name, display_name_truncated, title_origin = self._display_name(
             source, title, excerpts
         )
 
@@ -80,6 +104,7 @@ class DiscoveryCapsuleBuilder:
             "capabilities": ["native-reread", "visible-user-agent-turns"],
             "display_name": display_name,
             "display_name_truncated": display_name_truncated,
+            "display_name_version": _DISPLAY_NAME_VERSION,
             "excerpts": excerpts,
             "harness": source.identity.adapter,
             "health": source.health.value,
@@ -91,6 +116,15 @@ class DiscoveryCapsuleBuilder:
             "source_id": source.identity.canonical,
             "source_title": title or None,
             "source_title_truncated": title_truncated,
+            "session_header": {
+                **session_header,
+                "title_origin": title_origin,
+                "version": _SESSION_HEADER_VERSION,
+                "visible_text_bytes": sum(
+                    len(turn.text.encode("utf-8")) for turn in read.turns
+                ),
+                "visible_turn_count": len(read.turns),
+            },
             "updated_at": optional_rfc3339(source.updated_at),
         }
         self._fit(content)
@@ -107,18 +141,58 @@ class DiscoveryCapsuleBuilder:
         )
 
     @staticmethod
+    def needs_label_refresh(capsule: StoredCapsule | None) -> bool:
+        """Return whether a prior Capsule predates current derived metadata."""
+
+        return (
+            capsule is None
+            or capsule.content.get("display_name_version")
+            != _DISPLAY_NAME_VERSION
+            or not isinstance(capsule.content.get("session_header"), dict)
+            or capsule.content["session_header"].get("version")
+            != _SESSION_HEADER_VERSION
+        )
+
+    def _session_header(
+        self, source: SourceRecord, read: TurnBatch
+    ) -> tuple[dict[str, str | None], int]:
+        values: dict[str, str | None] = {}
+        redaction_count = 0
+        for key, value in (
+            ("model_provider", source.header.model_provider),
+            ("model_id", source.header.model_id),
+            ("effort", source.header.effort),
+        ):
+            if value is None:
+                values[key] = None
+                continue
+            result = required_redaction(
+                self._redactor,
+                RedactionSeam.CAPSULE_PERSISTENCE,
+                ContentKind.DISPLAY_METADATA,
+                value,
+            )
+            values[key] = result.text or None
+            redaction_count += result.redaction_count
+        return values, redaction_count
+
+    @staticmethod
     def _display_name(
         source: SourceRecord, title: str, excerpts: list[dict[str, object]]
-    ) -> tuple[str, bool]:
+    ) -> tuple[str, bool, str]:
         """Build a compact recognizable label from already permitted evidence."""
 
         candidate = title
+        title_origin = "native" if candidate else "derived_goal"
         if not candidate:
             candidate = next(
                 (
                     str(excerpt["text"])
                     for excerpt in excerpts
-                    if excerpt["role"] == TurnRole.USER.value
+                    if (
+                        excerpt["role"] == TurnRole.USER.value
+                        and not _is_host_envelope(str(excerpt["text"]))
+                    )
                 ),
                 "",
             )
@@ -128,19 +202,28 @@ class DiscoveryCapsuleBuilder:
                 return _bounded(
                     conceal_native_session_ids(normalized),
                     _MAX_DISPLAY_NAME_CHARACTERS,
-                )
+                ) + (title_origin,)
         return (
-            f"{source.identity.adapter.title()} session · "
-            f"{optional_rfc3339(source.updated_at)}",
+            f"{source.identity.adapter.title()} session · no user task captured",
             False,
+            "no_user_task",
         )
 
     @staticmethod
     def _selected_ordinals(turns: tuple[VisibleTurn, ...]) -> frozenset[int]:
         first_user = next(
-            (turn.ordinal for turn in turns if turn.role is TurnRole.USER), None
+            (
+                turn.ordinal
+                for turn in turns
+                if turn.role is TurnRole.USER and not _is_host_envelope(turn.text)
+            ),
+            None,
         )
-        recent = [turn.ordinal for turn in turns[-_MAX_RECENT_EXCERPTS:]]
+        recent = [
+            turn.ordinal
+            for turn in turns[-_MAX_RECENT_EXCERPTS:]
+            if not _is_host_envelope(turn.text)
+        ]
         if first_user is not None:
             recent.append(first_user)
         return frozenset(recent)

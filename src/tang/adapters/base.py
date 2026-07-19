@@ -38,6 +38,21 @@ def _optional_utc(value: datetime | None, name: str) -> datetime | None:
     return None if value is None else _utc(value, name)
 
 
+def _header_value(value: object) -> str | None:
+    """Keep only small identifier-like native metadata, never arbitrary text."""
+
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    if (
+        not normalized
+        or len(normalized) > 128
+        or any(character.isspace() or category(character).startswith("C") for character in normalized)
+    ):
+        return None
+    return normalized
+
+
 class BatchStatus(StrEnum):
     """Whether an adapter result is complete, degraded, or unavailable."""
 
@@ -52,6 +67,28 @@ class SessionHealth(StrEnum):
     COMPLETE = "complete"
     POSSIBLY_INTERRUPTED = "possibly_interrupted"
     UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class SessionHeader:
+    """Small, evidence-qualified native facts safe to retain beside a Capsule."""
+
+    model_provider: str | None = None
+    model_id: str | None = None
+    effort: str | None = None
+
+    def __post_init__(self) -> None:
+        for name in ("model_provider", "model_id", "effort"):
+            object.__setattr__(self, name, _header_value(getattr(self, name)))
+
+    def merged_with(self, observed: SessionHeader) -> SessionHeader:
+        """Prefer exact reread evidence while retaining scan-only facts."""
+
+        return SessionHeader(
+            model_provider=observed.model_provider or self.model_provider,
+            model_id=observed.model_id or self.model_id,
+            effort=observed.effort or self.effort,
+        )
 
 
 class TurnRole(StrEnum):
@@ -176,12 +213,15 @@ class SourceRecord:
     updated_at: datetime
     title: str | None = field(default=None, repr=False)
     health: SessionHealth = SessionHealth.UNKNOWN
+    header: SessionHeader = field(default_factory=SessionHeader)
 
     def __post_init__(self) -> None:
         if not self.project_hint:
             raise ValueError("project hint must not be empty")
         if not isinstance(self.health, SessionHealth):
             raise TypeError("health must be a SessionHealth")
+        if not isinstance(self.header, SessionHeader):
+            raise TypeError("header must be a SessionHeader")
         started_at = _utc(self.started_at, "started_at")
         updated_at = _utc(self.updated_at, "updated_at")
         if updated_at < started_at:
@@ -287,6 +327,7 @@ class TurnBatch:
     status: BatchStatus
     turns: tuple[VisibleTurn, ...] = ()
     warnings: tuple[AdapterWarning, ...] = ()
+    header: SessionHeader = field(default_factory=SessionHeader)
 
     def __post_init__(self) -> None:
         turns = tuple(sorted(self.turns, key=lambda turn: turn.ordinal))
@@ -295,6 +336,8 @@ class TurnBatch:
             raise ValueError("read results cannot contain duplicate turn ordinals")
         warnings = _ordered_warnings(self.warnings)
         _validate_status(self.status, warnings, len(turns))
+        if not isinstance(self.header, SessionHeader):
+            raise TypeError("header must be a SessionHeader")
         object.__setattr__(self, "turns", turns)
         object.__setattr__(self, "warnings", warnings)
 
