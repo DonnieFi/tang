@@ -296,6 +296,14 @@ class TangRepository:
         ).fetchall()
         return tuple(self._stored_session(row) for row in rows)
 
+    def set_derived_title(self, source_id: str, title: str) -> None:
+        """Synchronize a refreshed Capsule label for a session without native title."""
+
+        self._require_transaction()
+        self._connection.execute(
+            "UPDATE sessions SET title = ? WHERE source_id = ?", (title, source_id)
+        )
+
     def graph_sessions(
         self, project_key: str, source_ids: tuple[str, ...]
     ) -> tuple[StoredGraphSession, ...]:

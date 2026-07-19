@@ -91,6 +91,56 @@ def test_existing_database_upgrades_from_first_migration(tmp_path: Path) -> None
         upgraded.close()
 
 
+def test_search_migration_rebuilds_existing_capsules_with_word_stemming(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "stemming-upgrade" / "tang.db"
+    legacy = open_database(path, migrations=MIGRATIONS[:6])
+    try:
+        legacy.execute(
+            """
+            INSERT INTO sessions(
+                source_id, project_key, adapter, source_namespace, native_id,
+                locator, fingerprint_algorithm, fingerprint_value, project_hint,
+                started_at, updated_at, health, indexed_at, native_available, session_handle,
+                title
+            ) VALUES (
+                'codex:fixture:book', 'project', 'codex', 'fixture', 'book',
+                'fixture:book', 'sha256', 'fixture', '/project',
+                '2026-07-19T00:00:00Z', '2026-07-19T00:00:00Z', 'complete',
+                '2026-07-19T00:00:00Z', 1, 'C1', 'Book list'
+            )
+            """
+        )
+        legacy.execute(
+            """
+            INSERT INTO capsules(
+                source_id, project_key, schema_version, content_json, search_text,
+                byte_count, updated_at
+            ) VALUES (?, 'project', 1, '{}', 'five books to bring', 19,
+                      '2026-07-19T00:00:00Z')
+            """,
+            ("codex:fixture:book",),
+        )
+        legacy.execute(
+            """
+            INSERT INTO capsules_fts(source_id, project_key, search_text)
+            VALUES ('codex:fixture:book', 'project', 'five books to bring')
+            """
+        )
+    finally:
+        legacy.close()
+
+    upgraded = open_database(path)
+    try:
+        rows = upgraded.execute(
+            "SELECT source_id FROM capsules_fts WHERE capsules_fts MATCH 'book'"
+        ).fetchall()
+        assert [row["source_id"] for row in rows] == ["codex:fixture:book"]
+    finally:
+        upgraded.close()
+
+
 def test_project_checkpoint_migration_discards_unscoped_cursor(tmp_path: Path) -> None:
     path = tmp_path / "checkpoint-upgrade" / "tang.db"
     connection = open_database(path, migrations=MIGRATIONS[:2])

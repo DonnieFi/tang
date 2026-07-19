@@ -12,6 +12,9 @@ def test_registry_preserves_codex_grok_when_opencode_is_not_configured(
     project.mkdir()
     monkeypatch.delenv("TANG_OPENCODE_EXECUTABLE", raising=False)
     monkeypatch.setattr("tang.adapter_registry.shutil.which", lambda _name: None)
+    monkeypatch.setattr(
+        "tang.adapter_registry._default_opencode_executable", lambda: None
+    )
 
     adapters = configured_adapters(
         project,
@@ -20,6 +23,59 @@ def test_registry_preserves_codex_grok_when_opencode_is_not_configured(
     )
 
     assert [adapter.adapter_key for adapter in adapters] == ["codex", "grok"]
+
+
+def test_registry_discovers_standard_user_local_opencode_executable(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = tmp_path / "project"
+    home = tmp_path / "home"
+    executable = home / ".opencode" / "bin" / "opencode"
+    project.mkdir()
+    executable.parent.mkdir(parents=True)
+    executable.write_text("#!/bin/sh\n")
+    executable.chmod(0o700)
+    monkeypatch.delenv("TANG_OPENCODE_EXECUTABLE", raising=False)
+    monkeypatch.setattr("tang.adapter_registry.shutil.which", lambda _name: None)
+    monkeypatch.setattr("tang.adapter_registry.Path.home", lambda: home)
+
+    adapters = configured_adapters(project)
+
+    assert [adapter.adapter_key for adapter in adapters] == [
+        "codex",
+        "grok",
+        "opencode",
+    ]
+    assert adapters[-1]._executable == str(executable)
+
+
+def test_registry_prefers_explicit_environment_and_path_over_default_opencode(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = tmp_path / "project"
+    home = tmp_path / "home"
+    default = home / ".opencode" / "bin" / "opencode"
+    path_executable = tmp_path / "path-opencode"
+    environment = tmp_path / "environment-opencode"
+    explicit = tmp_path / "explicit-opencode"
+    project.mkdir()
+    default.parent.mkdir(parents=True)
+    default.write_text("#!/bin/sh\n")
+    default.chmod(0o700)
+    monkeypatch.setattr("tang.adapter_registry.Path.home", lambda: home)
+    monkeypatch.setattr(
+        "tang.adapter_registry.shutil.which", lambda _name: str(path_executable)
+    )
+    monkeypatch.setenv("TANG_OPENCODE_EXECUTABLE", str(environment))
+
+    environment_adapter = configured_adapters(project)[-1]
+    explicit_adapter = configured_adapters(project, opencode_executable=explicit)[-1]
+    monkeypatch.delenv("TANG_OPENCODE_EXECUTABLE")
+    path_adapter = configured_adapters(project)[-1]
+
+    assert environment_adapter._executable == str(environment)
+    assert explicit_adapter._executable == str(explicit)
+    assert path_adapter._executable == str(path_executable)
 
 
 def test_registry_adds_opencode_explicitly_or_from_environment(

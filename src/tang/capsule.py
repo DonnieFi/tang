@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from tang.adapters import SourceRecord, TurnBatch, TurnRole, VisibleTurn
 from tang.redaction import (
@@ -23,8 +24,48 @@ _MAX_DISPLAY_NAME_CHARACTERS = 96
 _MAX_EXCERPT_CHARACTERS = 2_048
 _MAX_RECENT_EXCERPTS = 4
 _TRUNCATED = "…[Truncated]"
-_DISPLAY_NAME_VERSION = 2
+_DISPLAY_NAME_VERSION = 3
 _SESSION_HEADER_VERSION = 1
+_SENTENCES = re.compile(r"(?<=[.!?])\s+")
+_TASK_VERBS = frozenset(
+    {
+        "add",
+        "analyze",
+        "build",
+        "check",
+        "compare",
+        "create",
+        "debug",
+        "design",
+        "draft",
+        "explain",
+        "find",
+        "fix",
+        "give",
+        "implement",
+        "investigate",
+        "list",
+        "make",
+        "plan",
+        "prepare",
+        "recommend",
+        "recover",
+        "resume",
+        "review",
+        "summarize",
+        "test",
+        "update",
+        "write",
+    }
+)
+_TANG_WORKFLOW_LABELS = {
+    "browse": "Tang discovery workflow",
+    "context": "Tang context workflow",
+    "graph": "Tang multiverse workflow",
+    "index": "Tang index workflow",
+    "link": "Tang continuation workflow",
+    "search": "Tang discovery workflow",
+}
 
 # These are host-provided envelopes that Codex records as visible ``user``
 # messages before a developer's actual request. They are useful to the host,
@@ -59,6 +100,23 @@ def _is_host_envelope(text: str) -> bool:
     """Recognize only documented host wrappers, never arbitrary user prose."""
 
     return text.lstrip().casefold().startswith(_HOST_ENVELOPE_PREFIXES)
+
+
+def _display_goal(text: str) -> str:
+    """Choose a compact task-bearing sentence from already permitted text."""
+
+    normalized = " ".join(text.split())
+    if not normalized:
+        return ""
+    command = normalized.casefold().split(maxsplit=1)
+    if command and command[0] in {"$tang", "/tang"}:
+        action = command[1].split(maxsplit=1)[0] if len(command) == 2 else ""
+        return _TANG_WORKFLOW_LABELS.get(action, "Tang recovery workflow")
+    for sentence in _SENTENCES.split(normalized):
+        words = sentence.lstrip("\"'([{ ").split(maxsplit=1)
+        if words and words[0].casefold() in _TASK_VERBS:
+            return sentence
+    return normalized
 
 
 class DiscoveryCapsuleBuilder:
@@ -97,7 +155,7 @@ class DiscoveryCapsuleBuilder:
             redaction_count += count
 
         display_name, display_name_truncated, title_origin = self._display_name(
-            source, title, excerpts
+            source.identity.adapter, title, excerpts
         )
 
         content: dict[str, object] = {
@@ -153,6 +211,42 @@ class DiscoveryCapsuleBuilder:
             != _SESSION_HEADER_VERSION
         )
 
+    def refresh_display_label(self, capsule: StoredCapsule) -> StoredCapsule | None:
+        """Refresh a derived label from the already-redacted stored Capsule."""
+
+        content = dict(capsule.content)
+        header = content.get("session_header")
+        excerpts = content.get("excerpts")
+        harness = content.get("harness")
+        if (
+            content.get("display_name_version") == _DISPLAY_NAME_VERSION
+            or not isinstance(header, dict)
+            or not isinstance(excerpts, list)
+            or not isinstance(harness, str)
+        ):
+            return None
+        title = content.get("source_title")
+        display_name, truncated, title_origin = self._display_name(
+            harness,
+            title if isinstance(title, str) else "",
+            [excerpt for excerpt in excerpts if isinstance(excerpt, dict)],
+        )
+        content["display_name"] = display_name
+        content["display_name_truncated"] = truncated
+        content["display_name_version"] = _DISPLAY_NAME_VERSION
+        content["session_header"] = {**header, "title_origin": title_origin}
+        self._fit(content)
+        encoded = _canonical(content)
+        return StoredCapsule(
+            source_id=capsule.source_id,
+            project_key=capsule.project_key,
+            content=content,
+            search_text=capsule.search_text,
+            byte_count=len(encoded),
+            updated_at=capsule.updated_at,
+            schema_version=capsule.schema_version,
+        )
+
     def _session_header(
         self, source: SourceRecord, read: TurnBatch
     ) -> tuple[dict[str, str | None], int]:
@@ -178,7 +272,7 @@ class DiscoveryCapsuleBuilder:
 
     @staticmethod
     def _display_name(
-        source: SourceRecord, title: str, excerpts: list[dict[str, object]]
+        harness: str, title: str, excerpts: list[dict[str, object]]
     ) -> tuple[str, bool, str]:
         """Build a compact recognizable label from already permitted evidence."""
 
@@ -197,14 +291,14 @@ class DiscoveryCapsuleBuilder:
                 "",
             )
         if candidate:
-            normalized = " ".join(candidate.split())
+            normalized = _display_goal(candidate)
             if normalized:
                 return _bounded(
                     conceal_native_session_ids(normalized),
                     _MAX_DISPLAY_NAME_CHARACTERS,
                 ) + (title_origin,)
         return (
-            f"{source.identity.adapter.title()} session · no user task captured",
+            f"{harness.title()} session · no user task captured",
             False,
             "no_user_task",
         )

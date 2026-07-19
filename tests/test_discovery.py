@@ -32,6 +32,7 @@ def seed_discovery(
     fixture_home: Path,
     *,
     extra_count: int = 0,
+    include_book_session: bool = False,
 ) -> None:
     adapter = CodexAdapter(fixture_home, source_namespace="discovery")
     template = adapter.scan(None).records[0]
@@ -57,6 +58,18 @@ def seed_discovery(
         )
         for number in range(extra_count)
     )
+    if include_book_session:
+        records.append(
+            (
+                "books",
+                "codex",
+                SessionHealth.COMPLETE,
+                "Book plan",
+                "five books to bring",
+                6,
+                project.key,
+            )
+        )
     try:
         with repository.transaction():
             for native_id, harness, health, title, text, hour, project_key in records:
@@ -189,6 +202,35 @@ def test_browse_and_search_are_project_scoped_filtered_and_deterministic(
         assert "019f6000-5678-7000-8000-000000000002" not in display_item.display_name
         assert "[REDACTED:credential]" in display_item.display_name
         assert display_item.display_name.count("[session]") == 2
+    finally:
+        connection.close()
+
+
+def test_search_matches_singular_and_plural_word_forms(
+    codex_fixture_home: Path, tmp_path: Path
+) -> None:
+    current = tmp_path / "current"
+    foreign = tmp_path / "foreign"
+    current.mkdir()
+    foreign.mkdir()
+    database = tmp_path / "tang.db"
+    seed_discovery(
+        database,
+        current,
+        foreign,
+        codex_fixture_home,
+        include_book_session=True,
+    )
+    connection = open_database(database)
+    try:
+        service = DiscoveryService(TangRepository(connection))
+        project_key = resolve_project(current).key
+        assert [item.source_id for item in service.search(project_key, "book")] == [
+            "codex:discovery:books"
+        ]
+        assert [item.source_id for item in service.search(project_key, "books")] == [
+            "codex:discovery:books"
+        ]
     finally:
         connection.close()
 

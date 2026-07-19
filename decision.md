@@ -438,3 +438,27 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) call the newer source v0.2.8; (b) defer all release-copy alignment until a tag; (c) advance the unreleased candidate to v0.2.9 and require a new wheel, checksum, and separate-host smoke before tagging.
 - Decision: (c) — make the artifact boundary honest for reviewers and judges without publishing or claiming external-host evidence early. Serves: Technological Implementation, Design, Quality of Idea.
 - By: agent (release-contract consistency under the approved no-publish-yet gate)
+
+## 2026-07-19T00:30:00Z · tang-2be.35 · Degrade unavailable Codex host identity without blocking recovery
+- Context: Some Codex hosts do not expose the active native session ID to the Tang skill. The former exact-exclusion fallback then refused browse and search whenever several eligible Codex sessions were indexed, preventing ordinary recovery.
+- Options: (a) keep the block; (b) infer the active session from recency or presentation; (c) continue unexcluded, disclose that the active session may appear, and preserve explicit selection plus link-time safeguards.
+- Decision: (c) — a usable recovery path is preferable to a false identity claim. Tang does not identify or silently exclude a result without host evidence; self-link rejection and exact-target confirmation remain required. Serves: Design, Potential Impact, Technological Implementation.
+- By: human (explicit approval) and agent (bounded skill/spec implementation)
+
+## 2026-07-19T00:45:00Z · tang-2be.36 · Stem ordinary discovery search word forms
+- Context: Functional testing showed `tang search book` missed an otherwise relevant capsule containing `books`, making ordinary recall depend on exact inflection.
+- Options: (a) retain literal token matching; (b) add ad-hoc suffix expansion in the CLI; (c) rebuild the derived FTS5 index with SQLite's Porter tokenizer.
+- Decision: (c) — database-level stemming covers singular/plural word forms consistently for CLI, skills, and JSON while preserving project filters, deterministic order, and phrase queries. The migration rebuilds only derived FTS rows from persisted Capsules. Serves: Design, Potential Impact, Technological Implementation.
+- By: human (functional-test finding) and agent (bounded search implementation)
+
+## 2026-07-19T01:15:00Z · tang-2be.38 · Discover the standard OpenCode user-local installation
+- Context: Live video-lab testing found OpenCode 1.18.3 at `~/.opencode/bin/opencode`, but that directory was not on `PATH`; Tang consequently omitted all completed OpenCode sessions despite a compatible adapter.
+- Options: (a) require a PATH edit or per-command flag; (b) search arbitrary filesystem locations; (c) add only OpenCode's documented user-local executable after explicit configuration and PATH lookup.
+- Decision: (c) — make ordinary OpenCode installs work while retaining explicit/environment and PATH precedence, deterministic discovery, and the existing adapter validation. Serves: Potential Impact, Design, Technological Implementation.
+- By: human (functional-test evidence) and agent (bounded platform integration)
+
+## 2026-07-19T01:35:00Z · tang-2be.39 · Relabel verbose Codex prompts from stored task evidence
+- Context: Codex exposes no native session title. Live lab cards shared a long setup prefix, so the existing first-96-character derived label made three distinct tasks indistinguishable; raw Tang invocations were equally opaque.
+- Options: (a) leave generic labels; (b) generate model summaries; (c) select an existing imperative task sentence from the already-redacted Capsule and map Tang commands to fixed workflow labels.
+- Decision: (c) — improve recognition without storing synthesis, rereading unchanged native transcripts, or retaining new metadata. Capsule display-name version 3 refreshes compatible existing labels from stored evidence during normal index. Serves: Design, Potential Impact, Technological Implementation.
+- By: human (functional-test evidence) and agent (privacy-preserving title heuristic)

@@ -102,6 +102,18 @@ class ProjectIndexer:
         # legacy titleless records without rereading their native transcripts.
         with self._repository.transaction():
             self._repository.backfill_untitled_sessions(active_project.key)
+            for session in self._repository.sessions_for_project(active_project.key):
+                capsule = self._repository.get_capsule(session.source.identity.canonical)
+                if capsule is None:
+                    continue
+                refreshed = self._capsules.refresh_display_label(capsule)
+                if refreshed is None:
+                    continue
+                self._repository.put_capsule(refreshed)
+                if not isinstance(capsule.content.get("source_title"), str):
+                    self._repository.set_derived_title(
+                        refreshed.source_id, str(refreshed.content["display_name"])
+                    )
 
         for adapter in adapters:
             prior_checkpoint = self._repository.get_checkpoint(

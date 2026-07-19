@@ -267,11 +267,11 @@ def test_incremental_index_refreshes_pre_label_version_capsules(
         refreshed = indexer.index((adapter,), project, now=NOW)
 
         assert first.indexed == 1
-        assert refreshed.indexed == 1
-        assert reads == 1
+        assert refreshed.indexed == 0
+        assert reads == 0
         rebuilt = repository.get_capsule(source_id)
         assert rebuilt is not None
-        assert rebuilt.content["display_name_version"] == 2
+        assert rebuilt.content["display_name_version"] == 3
     finally:
         connection.close()
 

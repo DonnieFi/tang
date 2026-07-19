@@ -24,6 +24,7 @@ def test_release_metadata_and_manifest_are_explicit() -> None:
     assert "include SECURITY.md" in manifest
     assert "include CONTEXT.md" in manifest
     assert "include docs/getting-started.md" in manifest
+    assert "include docs/video-runbook.md" in manifest
     assert "include docs/assets/tang-multiverse-demo.svg" in manifest
     assert "include docs/assets/tang-mascot-concept.png" in manifest
     assert "include skills/tang/SKILL.md" in manifest

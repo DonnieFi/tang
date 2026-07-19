@@ -231,6 +231,12 @@ def test_skill_instructions_require_host_selection_without_invented_ids() -> Non
         "Do not build a second interactive terminal browser",
         "Do not re-index before every follow-up browse or search",
         "--exclude-current",
-        "error[target-unconfirmed]",
+        "Tang cannot identify the active session from this host",
+        "may appear in these results",
+        "Do not infer which result is active",
+        "Self-link rejection and exact-target confirmation",
+        "only into that active session",
+        "Do not accept a historical `--to` handle",
+        "normal-terminal command `tang link --from <source-handle> --to <target-handle>`",
     )
     assert all(phrase in text for phrase in required)

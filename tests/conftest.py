@@ -11,6 +11,13 @@ import pytest
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
+@pytest.fixture(autouse=True)
+def isolate_user_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Keep optional user-local adapter discovery independent of the test host."""
+
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+
 @dataclass(frozen=True, slots=True)
 class DiscoveryCorpus:
     codex_home: Path

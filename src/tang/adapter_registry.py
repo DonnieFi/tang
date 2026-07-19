@@ -9,6 +9,15 @@ from pathlib import Path
 from tang.adapters import CodexAdapter, GrokAdapter, OpenCodeAdapter, SessionAdapter
 
 
+def _default_opencode_executable() -> Path | None:
+    """Return OpenCode's standard user-local executable when it is runnable."""
+
+    candidate = Path.home() / ".opencode" / "bin" / "opencode"
+    if candidate.is_file() and os.access(candidate, os.X_OK):
+        return candidate
+    return None
+
+
 def configured_adapters(
     project_dir: Path | str,
     *,
@@ -22,7 +31,11 @@ def configured_adapters(
     configured_opencode = opencode_executable or os.environ.get(
         "TANG_OPENCODE_EXECUTABLE"
     )
-    discovered_opencode = configured_opencode or shutil.which("opencode")
+    discovered_opencode = (
+        configured_opencode
+        or shutil.which("opencode")
+        or _default_opencode_executable()
+    )
     adapters: list[SessionAdapter] = [
         CodexAdapter(codex_home),
         GrokAdapter(grok_home),

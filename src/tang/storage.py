@@ -157,6 +157,24 @@ MIGRATIONS: tuple[Migration, ...] = (
             "ALTER TABLE sessions ADD COLUMN title TEXT",
         ),
     ),
+    (
+        7,
+        (
+            "DROP TABLE capsules_fts",
+            """
+            CREATE VIRTUAL TABLE capsules_fts USING fts5(
+                source_id UNINDEXED,
+                project_key UNINDEXED,
+                search_text,
+                tokenize = 'porter unicode61'
+            )
+            """,
+            """
+            INSERT INTO capsules_fts(source_id, project_key, search_text)
+            SELECT source_id, project_key, search_text FROM capsules
+            """,
+        ),
+    ),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 

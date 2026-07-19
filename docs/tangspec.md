@@ -112,6 +112,13 @@ The hackathon release only discovers and selects sources belonging to the curren
 
 Tang rejects self-links and links that introduce a cycle. A Multiverse is a weakly connected component of this directed acyclic graph; a Timeline is any directed path through it.
 
+When Codex supplies the active native session ID privately, the skill excludes that
+session from discovery. If the host does not supply it, the skill continues with
+unexcluded current-project discovery and tells the developer that the active
+session may appear. It does not infer an identity from recency or presentation;
+explicit source selection, self-link rejection, and exact target confirmation
+remain mandatory before any continuation is recorded.
+
 ## CLI Interface
 
 | Interface | Behavior |

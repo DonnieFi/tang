@@ -215,7 +215,112 @@ def test_display_name_skips_host_envelopes_for_goal_and_search_evidence(
     )
     assert "environment_context" not in capsule.search_text
     assert [excerpt["ordinal"] for excerpt in capsule.content["excerpts"]] == [1]
-    assert capsule.content["display_name_version"] == 2
+    assert capsule.content["display_name_version"] == 3
+
+
+def test_display_name_prefers_task_sentence_over_verbose_context_preamble(
+    codex_fixture_home: Path,
+) -> None:
+    source, _read = fixture_source_and_read(codex_fixture_home)
+    verbose = TurnBatch(
+        identity=source.identity,
+        status=BatchStatus.COMPLETE,
+        turns=(
+            VisibleTurn(
+                ordinal=0,
+                role=TurnRole.USER,
+                text=(
+                    "Tang video-lab vacation research. We will later compare "
+                    "independent research across harnesses. Give exactly five "
+                    "books to bring for an Asia trip. Keep the answer concise."
+                ),
+                citation_locator="jsonl:1",
+                timestamp=source.updated_at,
+            ),
+        ),
+    )
+
+    capsule = DiscoveryCapsuleBuilder().build(
+        replace(source, title=None), verbose, "project-a"
+    )
+
+    assert capsule.content["display_name"] == (
+        "Give exactly five books to bring for an Asia trip."
+    )
+    assert capsule.content["session_header"]["title_origin"] == "derived_goal"
+
+
+def test_display_name_relabels_bare_tang_invocation(
+    codex_fixture_home: Path,
+) -> None:
+    source, _read = fixture_source_and_read(codex_fixture_home)
+    command = TurnBatch(
+        identity=source.identity,
+        status=BatchStatus.COMPLETE,
+        turns=(
+            VisibleTurn(
+                ordinal=0,
+                role=TurnRole.USER,
+                text="$tang browse",
+                citation_locator="jsonl:1",
+                timestamp=source.updated_at,
+            ),
+        ),
+    )
+
+    capsule = DiscoveryCapsuleBuilder().build(
+        replace(source, title=None), command, "project-a"
+    )
+
+    assert capsule.content["display_name"] == "Tang discovery workflow"
+
+
+def test_display_label_refresh_uses_stored_redacted_excerpts_without_reread(
+    codex_fixture_home: Path,
+) -> None:
+    source, _read = fixture_source_and_read(codex_fixture_home)
+    verbose = TurnBatch(
+        identity=source.identity,
+        status=BatchStatus.COMPLETE,
+        turns=(
+            VisibleTurn(
+                ordinal=0,
+                role=TurnRole.USER,
+                text=(
+                    "Tang video-lab vacation research. Give exactly five books "
+                    "to bring for an Asia trip."
+                ),
+                citation_locator="jsonl:1",
+                timestamp=source.updated_at,
+            ),
+        ),
+    )
+    builder = DiscoveryCapsuleBuilder()
+    current = builder.build(replace(source, title=None), verbose, "project-a")
+    legacy_content = dict(current.content)
+    legacy_content["display_name"] = "Tang video-lab vacation research."
+    legacy_content["display_name_version"] = 2
+    legacy_content["session_header"] = {
+        **current.content["session_header"],
+        "title_origin": "derived_goal",
+    }
+    legacy = replace(
+        current,
+        content=legacy_content,
+        byte_count=len(
+            json.dumps(
+                legacy_content, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ).encode("utf-8")
+        ),
+    )
+
+    refreshed = builder.refresh_display_label(legacy)
+
+    assert refreshed is not None
+    assert refreshed.content["display_name"] == (
+        "Give exactly five books to bring for an Asia trip."
+    )
+    assert refreshed.content["display_name_version"] == 3
 
 
 def test_capsule_repository_update_delete_and_fts(codex_fixture_home: Path, tmp_path: Path) -> None:

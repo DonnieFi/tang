@@ -6,6 +6,7 @@ include README.md
 include CONTEXT.md
 include docs/getting-started.md
 include docs/tangspec.md
+include docs/video-runbook.md
 include docs/assets/README.md
 include docs/assets/tang-multiverse-demo.svg
 include docs/assets/tang-mascot-concept.png

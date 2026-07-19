@@ -290,12 +290,21 @@ tang search "checkpoint recovery"
 tang browse --page 2
 ```
 
+Search matches ordinary word forms, so `tang search book` also finds a capsule
+containing `books`; quoted phrases retain their normal FTS phrase semantics.
+
 The human list intentionally hides long implementation IDs. It shows a redacted
 name, harness, time, health, capability status, a page choice such as `[2]`,
 and a short project handle such as `C1` (Codex) or `G1` (Grok).
 `--page 2` shows the next five choices. In Codex, Tang maps a selected number
 to its exact canonical ID privately and will refuse a stale or out-of-range
 number rather than guessing.
+
+When Codex supplies the active session identity, the skill excludes it from
+these results. Some Codex hosts do not provide that identity. In that case the
+skill continues with the same explicit selection flow and clearly says that the
+active session may appear; it never guesses which result is active. Link-time
+self-link rejection and explicit target confirmation still apply.
 
 Use the short handle directly in human commands. Handles are case-insensitive,
 remain stable across refreshes in the project's `.tang/tang.db`, and reset only
@@ -360,6 +369,12 @@ connected component containing the returned target ID:
 ```bash
 tang graph <source-or-target-handle>
 ```
+
+Inside the Codex host skill, a supplied native current-session ID means the
+confirmed target is the active session only. If you deliberately need to
+connect two already indexed historical handles, use the explicit normal-terminal
+`tang link --from <source-handle> --to <target-handle>` path after reviewing the
+sources and confirming that exact edge set.
 
 In a normal terminal after a confirmation, bare `tang graph` focuses the one
 latest confirmed target when there is exactly one. It never chooses a native
