@@ -6,7 +6,7 @@ with citations. Tang does not copy whole transcripts into a new tool. It builds
 a small, redacted, source-cited Context Pack and records a continuation only
 after you confirm it.
 
-Tang v0.2.8 is still a release candidate and the **minimum reviewed build**.
+Tang v0.2.9 is still a release candidate and the **minimum reviewed build**.
 The source repository is available, but the final tagged wheel download does
 not exist until the release gate is approved and published.
 
@@ -43,12 +43,12 @@ git checkout <release-candidate-commit>
 ```
 
 The wheel is not public yet. Copy
-`tang_multiverse-0.2.8-py3-none-any.whl` from the build host to the repository
+`tang_multiverse-0.2.9-py3-none-any.whl` from the build host to the repository
 directory on the test host using your normal secure file-transfer method. Also
 record its SHA-256 hash on the build host:
 
 ```bash
-sha256sum tang_multiverse-0.2.8-py3-none-any.whl
+sha256sum tang_multiverse-0.2.9-py3-none-any.whl
 ```
 
 After copying, run the same command on the test host. The two hashes must match.
@@ -60,7 +60,7 @@ From the source checkout, run:
 
 ```bash
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.8-py3-none-any.whl \
+  ./tang_multiverse-0.2.9-py3-none-any.whl \
   --output tang-functional-evidence.json
 ```
 
@@ -68,7 +68,7 @@ To test a particular supported interpreter:
 
 ```bash
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.8-py3-none-any.whl \
+  ./tang_multiverse-0.2.9-py3-none-any.whl \
   --python python3.11 \
   --output tang-functional-evidence-python311.json
 ```
@@ -104,7 +104,7 @@ debugging:
 ```bash
 mkdir tang-functional-work
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.8-py3-none-any.whl \
+  ./tang_multiverse-0.2.9-py3-none-any.whl \
   --work-dir ./tang-functional-work \
   --output tang-functional-evidence.json
 ```
@@ -118,16 +118,16 @@ reproduced and fixed.
 Until the public release exists, install the local wheel:
 
 ```bash
-uv tool install ./tang_multiverse-0.2.8-py3-none-any.whl
+uv tool install ./tang_multiverse-0.2.9-py3-none-any.whl
 tang skill install codex
 ```
 
-Once v0.2.8 is approved and published, install the exact version-pinned GitHub
+Once v0.2.9 is approved and published, install the exact version-pinned GitHub
 release instead. Do not install an unversioned development build when verifying
 the release:
 
 ```bash
-uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.8/tang_multiverse-0.2.8-py3-none-any.whl
+uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.9/tang_multiverse-0.2.9-py3-none-any.whl
 tang skill install codex
 ```
 
@@ -140,7 +140,7 @@ tang doctor
 ```
 
 Start a new Codex session after installing the skill. Invoke `$tang` or ask
-Codex in plain English to use Tang. Tang v0.2.8 installs a Codex skill, not a
+Codex in plain English to use Tang. Tang v0.2.9 installs a Codex skill, not a
 `/tang` slash command, so it might not appear in a slash-command picker.
 
 For OpenCode `>=1.17.18,<2.0.0` on Linux, install the integration into the
@@ -154,6 +154,12 @@ This installs Tang-owned files only under the project's `.opencode` directory.
 The transcript source contract is provider-independent: an OpenCode session can
 use OpenAI, xAI, or another model provider without changing how Tang reads its
 visible user and assistant turns.
+
+`tang resume O1` uses the tested OpenCode launch contract
+`opencode <recorded-project-directory> --session <private-native-id>`. It
+therefore requires the same indexed worktree: use Tang from that worktree, or
+re-index and link from the other worktree rather than treating sibling checkouts
+as interchangeable native session stores.
 
 ### Choose where to use Tang
 
@@ -191,7 +197,7 @@ commit and the wheel's SHA-256 on the build host, compare that hash on the test
 host, then install and verify the artifact:
 
 ```bash
-uv tool install --force ./tang_multiverse-0.2.8-py3-none-any.whl
+uv tool install --force ./tang_multiverse-0.2.9-py3-none-any.whl
 tang --version
 tang doctor
 tang demo --ascii
@@ -206,9 +212,10 @@ tang skill install opencode --project-root "$PWD" --force  # restart, then use /
 ```
 
 In a real project, test `tang index`, `browse`, `search`, `context HANDLE`, an
-explicitly confirmed link, `tang graph HANDLE`, and `tang resume HANDLE` for
-one Codex or OpenCode session. Then test deletion without touching native
-history:
+explicitly confirmed link, `tang graph HANDLE`, and `tang context all --for
+HANDLE`; verify its cited predecessors match the displayed graph. Then test
+`tang resume HANDLE` for one Codex or OpenCode session, followed by deletion
+without touching native history:
 
 ```bash
 tang purge --all --yes
@@ -319,7 +326,9 @@ After an explicitly confirmed continuation, `tang context` (or `tang context
 all`) recalls every confirmed predecessor of the one latest confirmed target.
 Use `tang context N` to include at most `N` predecessor-link hops, or add
 `--for HANDLE` when you want a particular confirmed target. This rereads the
-same cited source evidence; Tang never stores a generated session summary.
+same cited source evidence; it deliberately excludes the target's own turns.
+Pass that target handle explicitly alongside the predecessors if you need it.
+Tang never stores a generated session summary.
 
 For scripts, add `--json` to `index`, `browse`, `search`, or `context`. Add an
 explicit `--page N` to page JSON results in five-choice groups; otherwise JSON
@@ -415,13 +424,18 @@ Capsules, adapter checkpoints, search rows, and explicitly confirmed graph
 edges. Capsule headers may retain an evidenced model/provider, Codex effort,
 visible-turn count, approximate visible-text size, and title origin. It does
 not store Codex's generated Continuation Brief or a Tang-generated session
-summary.
+summary. These header facts are harness-dependent: missing fields mean the
+native source did not supply evidence, not that Tang inferred an absence.
+
+The first `tang index` after upgrading to v0.2.9 may reread previously indexed
+sessions once to refresh derived labels and these bounded headers. It preserves
+handles and confirmed edges, then resumes normal incremental refresh behavior.
 
 ## Early FAQ
 
 ### Why does search show nothing?
 
-Make sure you ran `tang index` from the same project. Tang v0.2.8 deliberately
+Make sure you ran `tang index` from the same project. Tang v0.2.9 deliberately
 does not search across unrelated projects. Try another memorable keyword or a
 quoted phrase and inspect indexing warnings.
 
@@ -452,7 +466,7 @@ before it records a continuation.
 
 ### Are macOS and Windows supported?
 
-No compatibility claim is made for v0.2.8. The release is tested and supported
+No compatibility claim is made for v0.2.9. The release is tested and supported
 on Linux with Python 3.11 or newer.
 
 ### Why did `tang index` exit with code 1 even though search works?
@@ -463,7 +477,7 @@ available evidence is adequate. A `diagnostic[foreign]` instead identifies a
 store-wide issue Tang proved belongs to another project; it remains visible but
 does not turn a complete current-project index into exit code `1`.
 
-### Can Tang automatically decide which session to resume?
+### Can Tang automatically choose which sessions to recover or link?
 
 No. Tang can rank search results, but you choose exact sources. It also refuses
 to guess an ambiguous continuation target or create a self-link or cycle.

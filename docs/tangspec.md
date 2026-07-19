@@ -64,7 +64,7 @@ format is too risky to promise without repeatable recovery from real data.
   support is an approved completed extension, not a claim for the unnamed
   origin environment.
 
-### Approved v0.2.8 Extension
+### Approved native-resume extension
 
 - `tang resume HANDLE` may launch the exact indexed, native-available Codex or
   OpenCode session through that harness's native CLI from a normal project
@@ -121,6 +121,7 @@ Tang rejects self-links and links that introduce a cycle. A Multiverse is a weak
 | `tang browse` | List indexed sessions with harness, time, title, health, and capability status. |
 | `tang search QUERY` | Search Discovery Capsules with project, harness, time, and health filters. |
 | `tang context [SESSION...]` | Emit a deterministic Markdown or JSON Context Pack using the compact budget. Bare `context` and `context all` recall every confirmed predecessor of one unambiguous latest target; `context N` limits ancestry to N link hops. |
+| `tang resume HANDLE` | Reopen one exact indexed Codex or OpenCode session in its native harness; it never injects context or records an edge. |
 | `tang link --from SESSION... --current` | Link selected sources into the current session after target confirmation. |
 | `tang link --from SESSION... --to SESSION` | Explicit scripting and ambiguity-resolution path. |
 | `tang graph [SESSION]` | Render the containing Multiverse Map in the terminal. |
@@ -199,6 +200,13 @@ Store at most 8 KiB of redacted visible text per session:
   count, and whether the title was native, derived from a user goal, or a
   no-user-task fallback.
 
+The Capsule document keeps `schema_version: 1`; `display_name_version: 2`
+identifies the current derived-label algorithm. Its `session_header` uses
+`version: 1` and only the optional `model_provider`, `model_id`, and `effort`
+fields plus deterministic `visible_turn_count`, `visible_text_bytes`, and a
+`title_origin` of `native`, `derived_goal`, or `no_user_task`. Fields are
+harness-dependent rather than a promise of uniform host metadata.
+
 Index Discovery Capsules with normal FTS5 for reliable search, snippets, updates, and deletion. Do not store system prompts, hidden reasoning, tool payloads/results, file bodies, or full transcripts. Native logs remain the source of truth.
 
 Tang never writes a generated session summary. A Context Pack and its live
@@ -264,7 +272,7 @@ The distribution name is `tang-multiverse`; the installed command is `tang`. The
 Publish a tagged wheel so judges can install Tang without rebuilding it from source. The README leads with a version-pinned command after the public repository owner is known:
 
 ```bash
-uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.8/tang_multiverse-0.2.8-py3-none-any.whl
+uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.9/tang_multiverse-0.2.9-py3-none-any.whl
 tang skill install codex
 ```
 

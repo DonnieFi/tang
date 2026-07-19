@@ -42,10 +42,11 @@ This capture comes from the real isolated `tang demo` output. From a development
 checkout, regenerate it with `python scripts/capture_demo_hero.py --tang
 .venv/bin/tang --output docs/assets/tang-multiverse-demo.svg`.
 
-> **v0.2.8 release candidate:** the Linux wheel, complete demo path, and
-> OpenCode source/destination integration are verified. The source repository
-> is public; until the matching release artifact is published, use the reviewed
-> local-wheel command below.
+> **v0.2.9 release candidate:** the complete demo path and OpenCode
+> source/destination integration are verified in source. The release wheel is
+> rebuilt and separately smoke-tested from this exact candidate before tagging.
+> The source repository is public; until the matching artifact is published,
+> use the reviewed local-wheel command below.
 
 ## The work should outlive the tool
 
@@ -90,10 +91,10 @@ No transcript copy-and-paste. No pretending that a generic summary is provenance
 
 ## Install on Linux
 
-After `v0.2.8` is published, install its immutable, version-pinned wheel:
+After `v0.2.9` is published, install its immutable, version-pinned wheel:
 
 ```bash
-uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.8/tang_multiverse-0.2.8-py3-none-any.whl
+uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.9/tang_multiverse-0.2.9-py3-none-any.whl
 tang skill install codex
 tang --help
 ```
@@ -103,7 +104,7 @@ Requirements: Linux and Python 3.11 or later. The hackathon release makes no mac
 Before publication, install the reviewed local artifact instead:
 
 ```bash
-uv tool install ./tang_multiverse-0.2.8-py3-none-any.whl
+uv tool install ./tang_multiverse-0.2.9-py3-none-any.whl
 tang skill install codex
 tang --help
 ```
@@ -204,7 +205,8 @@ Native harness logs remain the source of truth. Tang stores only derived continu
 - Discovery Capsules contain at most 8 KiB of redacted visible text per session.
 - Browse and JSON discovery also show bounded session headers when native evidence
   exists: model/provider, Codex effort, visible-turn count, approximate visible
-  text size, and whether the title is native or derived. Tang does not persist a
+  text size, and whether the title is native or derived. These facts are
+  harness-dependent, not a uniform metadata promise. Tang does not persist a
   generated session summary.
 - System prompts, hidden reasoning, tool payloads, tool results, file bodies, and full transcripts are excluded.
 - Selected native sources are reread and redacted when a Context Pack is created.
@@ -334,7 +336,7 @@ codes, privacy checks, and timings as JSON without reading native user history:
 
 ```bash
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.8-py3-none-any.whl \
+  ./tang_multiverse-0.2.9-py3-none-any.whl \
   --output tang-functional-evidence.json
 ```
 
@@ -399,7 +401,7 @@ failure-path tests. Never contribute native transcripts, credentials, private
 paths, third-party logos, or a database built from real user history.
 
 Tang is licensed under the [`MIT License`](LICENSE). The verified release
-candidate becomes `v0.2.8` only after its manual review gate and matching tag.
+candidate becomes `v0.2.9` only after its manual review gate and matching tag.
 Report security issues privately using the process in
 [`SECURITY.md`](SECURITY.md); never attach native transcripts or credentials to
 a public issue.

@@ -432,3 +432,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) reopen a session and rely on native history alone; (b) generate and persist a rolling summary; (c) traverse only explicit, project-scoped confirmed predecessor edges and build an on-demand cited Context Pack.
 - Decision: (c) — bare `tang context` and `context all` use the unique latest confirmed target, `context N` bounds ancestry by hops, and an exact host current ID takes precedence when supplied. Ties refuse and explicit source selection remains unchanged. Serves: Design, Potential Impact, Technological Implementation.
 - By: human (required joined-session recall) and agent (provenance-preserving implementation)
+
+## 2026-07-19T00:10:00Z · tang-2be.32 · Publish the post-recall candidate as v0.2.9
+- Context: v0.2.8 introduced native resume, while the next reviewed commit adds bounded persisted headers, derived-label refresh, and confirmed-predecessor Context Pack recall; reusing an already reviewed immutable artifact name would misstate its contents.
+- Options: (a) call the newer source v0.2.8; (b) defer all release-copy alignment until a tag; (c) advance the unreleased candidate to v0.2.9 and require a new wheel, checksum, and separate-host smoke before tagging.
+- Decision: (c) — make the artifact boundary honest for reviewers and judges without publishing or claiming external-host evidence early. Serves: Technological Implementation, Design, Quality of Idea.
+- By: agent (release-contract consistency under the approved no-publish-yet gate)

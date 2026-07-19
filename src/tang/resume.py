@@ -167,6 +167,9 @@ class ResumeService:
                 default="opencode",
                 harness="OpenCode",
             )
+            # Supported OpenCode CLI contract: open the exact recorded project
+            # directory and select its private session with ``--session``.
+            # Keep this narrow until a live-verified upstream contract changes.
             command = (
                 executable,
                 str(launch_directory),
