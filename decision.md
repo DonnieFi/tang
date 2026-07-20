@@ -480,3 +480,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) advance an unreleased candidate to v0.2.10; (b) retain v0.2.9 and rebuild the final artifact from the reviewed release commit.
 - Decision: (b) — the human explicitly selected v0.2.9 as the release name; rebuild and publish only the matching final reviewed artifact. Serves: Quality of Idea, Technological Implementation.
 - By: human (release naming authority)
+
+## 2026-07-20T00:00:00Z · release · Publish the reviewed v0.2.9 Linux artifact
+- Context: The human authorized the public release after the final docs, one-step predecessor recall, reproducible-build, and isolated clean-wheel acceptance checks completed.
+- Options: (a) leave the version as a local candidate; (b) publish a different untested rebuild; (c) tag the reviewed main commit and attach the matching wheel and source archive.
+- Decision: (c) — publish only the deterministic artifacts validated from the final public documentation: wheel SHA-256 `7e9722ccf7cabdc581bf0c81c450f51fc2931e194b40481ff1db6cdb5f8abc44`; source archive SHA-256 `3d83e4ab9e356b6536f632f1f7cc75527681ace880286219b06d12277f627194`. Serves: Quality of Idea, Technological Implementation, Potential Impact.
+- By: human (release authority) and agent (release validation)

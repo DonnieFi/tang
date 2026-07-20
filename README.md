@@ -42,11 +42,10 @@ This capture comes from the real isolated `tang demo` output. From a development
 checkout, regenerate it with `python scripts/capture_demo_hero.py --tang
 .venv/bin/tang --output docs/assets/tang-multiverse-demo.svg`.
 
-> **v0.2.9 release candidate:** the complete demo path and OpenCode
-> source/destination integration are verified in source. The release wheel is
-> rebuilt and separately smoke-tested from this exact candidate before tagging.
-> The source repository is public; until the matching artifact is published,
-> use the reviewed local-wheel command below.
+> **v0.2.9 is the reviewed Linux release:** the complete demo path and OpenCode
+> source/destination integration are verified in source, then separately
+> smoke-tested from the matching wheel. The source repository is public and the
+> immutable version-pinned artifact is available below.
 
 ## The work should outlive the tool
 
@@ -91,7 +90,7 @@ No transcript copy-and-paste. No pretending that a generic summary is provenance
 
 ## Install on Linux
 
-After `v0.2.9` is published, install its immutable, version-pinned wheel:
+Install the immutable, version-pinned v0.2.9 wheel:
 
 ```bash
 uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.9/tang_multiverse-0.2.9-py3-none-any.whl
@@ -101,7 +100,7 @@ tang --help
 
 Requirements: Linux and Python 3.11 or later. The hackathon release makes no macOS or Windows compatibility claim.
 
-Before publication, install the reviewed local artifact instead:
+For local development, install a wheel you built yourself instead:
 
 ```bash
 uv tool install ./tang_multiverse-0.2.9-py3-none-any.whl
@@ -408,8 +407,8 @@ platform claims require representative live evidence, sanitized fixtures, and
 failure-path tests. Never contribute native transcripts, credentials, private
 paths, third-party logos, or a database built from real user history.
 
-Tang is licensed under the [`MIT License`](LICENSE). The verified release
-candidate becomes `v0.2.9` only after its manual review gate and matching tag.
+Tang is licensed under the [`MIT License`](LICENSE). v0.2.9 is the reviewed,
+tagged Linux release.
 Report security issues privately using the process in
 [`SECURITY.md`](SECURITY.md); never attach native transcripts or credentials to
 a public issue.

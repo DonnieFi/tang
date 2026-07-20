@@ -6,9 +6,8 @@ with citations. Tang does not copy whole transcripts into a new tool. It builds
 a small, redacted, source-cited Context Pack and records a continuation only
 after you confirm it.
 
-Tang v0.2.9 is still a release candidate and the **minimum reviewed build**.
-The source repository is available, but the final tagged wheel download does
-not exist until the release gate is approved and published.
+Tang v0.2.9 is the **minimum reviewed build** and the current tagged Linux
+release. Install its exact wheel rather than an unversioned development build.
 
 ## What you need
 
@@ -29,30 +28,28 @@ If `uv` is missing, install it using the official Astral instructions. Do not
 run an installer copied from this repository; Tang intentionally does not ship
 a custom shell installer.
 
-## Download the release candidate for testing
+## Download Tang for testing
 
-For pre-release functional testing, use a Tang source checkout and the exact
-wheel produced from the same reviewed commit.
+For functional testing, use the tagged source checkout and its exact published
+wheel.
 
 Clone the repository on the test host if that host can reach GitHub:
 
 ```bash
 git clone https://github.com/DonnieFi/tang.git
 cd tang
-git checkout <release-candidate-commit>
+git checkout v0.2.9
 ```
 
-The wheel is not public yet. Copy
-`tang_multiverse-0.2.9-py3-none-any.whl` from the build host to the repository
-directory on the test host using your normal secure file-transfer method. Also
-record its SHA-256 hash on the build host:
+Download the wheel beside that checkout and record its SHA-256 hash:
 
 ```bash
+curl -LO https://github.com/DonnieFi/tang/releases/download/v0.2.9/tang_multiverse-0.2.9-py3-none-any.whl
 sha256sum tang_multiverse-0.2.9-py3-none-any.whl
 ```
 
-After copying, run the same command on the test host. The two hashes must match.
-This proves that the host tested the artifact that the build host produced.
+Compare that hash with the release notes. This proves that the host tested the
+published artifact named by the tag.
 
 ## Run isolated functional acceptance
 
@@ -115,16 +112,15 @@ reproduced and fixed.
 
 ## Install Tang for normal use
 
-Until the public release exists, install the local wheel:
+For local development, install a local wheel:
 
 ```bash
 uv tool install ./tang_multiverse-0.2.9-py3-none-any.whl
 tang skill install codex
 ```
 
-Once v0.2.9 is approved and published, install the exact version-pinned GitHub
-release instead. Do not install an unversioned development build when verifying
-the release:
+For normal use, install the exact version-pinned GitHub release. Do not install
+an unversioned development build when verifying the release:
 
 ```bash
 uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.9/tang_multiverse-0.2.9-py3-none-any.whl
