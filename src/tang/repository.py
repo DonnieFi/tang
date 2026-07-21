@@ -414,29 +414,6 @@ class TangRepository:
                 (source_id,),
             )
 
-    def put_continuation(self, continuation: StoredContinuation) -> bool:
-        """Insert one confirmed edge; return false when it already exists."""
-
-        self._require_transaction()
-        cursor = self._connection.execute(
-            """
-            INSERT INTO continuation_edges(
-                source_id, target_id, project_key, confirmation_mode,
-                confirmed_at, schema_version
-            ) VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(source_id, target_id) DO NOTHING
-            """,
-            (
-                continuation.source_id,
-                continuation.target_id,
-                continuation.project_key,
-                continuation.confirmation_mode,
-                rfc3339(continuation.confirmed_at),
-                continuation.schema_version,
-            ),
-        )
-        return cursor.rowcount == 1
-
     def continuations_for_project(
         self, project_key: str
     ) -> tuple[StoredContinuation, ...]:

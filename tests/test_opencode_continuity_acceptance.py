@@ -136,7 +136,7 @@ def test_clean_database_multisource_context_continues_into_exact_opencode_target
 
         assert indexed.indexed == 4
         assert indexed.status == "complete"
-        assert pack.status == "partial"
+        assert pack.status == "complete"
         assert document["constraint_signals"][0]["kind"] == "first_user_goal_mismatch"
         assert {section.harness for section in pack.sections} == {
             "codex",

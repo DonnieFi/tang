@@ -1,50 +1,56 @@
 # Harness capability matrix
 
-Authoritative comparison of what Tang supports **today (v0.2.9)** versus the
-**post-release roadmap** on branch `epic/10-beta-release`. Implementation
-truth is defined by `tang.harness_capabilities`,
+Authoritative comparison of what Tang supports on branch `epic/10-beta-release`.
+Implementation truth is defined by `tang.harness_capabilities`,
 `tang.adapter_registry.configured_adapters`, and `ResumeService`.
 
-Legend: **yes** · **no** · **partial** (CLI or source-only) · **planned**
+The **v0.2.9 Linux release claim** remains Codex + Grok + OpenCode only; Cursor
+and expanded Grok destination behavior on this branch are **beta** until spec
+reconciliation (see `decision.md`).
+
+Legend: **yes** · **no** · **partial** (CLI or source-only) · **beta** (implemented, not release-claimed)
 
 | Capability | Codex CLI 0.144.4 | Grok 0.2.99 | OpenCode 1.17.18–1.x | Cursor IDE |
 | --- | --- | --- | --- | --- |
 | Linux release claim | yes | yes | yes | no |
-| Read-only session adapter | yes | yes | yes | no |
-| Incremental index + checkpoint | yes | yes | yes | planned |
-| Discovery capsule + FTS search | yes | yes | yes | planned |
-| Browse / search (current project) | yes | yes | yes | planned |
-| Context pack (cited native reread) | yes | yes | yes | planned |
-| Link as **source** | yes | yes | yes | planned |
-| Link as **destination** | yes | yes | yes | yes |
-| Host current-target resolution | yes (skill) | no | yes (`/tang` tools) | planned |
-| Predecessor recall (`context all`) | yes | partial | yes | planned |
-| `tang resume` native session | yes | no | yes | planned |
-| Host workflow (skill / MCP) | yes (`$tang`) | no | yes (`/tang`) | planned |
-| `tang skill install …` | yes | no | yes (project-local) | planned |
-| Import from Tang into active session | yes | partial | yes | planned |
+| Read-only session adapter | yes | yes | yes | beta |
+| Incremental index + checkpoint | yes | yes | yes | beta |
+| Discovery capsule + FTS search | yes | yes | yes | beta |
+| Browse / search (current project) | yes | yes | yes | beta |
+| Context pack (cited native reread) | yes | yes | yes | beta |
+| Link as **source** | yes | yes | yes | beta |
+| Link as **destination** | yes | yes | yes | beta |
+| Host current-target resolution | yes (skill) | no | yes (`/tang` tools) | no |
+| Predecessor recall (`context all`) | yes | partial | yes | no |
+| `tang resume` native session | yes | no | yes | no |
+| Host workflow (skill / MCP) | yes (`$tang`) | no | yes (`/tang`) | partial |
+| `tang skill install …` | yes | no | yes (project-local) | no |
+| Import from Tang into active session | yes | partial | yes | partial |
 | Write recovered transcript to native logs | no | no | no | no |
-| Write continuation edges (`.tang`) | yes | yes | yes | planned |
-| Multiverse graph node | yes | yes | yes | planned |
+| Write continuation edges (`.tang`) | yes | yes | yes | beta |
+| Multiverse graph node | yes | yes | yes | beta |
 
-**Partial** notes:
+**Partial / beta notes:**
 
-- **Grok — predecessor recall:** Grok sessions may be **targets** for explicit
-  `tang link --to` edges; there is no Grok host skill for `--current` linking
-  or one-step predecessor recall in v0.2.9.
-- **Grok — import from Tang:** Developers recover Grok **into** Codex or
-  OpenCode via the skill/CLI, or record edges **into** an indexed Grok session
-  with explicit `--to`; see [grok-handoff.md](grok-handoff.md). There is no
-  Grok-side Tang integration in v0.2.9.
+- **Grok — native logs:** Tang never writes Grok transcript stores; sessions may
+  still be **link destinations** when indexed (`grok-handoff.md`).
+- **Grok — predecessor recall:** explicit `tang link --to` only; no Grok host
+  `--current` bridge in v0.2.9.
+- **Cursor — beta:** Indexes when `~/.cursor/projects/<slug>/agent-transcripts/`
+  exists; enriches from `~/.cursor/chats/<md5(path)>/…` sidecars when present.
+  Not in the v0.2.9 wheel claim; composer-only SQLite history is out of scope.
+  Discovery maps Cursor **`mode`** into the JSON **`effort`** field (identifier
+  only, not Codex effort semantics).
+- **Cursor — import:** Context packs and handoff doc; no `--current` link bridge.
 
 ## Version and platform pins
 
 | Harness | Pin | Evidence |
 | --- | --- | --- |
 | Codex CLI | 0.144.4 | Live-verified local JSONL store (Linux) |
-| Grok Build | 0.2.99 | Live-verified local store (Linux); read-only source |
+| Grok Build | 0.2.99 | Live-verified local store (Linux); read-only native source |
 | OpenCode | `>=1.17.18,<2.0.0` | Contract fixtures; 1.17.20 live-verified |
-| Cursor | — | Not claimed in v0.2; roadmap only |
+| Cursor | — | Beta on branch; not in v0.2.9 release claim |
 | Tang package | v0.2.9 | Tagged wheel + README install URL |
 
 macOS and Windows are **unsupported** for the hackathon release (no CI claim).
@@ -64,13 +70,13 @@ store. Continuation is:
 
 See [native-write-policy.md](native-write-policy.md) for write/import rules.
 
-## Non-goals (v0.2)
+## Non-goals (v0.2 release claim)
 
 - Cross-project discovery without explicit opt-in (research: bead `tang-9nb`).
 - Semantic / vector search (`sqlite-vec`).
 - Writing instructions from recovered content into native logs.
-- Cursor or Grok as shipped, live-verified destinations without spec approval
-  and live proof on Linux.
+- Claiming Cursor in the **v0.2.9** marketing surface without spec approval
+  and live proof on Linux (beta code may exist on this branch).
 
 ## Roadmap beads (Epic 10)
 

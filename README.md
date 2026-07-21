@@ -46,6 +46,11 @@ checkout, regenerate it with `python scripts/capture_demo_hero.py --tang
 > source/destination integration are verified in source, then separately
 > smoke-tested from the matching wheel. The source repository is public and the
 > immutable version-pinned artifact is available below.
+>
+> **Beta work on branch `epic/10-beta-release`** (not part of the v0.2.9 claim
+> until reconciled): optional **Cursor** indexing from agent transcripts,
+> **Grok/Cursor link destinations**, multi-source **conflict disclosure**, and
+> `tang doctor --quick`. See [harness-matrix.md](docs/harness-matrix.md).
 
 ## The work should outlive the tool
 
@@ -187,9 +192,10 @@ Codex and Grok versions without separate evidence.
 
 The longer-term product direction is symmetrical continuity: any supported
 handle should be able to receive the blade. Tang v0.2 supports repeated,
-multi-source continuation into explicitly confirmed Codex and OpenCode targets;
-Grok remains a read-only source. Tang never writes recovered transcript text
-into a native harness.
+multi-source continuation into explicitly confirmed Codex, OpenCode, and (on
+the beta branch) Grok or Cursor targets when those sessions are indexed.
+Grok and Cursor native logs remain read-only; Tang never writes recovered
+transcript text into a native harness.
 
 ## The incident that started it
 

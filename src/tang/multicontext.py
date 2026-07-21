@@ -4,14 +4,21 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from dataclasses import dataclass, replace
 
 from tang.adapters import SourceRecord, TurnBatch, TurnRole
 from tang.context import ContextExcerpt, ContextPackBuilder, UNTRUSTED_NOTICE
 
+_GOAL_ENVELOPE = re.compile(
+    r"<timestamp>.*?</timestamp>\s*|<user_query>\s*|</user_query>",
+    re.DOTALL | re.IGNORECASE,
+)
+
 
 def _normalize_goal(text: str) -> str:
-    return " ".join(text.split()).casefold()
+    stripped = _GOAL_ENVELOPE.sub("", text)
+    return " ".join(stripped.split()).casefold()
 
 
 def constraint_signals(
@@ -122,9 +129,9 @@ class MultiSourceContextPack:
 
     @property
     def status(self) -> str:
-        if self.warnings or any(
-            section.read_status != "complete" for section in self.sections
-        ):
+        if any(section.read_status != "complete" for section in self.sections):
+            return "partial"
+        if any(warning != CONFLICT_WARNING for warning in self.warnings):
             return "partial"
         return "complete"
 

@@ -496,7 +496,7 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 ## 2026-07-21T01:55:00Z · tang-xzo · Deterministic constraint_signals for multi-source packs
 - Context: Build Week feedback asked whether Tang may collapse disagreeing recovered constraints; multi-source allocation already kept all sources but had no machine-readable conflict hint.
 - Options: (a) model-inferred merge in core; (b) source/excerpt-only disclosure via skill; (c) add deterministic `first_user_goal_mismatch` signals plus policy doc without persisting resolutions.
-- Decision: (c) — `docs/conflicting-source-constraints.md`, Context Pack `constraint_signals`, skill requirement to ask the user before acting; budget fitting excludes signals until after excerpt allocation. Serves: Design, Potential Impact, Quality of Idea.
+- Decision: (c) — `docs/conflicting-source-constraints.md`, Context Pack `constraint_signals`, skill requirement to ask the user before acting; signals and conflict warning count toward the token budget and do not alone mark the pack `partial`. Serves: Design, Potential Impact, Quality of Idea.
 - By: agent
 
 ## 2026-07-21T01:55:00Z · tang-7ql · Doctor quick observational mode

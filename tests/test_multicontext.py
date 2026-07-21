@@ -71,6 +71,28 @@ def test_conflicting_first_user_goals_emit_constraint_signals() -> None:
     assert any("disagree" in warning for warning in document["warnings"])
 
 
+def test_conflict_only_warning_keeps_pack_status_complete() -> None:
+    pack = MultiSourceAllocator().allocate(
+        (
+            _validated_with_first_user(0, "Use Redis for the cache boundary"),
+            _validated_with_first_user(1, "Use SQLite for the cache boundary"),
+        ),
+        "project-a",
+    )
+    assert pack.constraint_signals
+    assert pack.status == "complete"
+
+
+def test_normalize_goal_strips_host_envelope_before_compare() -> None:
+    from tang.multicontext import _normalize_goal
+
+    a = _normalize_goal(
+        "<timestamp>Mon</timestamp>\n<user_query>\nFix the bug\n</user_query>"
+    )
+    b = _normalize_goal("Fix the bug")
+    assert a == b
+
+
 def validated(index: int, project_key: str = "project-a") -> ValidatedSourceRead:
     identity = SessionIdentity("codex", "fixture", f"source-{index}")
     source = SourceRecord(

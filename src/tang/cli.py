@@ -84,6 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
     index.add_argument("--cwd", type=Path, default=Path.cwd())
     index.add_argument("--codex-home", type=Path)
     index.add_argument("--grok-home", type=Path)
+    index.add_argument("--cursor-home", type=Path)
     index.add_argument("--opencode-executable", type=Path)
     browse = subparsers.add_parser("browse", help="list current-project sessions")
     _add_discovery_arguments(browse)
@@ -122,6 +123,7 @@ def build_parser() -> argparse.ArgumentParser:
     context.add_argument("--cwd", type=Path, default=Path.cwd())
     context.add_argument("--codex-home", type=Path)
     context.add_argument("--grok-home", type=Path)
+    context.add_argument("--cursor-home", type=Path)
     context.add_argument("--opencode-executable", type=Path)
     resume = subparsers.add_parser(
         "resume",
@@ -233,6 +235,7 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--cwd", type=Path, default=Path.cwd())
     doctor.add_argument("--codex-home", type=Path)
     doctor.add_argument("--grok-home", type=Path)
+    doctor.add_argument("--cursor-home", type=Path)
     doctor.add_argument("--opencode-executable", type=Path)
     doctor.add_argument(
         "--require-opencode",
@@ -493,6 +496,7 @@ def _run_index(args: argparse.Namespace) -> int:
                 args.cwd,
                 codex_home=args.codex_home,
                 grok_home=args.grok_home,
+                cursor_home=getattr(args, "cursor_home", None),
                 opencode_executable=args.opencode_executable,
             ),
             project,
@@ -757,6 +761,7 @@ def _run_context(args: argparse.Namespace) -> int:
                 args.cwd,
                 codex_home=args.codex_home,
                 grok_home=args.grok_home,
+                cursor_home=getattr(args, "cursor_home", None),
                 opencode_executable=args.opencode_executable,
             ),
         )
@@ -941,6 +946,7 @@ def _run_doctor(args: argparse.Namespace) -> int:
         _database_for(args, project),
         codex_home=args.codex_home,
         grok_home=args.grok_home,
+        cursor_home=args.cursor_home,
         opencode_executable=args.opencode_executable,
         project_dir=args.cwd,
         require_opencode=(

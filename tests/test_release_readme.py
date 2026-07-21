@@ -29,7 +29,8 @@ def test_readme_is_a_verified_release_candidate_surface() -> None:
     assert "**Codex:**" in readme
     assert "**OpenCode:**" in readme
     assert "**Grok:** no Tang plugin" in readme
-    assert "Cursor" not in readme
+    assert "**Cursor:**" not in readme
+    assert "epic/10-beta-release" in readme
     assert "$tang" in readme and "not a `/tang` slash command" in readme
     assert "019f62b2-5a7d-75c3-922d-969b182ec9a2" in readme
     assert "CONTEXT.md" in readme
@@ -52,11 +53,10 @@ def test_harness_matrix_matches_release_claims() -> None:
     assert "Cursor IDE" in matrix
     assert "SUPPORTED_DESTINATION_ADAPTERS" in matrix or "harness_capabilities" in matrix
     assert "never** appends recovered transcript" in matrix
-    assert "planned" in matrix
+    assert "beta" in matrix
     policy = (ROOT / "docs" / "native-write-policy.md").read_text(encoding="utf-8")
     assert "No silent transcript injection" in policy
-    # README must not imply Cursor is supported today.
-    assert "Cursor" not in readme
+    assert "**Cursor:**" not in readme
 
 
 def test_supported_install_contract_has_one_skill_path() -> None:

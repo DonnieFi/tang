@@ -23,6 +23,7 @@ def configured_adapters(
     *,
     codex_home: Path | None = None,
     grok_home: Path | None = None,
+    cursor_home: Path | None = None,
     opencode_executable: Path | str | None = None,
     require_opencode: bool = False,
 ) -> tuple[SessionAdapter, ...]:
@@ -40,7 +41,7 @@ def configured_adapters(
         CodexAdapter(codex_home),
         GrokAdapter(grok_home),
     ]
-    cursor = CursorAdapter(project_dir)
+    cursor = CursorAdapter(project_dir, cursor_home=cursor_home)
     if cursor.has_project_transcripts():
         adapters.append(cursor)
     if discovered_opencode is not None or require_opencode:

@@ -36,6 +36,7 @@ def run_doctor(
     *,
     codex_home: Path | None = None,
     grok_home: Path | None = None,
+    cursor_home: Path | None = None,
     opencode_executable: Path | str | None = None,
     project_dir: Path | str | None = None,
     require_opencode: bool = False,
@@ -119,6 +120,7 @@ def run_doctor(
                 adapter_project,
                 codex_home=codex_home,
                 grok_home=grok_home,
+                cursor_home=cursor_home,
                 opencode_executable=opencode_executable,
                 require_opencode=require_opencode,
             )
@@ -129,6 +131,7 @@ def run_doctor(
         adapter_project,
         codex_home=codex_home,
         grok_home=grok_home,
+        cursor_home=cursor_home,
         opencode_executable=opencode_executable,
         require_opencode=True,
     ):
@@ -147,6 +150,7 @@ def _quick_adapter_checks(
     *,
     codex_home: Path | None,
     grok_home: Path | None,
+    cursor_home: Path | None,
     opencode_executable: Path | str | None,
     require_opencode: bool,
 ) -> tuple[DoctorCheck, ...]:
@@ -187,7 +191,7 @@ def _quick_adapter_checks(
                 "Configure a readable Grok session store.",
             )
         )
-    if CursorAdapter(project_dir).has_project_transcripts():
+    if CursorAdapter(project_dir, cursor_home=cursor_home).has_project_transcripts():
         checks.append(
             DoctorCheck(
                 "cursor",

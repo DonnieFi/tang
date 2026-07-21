@@ -46,3 +46,6 @@ before trusting session counts.
 
 Quick mode does not create Tang storage, write native logs, or start long-lived
 OpenCode processes beyond what a full scan already did.
+
+Pass **`--cursor-home`** (or `CURSOR_HOME`) when transcripts live outside the
+default `~/.cursor` layout.

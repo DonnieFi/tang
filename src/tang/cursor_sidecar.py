@@ -15,8 +15,10 @@ def read_store_session_meta(chat_dir: Path) -> dict[str, Any] | None:
     db_path = chat_dir / "store.db"
     if not db_path.is_file():
         return None
+    wal_path = db_path.with_name(f"{db_path.name}-wal")
+    query = "mode=ro" if wal_path.is_file() else "mode=ro&immutable=1"
     try:
-        connection = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        connection = sqlite3.connect(f"file:{db_path}?{query}", uri=True)
     except sqlite3.Error:
         return None
     try:

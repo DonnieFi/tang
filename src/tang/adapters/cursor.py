@@ -144,11 +144,11 @@ class CursorAdapter:
                 identity = SessionIdentity(
                     self.adapter_key, self.source_namespace, native_id
                 )
+                canonical = identity.canonical
+                present.add(canonical)
                 chat_dir = self._chat_session_dir(native_id)
                 # Fingerprint first so unchanged sessions skip sidecar SQL/JSON work.
                 fingerprint = _fingerprint_session(jsonl, chat_dir)
-                canonical = identity.canonical
-                present.add(canonical)
                 if current.get(canonical) == fingerprint.value:
                     continue
                 sidecar = _load_sidecar(
@@ -178,6 +178,7 @@ class CursorAdapter:
                     AdapterWarning(
                         "unreadable-session",
                         "A Cursor transcript session could not be read and was skipped.",
+                        identity,
                     )
                 )
                 continue

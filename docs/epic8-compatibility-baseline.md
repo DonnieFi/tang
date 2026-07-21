@@ -12,7 +12,7 @@ Frozen public contracts before internal hardening (`tang-2mr`). Branch:
 | Context pack JSON | `tests/test_context_service.py`, skill workflow |
 | Index partial/complete | `tests/test_indexing.py` |
 | Graph map | `tests/test_graph.py`, `tests/test_graph_cli.py` |
-| Adapter read-only | `tests/test_codex_adapter.py`, `test_grok_adapter.py`, `test_opencode_adapter.py` |
+| Adapter read-only | `tests/test_codex_adapter.py`, `test_grok_adapter.py`, `test_opencode_adapter.py`, `test_cursor_adapter.py` |
 | Privacy/redaction | `tests/test_redaction.py`, capsule tests |
 
 Internal modules targeted by Epic 8 children: `target.py`, `continuation.py`,

@@ -33,6 +33,9 @@ normalized text, the Context Pack JSON includes a non-model
 This is a **hint**, not semantic inference. Host agents must still read excerpts
 and qualify uncertainty in the Continuation Brief.
 
+Multi-source packs remain **`status: complete`** when every source read is
+complete and the only pack-level warning is the deterministic conflict hint.
+
 ## Continuation Brief contract
 
 The Codex skill requires:
