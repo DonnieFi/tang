@@ -25,6 +25,7 @@ from tang.context import UNTRUSTED_NOTICE
 from tang.context_service import ContextGenerationError, ContextPackService
 from tang.project import resolve_project
 from tang.repository import StoredContinuation, TangRepository
+from tang.continuation_persistence import insert_continuation
 from tang.storage import open_database
 
 
@@ -92,7 +93,7 @@ def test_confirmed_predecessors_follow_merge_history_by_depth(
                 (right.identity.canonical, merge.identity.canonical),
                 (merge.identity.canonical, target.identity.canonical),
             ):
-                repository.put_continuation(
+                insert_continuation(repository, 
                     StoredContinuation(source_id, target_id, "project", "explicit", NOW)
                 )
 
@@ -125,7 +126,7 @@ def test_context_cli_revisits_latest_confirmed_predecessors(
         with repository.transaction():
             repository.upsert_session(prior, project_key, NOW)
             repository.upsert_session(target, project_key, NOW)
-            repository.put_continuation(
+            insert_continuation(repository, 
                 StoredContinuation(
                     prior.identity.canonical,
                     target.identity.canonical,
@@ -205,7 +206,7 @@ def test_context_cli_prefers_exact_current_target_over_terminal_history(
         with repository.transaction():
             for item in (prior, current, other_prior, other_target):
                 repository.upsert_session(item, project_key, NOW)
-            repository.put_continuation(
+            insert_continuation(repository, 
                 StoredContinuation(
                     prior.identity.canonical,
                     current.identity.canonical,
@@ -214,7 +215,7 @@ def test_context_cli_prefers_exact_current_target_over_terminal_history(
                     NOW,
                 )
             )
-            repository.put_continuation(
+            insert_continuation(repository, 
                 StoredContinuation(
                     other_prior.identity.canonical,
                     other_target.identity.canonical,
@@ -289,7 +290,7 @@ def test_context_cli_history_keeps_readable_ancestor_when_one_is_tombstoned(
             for item in (available, unavailable, target):
                 repository.upsert_session(item, project_key, NOW)
             for predecessor in (available, unavailable):
-                repository.put_continuation(
+                insert_continuation(repository, 
                     StoredContinuation(
                         predecessor.identity.canonical,
                         target.identity.canonical,
@@ -341,7 +342,7 @@ def test_context_cli_refuses_tied_latest_confirmed_targets(
                 (source_one, target_one),
                 (source_two, target_two),
             ):
-                repository.put_continuation(
+                insert_continuation(repository, 
                     StoredContinuation(
                         predecessor.identity.canonical,
                         target.identity.canonical,
@@ -444,7 +445,7 @@ def test_context_fails_before_reread_when_native_source_is_tombstoned(
     with repository.transaction():
         repository.upsert_session(unavailable, "project", NOW)
         repository.upsert_session(target, "project", NOW)
-        repository.put_continuation(
+        insert_continuation(repository, 
             StoredContinuation(
                 unavailable.identity.canonical,
                 target.identity.canonical,

@@ -14,6 +14,7 @@ from tang.adapters import (
 from tang.cli import main
 from tang.project import resolve_project
 from tang.repository import StoredContinuation, TangRepository
+from tang.continuation_persistence import insert_continuation
 from tang.storage import open_database
 
 
@@ -121,7 +122,7 @@ def test_bare_graph_uses_one_latest_confirmed_target_without_claiming_current(
     try:
         repository = TangRepository(connection)
         with repository.transaction():
-            repository.put_continuation(
+            insert_continuation(repository, 
                 StoredContinuation(
                     source.identity.canonical,
                     target.identity.canonical,
@@ -166,7 +167,7 @@ def test_bare_graph_refuses_tied_latest_confirmation_targets(
                 (source_one, target_one),
                 (source_two, target_two),
             ):
-                repository.put_continuation(
+                insert_continuation(repository, 
                     StoredContinuation(
                         source.identity.canonical,
                         target.identity.canonical,
@@ -230,7 +231,7 @@ def test_graph_can_force_capture_unicode_and_color(tmp_path: Path, monkeypatch) 
     try:
         repository = TangRepository(connection)
         with repository.transaction():
-            repository.put_continuation(
+            insert_continuation(repository, 
                 StoredContinuation(
                     source.identity.canonical,
                     target.identity.canonical,

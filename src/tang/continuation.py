@@ -7,6 +7,7 @@ from datetime import datetime
 
 from tang.adapters import SessionIdentity
 from tang.harness_capabilities import supported_destination_adapters
+from tang.continuation_persistence import insert_continuation
 from tang.repository import StoredContinuation, TangRepository
 from tang.target import TargetResolution, TargetResolutionKind
 
@@ -148,14 +149,15 @@ class ContinuationService:
             inserted = 0
             for source_id in ordered:
                 inserted += int(
-                    self._repository.put_continuation(
+                    insert_continuation(
+                        self._repository,
                         StoredContinuation(
                             source_id,
                             target_id,
                             project_key,
                             confirmation_mode,
                             confirmed_at,
-                        )
+                        ),
                     )
                 )
         return LinkResult(ordered, target_id, inserted, len(ordered) - inserted)

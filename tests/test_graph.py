@@ -13,6 +13,7 @@ from tang.adapters import (
 )
 from tang.graph import MAX_TIMELINE_LANES, GraphEdge, GraphService
 from tang.repository import StoredCapsule, StoredContinuation, TangRepository
+from tang.continuation_persistence import insert_continuation
 from tang.storage import open_database
 
 
@@ -44,7 +45,7 @@ def seeded(tmp_path: Path) -> tuple[object, TangRepository, dict[str, object]]:
                 timestamp,
             )
         for edge in document["edges"]:
-            repository.put_continuation(
+            insert_continuation(repository, 
                 StoredContinuation(
                     edge["source_id"],
                     edge["target_id"],

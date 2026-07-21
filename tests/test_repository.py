@@ -16,6 +16,7 @@ from tang.adapters import (
     SourceRecord,
 )
 from tang.repository import StoredCapsule, StoredContinuation, TangRepository
+from tang.continuation_persistence import insert_continuation
 from tang.storage import BUSY_TIMEOUT_MS, open_database
 
 
@@ -304,8 +305,8 @@ def test_continuations_are_idempotent_survive_restart_and_native_deletion(
         with repository.transaction():
             repository.upsert_session(source_record, "project-a", NOW)
             repository.upsert_session(target_record, "project-a", NOW)
-            assert repository.put_continuation(continuation)
-            assert not repository.put_continuation(continuation)
+            assert insert_continuation(repository, continuation)
+            assert not insert_continuation(repository, continuation)
         with repository.transaction():
             repository.delete_session(source_record.identity.canonical)
         retained = repository.get_session(source_record.identity.canonical)
@@ -333,7 +334,7 @@ def test_purge_removes_edges_before_sessions(tmp_path: Path) -> None:
         with repository.transaction():
             repository.upsert_session(first, "project-a", NOW)
             repository.upsert_session(second, "project-a", NOW)
-            repository.put_continuation(
+            insert_continuation(repository, 
                 StoredContinuation(
                     first.identity.canonical,
                     second.identity.canonical,

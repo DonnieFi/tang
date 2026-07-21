@@ -27,6 +27,7 @@ from tang.graph import GraphService  # noqa: E402
 from tang.indexing import ProjectIndexer  # noqa: E402
 from tang.project import resolve_project  # noqa: E402
 from tang.repository import StoredContinuation, TangRepository  # noqa: E402
+from tang.continuation_persistence import insert_continuation
 from tang.storage import open_database, project_data_path  # noqa: E402
 
 
@@ -224,7 +225,7 @@ def run_benchmark(work: Path, *, sessions: int, payload_bytes: int) -> dict[str,
             for position, (source_id, target_id) in enumerate(
                 zip(source_ids, source_ids[1:], strict=False)
             ):
-                repository.put_continuation(
+                insert_continuation(repository, 
                     StoredContinuation(
                         source_id=source_id,
                         target_id=target_id,
