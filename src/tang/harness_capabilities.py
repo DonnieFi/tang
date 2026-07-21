@@ -27,7 +27,7 @@ _CAPABILITIES: tuple[HarnessCapabilities, ...] = (
         "opencode", "OpenCode", True, True, True, True, True
     ),
     HarnessCapabilities(
-        "cursor", "Cursor IDE", False, False, False, False, False
+        "cursor", "Cursor IDE", True, False, False, False, False
     ),
 )
 

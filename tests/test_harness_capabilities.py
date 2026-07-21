@@ -24,7 +24,8 @@ def test_cursor_is_roadmap_only() -> None:
     cursor = capability_for("cursor")
     assert cursor is not None
     assert cursor.release_claim_linux is False
-    assert cursor.link_source is False
+    assert cursor.link_source is True
+    assert cursor.link_destination is False
 
 
 def test_all_entries_have_display_names() -> None:

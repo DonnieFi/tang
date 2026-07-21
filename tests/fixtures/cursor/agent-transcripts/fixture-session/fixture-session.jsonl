@@ -1,0 +1,2 @@
+{"role":"user","message":{"content":[{"type":"text","text":"Fix the session search bug in the indexer."}]}}
+{"role":"assistant","message":{"content":[{"type":"text","text":"I will inspect indexing.py and add a focused test."}]}}

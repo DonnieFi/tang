@@ -6,7 +6,7 @@ import os
 import shutil
 from pathlib import Path
 
-from tang.adapters import CodexAdapter, GrokAdapter, OpenCodeAdapter, SessionAdapter
+from tang.adapters import CodexAdapter, CursorAdapter, GrokAdapter, OpenCodeAdapter, SessionAdapter
 
 
 def _default_opencode_executable() -> Path | None:
@@ -40,6 +40,9 @@ def configured_adapters(
         CodexAdapter(codex_home),
         GrokAdapter(grok_home),
     ]
+    cursor = CursorAdapter(project_dir)
+    if cursor._transcript_root() is not None:
+        adapters.append(cursor)
     if discovered_opencode is not None or require_opencode:
         adapters.append(
             OpenCodeAdapter(

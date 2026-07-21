@@ -18,6 +18,7 @@ from tang.adapters.base import (
     VisibleTurn,
 )
 from tang.adapters.codex import CodexAdapter
+from tang.adapters.cursor import CursorAdapter
 from tang.adapters.grok import GrokAdapter
 from tang.adapters.opencode import OpenCodeAdapter
 
@@ -26,6 +27,7 @@ __all__ = [
     "AdapterWarning",
     "BatchStatus",
     "CodexAdapter",
+    "CursorAdapter",
     "GrokAdapter",
     "OpaqueSourceLocator",
     "OpenCodeAdapter",
