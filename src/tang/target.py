@@ -7,6 +7,7 @@ from datetime import datetime
 from enum import StrEnum
 import re
 from pathlib import Path
+from typing import Literal
 
 from tang.adapters import (
     SessionHealth,
@@ -391,3 +392,42 @@ def resolve_opencode_target(
         None,
         "The host identified one exact OpenCode target; confirm it explicitly.",
     )
+
+
+DestinationHarness = Literal["codex", "opencode"]
+
+
+def resolve_destination_target(
+    harness: DestinationHarness,
+    active_project: ProjectIdentity,
+    *,
+    sessions: tuple[StoredSession, ...],
+    current_native_id: str | None = None,
+    opencode_context: OpenCodeTargetContext | None = None,
+    exclude: frozenset[SessionIdentity] = frozenset(),
+) -> TargetResolution:
+    """One entry for Codex and OpenCode current-target resolution."""
+
+    if harness == "codex":
+        candidates = tuple(
+            TargetCandidate.from_stored(session)
+            for session in sessions
+            if session.source.identity.adapter == "codex"
+            and session.project_key == active_project.key
+        )
+        return resolve_current_target(
+            candidates,
+            active_project,
+            current_native_id=current_native_id,
+            exclude=exclude,
+        )
+    if harness == "opencode":
+        if opencode_context is None:
+            raise ValueError("OpenCode target resolution requires host context")
+        return resolve_opencode_target(
+            sessions,
+            active_project,
+            opencode_context,
+            exclude=exclude,
+        )
+    raise ValueError(f"unsupported destination harness: {harness!r}")

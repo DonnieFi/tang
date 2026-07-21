@@ -53,6 +53,7 @@ from tang.target import (
     TargetResolutionCode,
     TargetResolutionKind,
     resolve_current_target,
+    resolve_destination_target,
     resolve_opencode_target,
 )
 
@@ -1115,9 +1116,10 @@ def _run_link(args: argparse.Namespace) -> int:
                     SessionIdentity.from_canonical(source_id)
                     for source_id in source_ids
                 )
-                resolution = resolve_current_target(
-                    _indexed_codex_candidates(repository, project),
+                resolution = resolve_destination_target(
+                    "codex",
                     project,
+                    sessions=repository.sessions_for_project(project.key),
                     current_native_id=args.current_native_id,
                     exclude=excluded,
                 )
