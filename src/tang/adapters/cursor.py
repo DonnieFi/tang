@@ -134,6 +134,7 @@ class CursorAdapter:
             )
 
         for session_dir in session_dirs:
+            identity: SessionIdentity | None = None
             try:
                 if not session_dir.is_dir():
                     continue
@@ -145,9 +146,11 @@ class CursorAdapter:
                     self.adapter_key, self.source_namespace, native_id
                 )
                 canonical = identity.canonical
-                present.add(canonical)
                 chat_dir = self._chat_session_dir(native_id)
-                # Fingerprint first so unchanged sessions skip sidecar SQL/JSON work.
+                # Mark present before fingerprint so a read failure keeps the
+                # last-known-good checkpoint entry instead of treating the
+                # session as removed from disk.
+                present.add(canonical)
                 fingerprint = _fingerprint_session(jsonl, chat_dir)
                 if current.get(canonical) == fingerprint.value:
                     continue
@@ -174,13 +177,21 @@ class CursorAdapter:
                 )
                 current[canonical] = fingerprint.value
             except OSError:
-                warnings.append(
-                    AdapterWarning(
-                        "unreadable-session",
-                        "A Cursor transcript session could not be read and was skipped.",
-                        identity,
+                if identity is None:
+                    warnings.append(
+                        AdapterWarning(
+                            "cursor-session-enumerate-skipped",
+                            "A Cursor transcript directory entry could not be inspected and was skipped.",
+                        )
                     )
-                )
+                else:
+                    warnings.append(
+                        AdapterWarning(
+                            "session-checkpoint-retained",
+                            "A Cursor transcript session could not be read; the prior checkpoint fingerprint was kept.",
+                            identity,
+                        )
+                    )
                 continue
 
         removed: list[SessionIdentity] = []

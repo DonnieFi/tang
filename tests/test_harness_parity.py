@@ -21,6 +21,7 @@ def test_destination_adapters_are_cited_in_matrix_docs() -> None:
 
 def test_matrix_release_claim_matches_registry() -> None:
     from pathlib import Path
+    import re
 
     matrix = (Path(__file__).parents[1] / "docs" / "harness-matrix.md").read_text(
         encoding="utf-8"
@@ -28,8 +29,12 @@ def test_matrix_release_claim_matches_registry() -> None:
     cursor = capability_for("cursor")
     assert cursor is not None
     assert not cursor.release_claim_linux
-    assert "| Cursor IDE |" in matrix
-    assert "Read-only session adapter | yes | yes | yes | beta |" in matrix
+    assert "Cursor IDE" in matrix
+    assert "beta" in matrix
+    assert re.search(
+        r"Read-only session adapter\s*\|\s*yes\s*\|\s*yes\s*\|\s*yes\s*\|\s*beta",
+        matrix,
+    )
 
 
 def test_resume_requires_native_flag() -> None:

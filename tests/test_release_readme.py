@@ -30,7 +30,7 @@ def test_readme_is_a_verified_release_candidate_surface() -> None:
     assert "**OpenCode:**" in readme
     assert "**Grok:** no Tang plugin" in readme
     assert "**Cursor:**" not in readme
-    assert "epic/10-beta-release" in readme
+    assert "Beta capabilities" in readme
     assert "$tang" in readme and "not a `/tang` slash command" in readme
     assert "019f62b2-5a7d-75c3-922d-969b182ec9a2" in readme
     assert "CONTEXT.md" in readme

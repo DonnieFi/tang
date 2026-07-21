@@ -6,6 +6,8 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 from tang.adapters import TurnSelection
 from tang.adapters.cursor import CursorAdapter
 from tang.indexing import ProjectIndexer
@@ -273,3 +275,104 @@ def test_cursor_read_citation_uses_file_line_number(tmp_path: Path) -> None:
     first_line = jsonl.read_text(encoding="utf-8").splitlines()[0]
     assert json.loads(first_line)["role"] == "user"
     assert read.turns[0].citation_locator == "line:1"
+
+
+def test_cursor_scan_retains_checkpoint_when_session_unreadable(
+    tmp_path: Path,
+) -> None:
+    project = (tmp_path / "work").resolve()
+    project.mkdir()
+    cursor_home = tmp_path / "cursor"
+    _layout_session(cursor_home, project, "fixture-session")
+    adapter = CursorAdapter(project, cursor_home=cursor_home)
+    first = adapter.scan(None)
+    assert first.next_checkpoint is not None
+    prior_fp = json.loads(first.next_checkpoint.cursor)["fingerprints"]
+
+    jsonl = (
+        cursor_home
+        / "projects"
+        / CursorAdapter._project_slug(project)
+        / "agent-transcripts"
+        / "fixture-session"
+        / "fixture-session.jsonl"
+    )
+    jsonl.chmod(0o000)
+    try:
+        second = adapter.scan(first.next_checkpoint)
+    finally:
+        jsonl.chmod(0o644)
+
+    assert second.removed == ()
+    assert second.next_checkpoint is None
+    assert any(
+        warning.code == "session-checkpoint-retained" for warning in second.warnings
+    )
+    assert json.loads(first.next_checkpoint.cursor)["fingerprints"] == prior_fp
+
+
+def test_cursor_scan_enumerate_oserror_does_not_require_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = (tmp_path / "work").resolve()
+    project.mkdir()
+    cursor_home = tmp_path / "cursor"
+    _layout_session(cursor_home, project, "fixture-session")
+    trap = (
+        cursor_home
+        / "projects"
+        / CursorAdapter._project_slug(project)
+        / "agent-transcripts"
+        / "trap-session"
+    )
+    trap.mkdir()
+    (trap / "trap-session.jsonl").write_text("{}", encoding="utf-8")
+
+    original_is_dir = Path.is_dir
+
+    def is_dir(self: Path) -> bool:
+        if self.name == "trap-session":
+            raise OSError("simulated enumerate failure")
+        return original_is_dir(self)
+
+    monkeypatch.setattr(Path, "is_dir", is_dir)
+    batch = CursorAdapter(project, cursor_home=cursor_home).scan(None)
+    skipped = [
+        warning
+        for warning in batch.warnings
+        if warning.code == "cursor-session-enumerate-skipped"
+    ]
+    assert len(skipped) == 1
+    assert skipped[0].identity is None
+    assert len(batch.records) == 1
+
+
+def test_index_cli_honors_cursor_home(tmp_path: Path, capsys) -> None:
+    from tang.cli import main
+
+    project = (tmp_path / "work").resolve()
+    project.mkdir()
+    cursor_home = tmp_path / "cursor"
+    _layout_session(cursor_home, project, "fixture-session")
+
+    result = main(
+        [
+            "index",
+            "--json",
+            "--cwd",
+            str(project),
+            "--cursor-home",
+            str(cursor_home),
+        ]
+    )
+    assert result in {0, 1}
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["indexed"] == 1
+    connection = open_database(project / ".tang" / "tang.db")
+    try:
+        row = connection.execute(
+            "SELECT adapter FROM sessions LIMIT 1"
+        ).fetchone()
+        assert row is not None and row[0] == "cursor"
+    finally:
+        connection.close()

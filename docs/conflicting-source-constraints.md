@@ -30,6 +30,11 @@ normalized text, the Context Pack JSON includes a non-model
 - `kind`: `first_user_goal_mismatch`
 - `sources`: per-source `source_id`, `harness`, and `turn_locator` only
 
+Normalization strips only known host envelope tags (for example Cursor
+`<timestamp>` / `<user_query>` wrappers). It is **host-envelope hygiene**,
+not semantic equivalence; other harness prefixes or literal tag-like user text
+can still produce false matches or misses.
+
 This is a **hint**, not semantic inference. Host agents must still read excerpts
 and qualify uncertainty in the Continuation Brief.
 

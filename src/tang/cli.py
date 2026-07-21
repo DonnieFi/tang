@@ -496,7 +496,7 @@ def _run_index(args: argparse.Namespace) -> int:
                 args.cwd,
                 codex_home=args.codex_home,
                 grok_home=args.grok_home,
-                cursor_home=getattr(args, "cursor_home", None),
+                cursor_home=args.cursor_home,
                 opencode_executable=args.opencode_executable,
             ),
             project,
@@ -761,7 +761,7 @@ def _run_context(args: argparse.Namespace) -> int:
                 args.cwd,
                 codex_home=args.codex_home,
                 grok_home=args.grok_home,
-                cursor_home=getattr(args, "cursor_home", None),
+                cursor_home=args.cursor_home,
                 opencode_executable=args.opencode_executable,
             ),
         )

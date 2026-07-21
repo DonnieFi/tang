@@ -240,6 +240,49 @@ def test_doctor_treats_absent_optional_opencode_as_non_blocking() -> None:
     assert doctor_exit_code((DoctorCheck("cli", "ready", "ready"), optional)) == 0
 
 
+def test_doctor_quick_honors_cursor_home(
+    tmp_path: Path, monkeypatch, capsys, codex_fixture_home: Path
+) -> None:
+    import importlib.util
+
+    helper = Path(__file__).with_name("test_cursor_adapter.py")
+    spec = importlib.util.spec_from_file_location("cursor_adapter_test", helper)
+    assert spec and spec.loader
+    cursor_tests = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cursor_tests)
+
+    grok = Path(__file__).parent / "fixtures" / "grok"
+    project = (tmp_path / "work").resolve()
+    project.mkdir()
+    cursor_home = tmp_path / "cursor"
+    cursor_tests._layout_session(cursor_home, project, "fixture-session")
+    database = tmp_path / "tang.db"
+    open_database(database).close()
+    monkeypatch.setattr("tang.doctor.shutil.which", lambda command: "/bin/tang")
+
+    result = main(
+        [
+            "doctor",
+            "--quick",
+            "--json",
+            "--database",
+            str(database),
+            "--cwd",
+            str(project),
+            "--codex-home",
+            str(codex_fixture_home),
+            "--grok-home",
+            str(grok),
+            "--cursor-home",
+            str(cursor_home),
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert result == 0
+    statuses = {check["component"]: check["status"] for check in payload["checks"]}
+    assert statuses["cursor"] == "present"
+
+
 def test_doctor_quick_skips_full_scan_but_reports_presence(
     tmp_path: Path, monkeypatch, capsys, codex_fixture_home: Path
 ) -> None:

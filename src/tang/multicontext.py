@@ -17,6 +17,7 @@ _GOAL_ENVELOPE = re.compile(
 
 
 def _normalize_goal(text: str) -> str:
+    """Strip known host envelope tags only; not semantic equivalence."""
     stripped = _GOAL_ENVELOPE.sub("", text)
     return " ".join(stripped.split()).casefold()
 
@@ -66,6 +67,9 @@ CONFLICT_WARNING = (
     "conflict in the Continuation Brief and ask which constraint to follow "
     "before acting."
 )
+
+# Pack-level warnings in this set do not downgrade status from complete reads.
+NON_DEGRADING_PACK_WARNINGS = frozenset({CONFLICT_WARNING})
 
 
 def _indented(text: str) -> list[str]:
@@ -131,7 +135,9 @@ class MultiSourceContextPack:
     def status(self) -> str:
         if any(section.read_status != "complete" for section in self.sections):
             return "partial"
-        if any(warning != CONFLICT_WARNING for warning in self.warnings):
+        if any(
+            warning not in NON_DEGRADING_PACK_WARNINGS for warning in self.warnings
+        ):
             return "partial"
         return "complete"
 

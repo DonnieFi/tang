@@ -47,10 +47,12 @@ checkout, regenerate it with `python scripts/capture_demo_hero.py --tang
 > smoke-tested from the matching wheel. The source repository is public and the
 > immutable version-pinned artifact is available below.
 >
-> **Beta work on branch `epic/10-beta-release`** (not part of the v0.2.9 claim
-> until reconciled): optional **Cursor** indexing from agent transcripts,
+> **Beta capabilities** (not part of the v0.2.9 claim until reconciled in a
+> tagged release): optional **Cursor** indexing from agent transcripts,
 > **Grok/Cursor link destinations**, multi-source **conflict disclosure**, and
 > `tang doctor --quick`. See [harness-matrix.md](docs/harness-matrix.md).
+> Remove or rewrite this callout when the next Linux release absorbs the beta
+> work.
 
 ## The work should outlive the tool
 

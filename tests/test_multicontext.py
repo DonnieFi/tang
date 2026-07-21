@@ -17,7 +17,11 @@ from tang.adapters import (
     VisibleTurn,
 )
 from tang.context import Citation, ContextExcerpt
-from tang.multicontext import MultiSourceAllocator, ValidatedSourceRead
+from tang.multicontext import (
+    MultiSourceAllocator,
+    MultiSourceContextPack,
+    ValidatedSourceRead,
+)
 
 
 NOW = datetime(2026, 7, 15, 0, 0, tzinfo=timezone.utc)
@@ -91,6 +95,60 @@ def test_normalize_goal_strips_host_envelope_before_compare() -> None:
     )
     b = _normalize_goal("Fix the bug")
     assert a == b
+
+
+def test_constraint_signals_without_pack_warning_stays_complete() -> None:
+    from tang.multicontext import SourceSection
+
+    pack = MultiSourceContextPack(
+        project_key="project-a",
+        sections=(
+            SourceSection(
+                source_id="codex:fixture:source-0",
+                harness="codex",
+                native_session_id="source-0",
+                source_title=None,
+                read_status="complete",
+                excerpts=(),
+                warnings=(),
+                omitted_turns=0,
+                redaction_count=0,
+            ),
+        ),
+        constraint_signals=(
+            {
+                "kind": "first_user_goal_mismatch",
+                "sources": (),
+            },
+        ),
+    )
+    assert pack.status == "complete"
+
+
+def test_non_allowlisted_pack_warning_marks_partial() -> None:
+    from tang.multicontext import SourceSection
+
+    pack = MultiSourceContextPack(
+        project_key="project-a",
+        sections=(
+            SourceSection(
+                source_id="codex:fixture:source-0",
+                harness="codex",
+                native_session_id="source-0",
+                source_title=None,
+                read_status="complete",
+                excerpts=(),
+                warnings=(),
+                omitted_turns=0,
+                redaction_count=0,
+            ),
+        ),
+        warnings=("Budget omitted one source.",),
+        constraint_signals=(
+            {"kind": "first_user_goal_mismatch", "sources": ()},
+        ),
+    )
+    assert pack.status == "partial"
 
 
 def validated(index: int, project_key: str = "project-a") -> ValidatedSourceRead:

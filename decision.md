@@ -516,3 +516,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) split TangRepository wholesale; (b) `load_multiverse_material()` seam keeping redaction in GraphService; (c) defer.
 - Decision: (b) — `src/tang/multiverse_material.py`; GraphService consumes typed nodes/edges. Serves: Technological Implementation, Design.
 - By: agent
+
+## 2026-07-21T13:30:00Z · epic/10-beta-release · Post-review hardening (Cursor scan, pack status, repository seam)
+- Context: Branch review flagged UnboundLocalError risk in Cursor scan warnings, unclear checkpoint retention on read failures, private SQL in `insert_continuation`, and fragile pack `status` string equality.
+- Options: (a) leave behavior undocumented; (b) tighten scan warning codes, public repository insert API, allowlisted non-degrading pack warnings, CLI/tests for `--cursor-home`; (c) revert conflict-complete semantics.
+- Decision: (b) — `session-checkpoint-retained` vs enumerate-skipped warnings, `TangRepository.insert_continuation_if_absent`, `NON_DEGRADING_PACK_WARNINGS`, skill note that `complete` packs may still require conflict disclosure; README beta callout de-branchified. Serves: Technological Implementation, Design.
+- By: agent
