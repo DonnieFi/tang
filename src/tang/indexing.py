@@ -13,6 +13,7 @@ from tang.adapters import (
     TurnSelection,
 )
 from tang.capsule import DiscoveryCapsuleBuilder
+from tang.index_catalog import IndexCatalog, IndexWriteBatch
 from tang.project import ProjectIdentity, ProjectResolutionError, resolve_project
 from tang.repository import StoredCapsule, TangRepository
 from tang.target import TargetCandidate
@@ -62,6 +63,7 @@ class ProjectIndexer:
     ) -> None:
         self._repository = repository
         self._capsules = capsule_builder or DiscoveryCapsuleBuilder()
+        self._catalog = IndexCatalog(repository)
 
     @staticmethod
     def _is_proven_foreign_warning(
@@ -236,22 +238,16 @@ class ProjectIndexer:
                 )
             )
             if pending or removable or checkpoint_changed:
-                with self._repository.transaction():
-                    for source, capsule in pending:
-                        self._repository.upsert_session(
-                            source, active_project.key, timestamp
-                        )
-                        self._repository.put_capsule(capsule)
-                    for identity in removable:
-                        self._repository.delete_session(identity.canonical)
-                    if checkpoint_changed:
-                        if scan.next_checkpoint is None:
-                            raise RuntimeError(
-                                "checkpoint change requires a next checkpoint"
-                            )
-                        self._repository.put_checkpoint(
-                            scan.next_checkpoint, active_project.key, timestamp
-                        )
+                self._catalog.commit(
+                    IndexWriteBatch(
+                        tuple(pending),
+                        removable,
+                        scan.next_checkpoint,
+                        checkpoint_changed,
+                        active_project.key,
+                        timestamp,
+                    )
+                )
                 indexed += len(pending)
                 deleted += len(removable)
 
