@@ -709,10 +709,22 @@ def _run_discovery(args: argparse.Namespace) -> int:
                     "result_count": page.result_count,
                 }
             )
+        if args.command == "search" and (
+            page is not None and page.result_count == 0
+            or page is None and not items
+        ):
+            document["hints"] = [
+                "Try different keywords or a quoted phrase from the session you remember.",
+                "Run `tang browse --json --page 1` to list recent sessions by update time.",
+                "Run `tang index --json` if native session history changed since the last index.",
+            ]
         print(json.dumps(document, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
     else:
         if page is None:
             raise RuntimeError("human discovery output requires a result page")
+        if args.command == "search" and page.result_count == 0:
+            print("No matching sessions. Try browse for recency-ordered results:")
+            print("  tang browse --page 1")
         _show_discovery_page(page)
     return 0
 
