@@ -106,6 +106,8 @@ class ProjectIndexer:
                 capsule = self._repository.get_capsule(session.source.identity.canonical)
                 if capsule is None:
                     continue
+                if not self._capsules.needs_label_refresh(capsule):
+                    continue
                 refreshed_capsule = self._capsules.refresh_display_label(capsule)
                 if refreshed_capsule is None:
                     continue
