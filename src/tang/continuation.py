@@ -10,7 +10,7 @@ from tang.repository import StoredContinuation, TangRepository
 from tang.target import TargetResolution, TargetResolutionKind
 
 
-SUPPORTED_DESTINATION_ADAPTERS = frozenset(("codex", "opencode"))
+SUPPORTED_DESTINATION_ADAPTERS = frozenset(("codex", "grok", "opencode"))
 
 
 class ContinuationError(ValueError):
@@ -102,7 +102,7 @@ class ContinuationService:
             if target.source.identity.adapter not in SUPPORTED_DESTINATION_ADAPTERS:
                 raise ContinuationError(
                     "unsupported-target",
-                    "Tang supports Codex and OpenCode continuation targets.",
+                    "Tang supports Codex, Grok, and OpenCode continuation targets.",
                 )
 
             sources = {}

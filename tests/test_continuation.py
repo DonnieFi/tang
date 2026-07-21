@@ -221,6 +221,25 @@ def test_confirmed_opencode_target_accepts_all_supported_source_harnesses_atomic
         connection.close()
 
 
+def test_grok_explicit_destination_link(tmp_path: Path) -> None:
+    connection, repository, ids = seeded(tmp_path)
+    service = ContinuationService(repository)
+    target = source("target-grok", "grok")
+    try:
+        with repository.transaction():
+            repository.upsert_session(target, "project", NOW)
+        target_id = target.identity.canonical
+
+        result = service.link((ids["c"],), target_id, "project", "explicit", NOW)
+
+        assert result.inserted == 1
+        assert result.target_id == target_id
+        graph = GraphService(repository).component(target_id, current_id=target_id)
+        assert any(node.harness == "grok" and node.current for node in graph.nodes)
+    finally:
+        connection.close()
+
+
 def test_supported_destination_policy_is_explicit_and_idempotent_for_opencode(
     tmp_path: Path,
 ) -> None:
@@ -235,7 +254,9 @@ def test_supported_destination_policy_is_explicit_and_idempotent_for_opencode(
         first = service.link((ids["a"],), target_id, "project", "explicit", NOW)
         second = service.link((ids["a"],), target_id, "project", "explicit", NOW)
 
-        assert SUPPORTED_DESTINATION_ADAPTERS == frozenset(("codex", "opencode"))
+        assert SUPPORTED_DESTINATION_ADAPTERS == frozenset(
+            ("codex", "grok", "opencode")
+        )
         assert (first.inserted, first.existing) == (1, 0)
         assert (second.inserted, second.existing) == (0, 1)
     finally:

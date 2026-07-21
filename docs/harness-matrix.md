@@ -16,7 +16,7 @@ Legend: **yes** · **no** · **partial** (CLI or source-only) · **planned**
 | Browse / search (current project) | yes | yes | yes | planned |
 | Context pack (cited native reread) | yes | yes | yes | planned |
 | Link as **source** | yes | yes | yes | planned |
-| Link as **destination** | yes | no | yes | planned |
+| Link as **destination** | yes | yes | yes | planned |
 | Host current-target resolution | yes (skill) | no | yes (`/tang` tools) | planned |
 | Predecessor recall (`context all`) | yes | partial | yes | planned |
 | `tang resume` native session | yes | no | yes | planned |
@@ -29,10 +29,12 @@ Legend: **yes** · **no** · **partial** (CLI or source-only) · **planned**
 
 **Partial** notes:
 
-- **Grok — predecessor recall:** Grok is not a continuation destination; only
-  Codex/OpenCode targets receive `context all` for confirmed edges.
+| Grok — predecessor recall:** Grok sessions may be **targets** for explicit
+  `tang link --to` edges; there is no Grok host skill for `--current` linking
+  or one-step predecessor recall in v0.2.9.
 - **Grok — import from Tang:** Developers recover Grok **into** Codex or
-  OpenCode via the skill/CLI; there is no Grok-side Tang integration in v0.2.
+  OpenCode via the skill/CLI, or record edges **into** an indexed Grok session
+  with explicit `--to`; there is no Grok-side Tang integration in v0.2.9.
 
 ## Version and platform pins
 
