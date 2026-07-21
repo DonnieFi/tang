@@ -61,8 +61,8 @@ def build_continuity_brief(
     except (OSError, subprocess.TimeoutExpired):
         git_available = False
 
-    rows = repository.browse_discovery(project.key)
-    recent = tuple(row.handle for row in rows[:5])
+    rows = repository.browse_discovery(project.key, limit=5)
+    recent = tuple(row.handle for row in rows)
 
     return ContinuityBrief(
         project_key=project.key,

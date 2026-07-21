@@ -32,14 +32,24 @@ def load_multiverse_material(
     repository: TangRepository,
     project_key: str,
     component_ids: frozenset[str],
+    *,
+    project_edges: tuple[StoredContinuation, ...] | None = None,
 ) -> MultiverseMaterial:
-    """Return graph nodes and project edges without exposing capsule JSON shape."""
+    """Return graph nodes and project edges without exposing capsule JSON shape.
+
+    Pass ``project_edges`` when the caller already loaded them (e.g. for
+    weak-component membership) so the project edge query is not repeated.
+    """
 
     sessions = repository.graph_sessions(project_key, tuple(component_ids))
-    project_edges = repository.continuations_for_project(project_key)
+    edges_all = (
+        project_edges
+        if project_edges is not None
+        else repository.continuations_for_project(project_key)
+    )
     edges = tuple(
         edge
-        for edge in project_edges
+        for edge in edges_all
         if edge.source_id in component_ids and edge.target_id in component_ids
     )
     nodes = tuple(

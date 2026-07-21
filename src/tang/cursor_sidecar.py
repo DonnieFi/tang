@@ -37,6 +37,15 @@ def read_store_session_meta(chat_dir: Path) -> dict[str, Any] | None:
 
 
 def epoch_millis(value: object) -> datetime | None:
-    if not isinstance(value, int) or value < 0:
+    # bool is a subclass of int; reject it so True/False never become timestamps.
+    if isinstance(value, bool):
         return None
-    return datetime.fromtimestamp(value / 1000, tz=timezone.utc)
+    if isinstance(value, int):
+        millis = value
+    elif isinstance(value, float) and value.is_integer():
+        millis = int(value)
+    else:
+        return None
+    if millis < 0:
+        return None
+    return datetime.fromtimestamp(millis / 1000, tz=timezone.utc)

@@ -414,6 +414,29 @@ class TangRepository:
                 (source_id,),
             )
 
+    def put_continuation(self, continuation: StoredContinuation) -> bool:
+        """Insert one confirmed edge; return false when it already exists."""
+
+        self._require_transaction()
+        cursor = self._connection.execute(
+            """
+            INSERT INTO continuation_edges(
+                source_id, target_id, project_key, confirmation_mode,
+                confirmed_at, schema_version
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(source_id, target_id) DO NOTHING
+            """,
+            (
+                continuation.source_id,
+                continuation.target_id,
+                continuation.project_key,
+                continuation.confirmation_mode,
+                rfc3339(continuation.confirmed_at),
+                continuation.schema_version,
+            ),
+        )
+        return cursor.rowcount == 1
+
     def continuations_for_project(
         self, project_key: str
     ) -> tuple[StoredContinuation, ...]:
@@ -673,6 +696,7 @@ class TangRepository:
         since: datetime | None = None,
         until: datetime | None = None,
         exclude_source_ids: tuple[str, ...] = (),
+        limit: int | None = None,
     ) -> tuple[DiscoveryRow, ...]:
         conditions, parameters = self._discovery_filters(
             project_key,
@@ -682,15 +706,19 @@ class TangRepository:
             until=until,
             exclude_source_ids=exclude_source_ids,
         )
-        rows = self._connection.execute(
-            f"""
+        query = f"""
             SELECT s.source_id, s.session_handle, s.adapter, s.updated_at, s.health, c.content_json
             FROM sessions AS s JOIN capsules AS c USING(source_id)
             WHERE {' AND '.join(conditions)}
             ORDER BY s.updated_at DESC, s.source_id
-            """,
-            parameters,
-        ).fetchall()
+            """
+        bind: list[object] = list(parameters)
+        if limit is not None:
+            if limit < 1:
+                raise ValueError("browse_discovery limit must be at least 1")
+            query += "\n            LIMIT ?"
+            bind.append(limit)
+        rows = self._connection.execute(query, bind).fetchall()
         return tuple(self._discovery_row(row) for row in rows)
 
     def search_discovery(

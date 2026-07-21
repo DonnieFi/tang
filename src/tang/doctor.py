@@ -187,8 +187,7 @@ def _quick_adapter_checks(
                 "Configure a readable Grok session store.",
             )
         )
-    cursor_root = CursorAdapter(project_dir)._transcript_root()
-    if cursor_root is not None:
+    if CursorAdapter(project_dir).has_project_transcripts():
         checks.append(
             DoctorCheck(
                 "cursor",

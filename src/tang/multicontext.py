@@ -248,17 +248,31 @@ class MultiSourceAllocator:
 
         prepared = [self._single.build(item.source, item.read) for item in ordered]
         selected: list[list[ContextExcerpt]] = [[] for _ in ordered]
+        signals = constraint_signals(ordered)
+        pack_warnings = (
+            warnings + (CONFLICT_WARNING,) if signals else warnings
+        )
 
         # Reserve one newest cited excerpt per source before filling any source.
         for index, single in enumerate(prepared):
             selected[index].append(single.excerpts[-1])
         if (
             self._pack(
-                ordered, prepared, selected, project_key, warnings
+                ordered,
+                prepared,
+                selected,
+                project_key,
+                pack_warnings,
+                signals,
             ).estimated_tokens
             > self._token_budget
             and not self._fit_reserves(
-                ordered, prepared, selected, project_key, warnings
+                ordered,
+                prepared,
+                selected,
+                project_key,
+                pack_warnings,
+                signals,
             )
         ):
             raise ValueError("source metadata leaves no fair excerpt reserve")
@@ -271,19 +285,23 @@ class MultiSourceAllocator:
                 excerpt = queue.pop(0)
                 selected[index].append(excerpt)
                 selected[index].sort(key=lambda item: item.ordinal)
-                candidate = self._pack(ordered, prepared, selected, project_key, warnings)
+                candidate = self._pack(
+                    ordered,
+                    prepared,
+                    selected,
+                    project_key,
+                    pack_warnings,
+                    signals,
+                )
                 if candidate.estimated_tokens > self._token_budget:
                     selected[index].remove(excerpt)
-        pack = self._pack(ordered, prepared, selected, project_key, warnings)
-        signals = constraint_signals(ordered)
-        if not signals:
-            return pack
-        return self._estimated(
-            replace(
-                pack,
-                warnings=warnings + (CONFLICT_WARNING,),
-                constraint_signals=signals,
-            )
+        return self._pack(
+            ordered,
+            prepared,
+            selected,
+            project_key,
+            pack_warnings,
+            signals,
         )
 
     def _fit_reserves(
@@ -293,6 +311,7 @@ class MultiSourceAllocator:
         selected: list[list[ContextExcerpt]],
         project_key: str,
         warnings: tuple[str, ...],
+        signals: tuple[dict[str, object], ...] = (),
     ) -> bool:
         originals = [chosen[-1] for chosen in selected]
         marker = "\n\n[Excerpt truncated]"
@@ -314,7 +333,9 @@ class MultiSourceAllocator:
             ]
             for index, candidate in enumerate(candidates):
                 selected[index][-1] = candidate
-            pack = self._pack(sources, prepared, selected, project_key, warnings)
+            pack = self._pack(
+                sources, prepared, selected, project_key, warnings, signals
+            )
             if pack.estimated_tokens <= self._token_budget:
                 fitted = candidates
                 low = keep + 1
@@ -335,7 +356,7 @@ class MultiSourceAllocator:
         selected: list[list[ContextExcerpt]],
         project_key: str,
         warnings: tuple[str, ...],
-        constraint_signals: tuple[dict[str, object], ...] = (),
+        signals: tuple[dict[str, object], ...] = (),
     ) -> MultiSourceContextPack:
         sections = tuple(
             SourceSection(
@@ -353,7 +374,7 @@ class MultiSourceAllocator:
         )
         return self._estimated(
             MultiSourceContextPack(
-                project_key, sections, warnings, constraint_signals
+                project_key, sections, warnings, signals
             )
         )
 

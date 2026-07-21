@@ -213,3 +213,63 @@ def test_workspace_chat_hash_matches_cursor_layout() -> None:
     assert CursorAdapter.workspace_chat_hash(project) == hashlib.md5(
         b"/opt/tang"
     ).hexdigest()
+
+
+def test_cursor_scan_reports_removed_sessions(tmp_path: Path) -> None:
+    project = (tmp_path / "work").resolve()
+    project.mkdir()
+    cursor_home = tmp_path / "cursor"
+    _layout_session(cursor_home, project, "fixture-session")
+    _layout_session(
+        cursor_home,
+        project,
+        "task-model-session",
+        jsonl_name="task-model-session.jsonl",
+    )
+
+    adapter = CursorAdapter(project, cursor_home=cursor_home)
+    first = adapter.scan(None)
+    assert len(first.records) == 2
+    assert first.next_checkpoint is not None
+
+    # Delete one native transcript directory; the next incremental scan must
+    # emit a removal rather than leaving a stale checkpoint fingerprint.
+    gone = (
+        cursor_home
+        / "projects"
+        / CursorAdapter._project_slug(project)
+        / "agent-transcripts"
+        / "task-model-session"
+    )
+    for path in sorted(gone.rglob("*"), reverse=True):
+        if path.is_file():
+            path.unlink()
+        else:
+            path.rmdir()
+    gone.rmdir()
+
+    second = adapter.scan(first.next_checkpoint)
+    assert len(second.records) == 0
+    assert len(second.removed) == 1
+    assert second.removed[0].native_id == "task-model-session"
+    assert second.next_checkpoint is not None
+    assert second.next_checkpoint != first.next_checkpoint
+
+    third = adapter.scan(second.next_checkpoint)
+    assert third.records == ()
+    assert third.removed == ()
+
+
+def test_cursor_read_citation_uses_file_line_number(tmp_path: Path) -> None:
+    project = (tmp_path / "work").resolve()
+    project.mkdir()
+    cursor_home = tmp_path / "cursor"
+    jsonl = _layout_session(cursor_home, project, "fixture-session")
+    adapter = CursorAdapter(project, cursor_home=cursor_home)
+    record = adapter.scan(None).records[0]
+    read = adapter.read(record, TurnSelection())
+    assert read.turns
+    # Fixture line 1 is the first user turn; citation must match file lines.
+    first_line = jsonl.read_text(encoding="utf-8").splitlines()[0]
+    assert json.loads(first_line)["role"] == "user"
+    assert read.turns[0].citation_locator == "line:1"

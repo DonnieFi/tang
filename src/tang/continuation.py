@@ -102,9 +102,10 @@ class ContinuationService:
                     "The target does not belong to the current project.",
                 )
             if target.source.identity.adapter not in SUPPORTED_DESTINATION_ADAPTERS:
+                destinations = ", ".join(sorted(SUPPORTED_DESTINATION_ADAPTERS))
                 raise ContinuationError(
                     "unsupported-target",
-                    "Tang supports Codex, Grok, and OpenCode continuation targets.",
+                    f"Tang supports continuation targets for: {destinations}.",
                 )
 
             sources = {}

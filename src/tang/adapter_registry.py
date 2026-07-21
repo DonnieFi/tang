@@ -41,7 +41,7 @@ def configured_adapters(
         GrokAdapter(grok_home),
     ]
     cursor = CursorAdapter(project_dir)
-    if cursor._transcript_root() is not None:
+    if cursor.has_project_transcripts():
         adapters.append(cursor)
     if discovered_opencode is not None or require_opencode:
         adapters.append(

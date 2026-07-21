@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from tang.cursor_sidecar import epoch_millis, read_store_session_meta
+from tang.adapters.incremental_checkpoint import decode_fingerprint_checkpoint
 
 from tang.adapters.base import (
     AdapterCheckpoint,
@@ -59,6 +60,7 @@ class CursorAdapter:
         self._cursor_home = configured.expanduser().resolve()
         self._projects_root = self._cursor_home / "projects"
         self._chats_root = self._cursor_home / "chats"
+        self._workspace_chat_hash = self.workspace_chat_hash(self._project_dir)
         self.source_namespace = source_namespace or self._namespace_for(
             self._cursor_home
         )
@@ -80,6 +82,11 @@ class CursorAdapter:
 
         return hashlib.md5(str(project_dir.resolve()).encode()).hexdigest()
 
+    def has_project_transcripts(self) -> bool:
+        """True when this project has a Cursor agent-transcripts directory."""
+
+        return self._transcript_root() is not None
+
     def _transcript_root(self) -> Path | None:
         if not self._projects_root.is_dir():
             return None
@@ -90,9 +97,8 @@ class CursorAdapter:
     def _chat_session_dir(self, native_id: str) -> Path | None:
         if not self._chats_root.is_dir():
             return None
-        candidate = (
-            self._chats_root / self.workspace_chat_hash(self._project_dir) / native_id
-        )
+        workspace = self._workspace_chat_hash
+        candidate = self._chats_root / workspace / native_id
         return candidate if candidate.is_dir() else None
 
     def scan(self, checkpoint: AdapterCheckpoint | None) -> ScanBatch:
@@ -109,54 +115,81 @@ class CursorAdapter:
             )
 
         warnings: list[AdapterWarning] = []
-        previous, validated = self._decode_checkpoint(checkpoint, warnings)
+        previous, _validated = self._decode_checkpoint(checkpoint, warnings)
         current = dict(previous)
         records: list[SourceRecord] = []
-        removed: list[SessionIdentity] = []
+        present: set[str] = set()
 
-        for session_dir in sorted(root.iterdir()):
-            if not session_dir.is_dir():
-                continue
-            jsonl = session_dir / f"{session_dir.name}.jsonl"
-            if not jsonl.is_file():
-                continue
-            native_id = session_dir.name
-            identity = SessionIdentity(
-                self.adapter_key, self.source_namespace, native_id
+        try:
+            session_dirs = sorted(root.iterdir())
+        except OSError:
+            return ScanBatch(
+                status=BatchStatus.UNAVAILABLE,
+                warnings=(
+                    AdapterWarning(
+                        "unreadable-store",
+                        "The Cursor agent-transcripts directory could not be listed.",
+                    ),
+                ),
             )
-            chat_dir = self._chat_session_dir(native_id)
-            sidecar = _load_sidecar(
-                chat_dir,
-                identity,
-                warnings,
-            )
-            fingerprint = _fingerprint_session(jsonl, chat_dir)
-            canonical = identity.canonical
-            if current.get(canonical) == fingerprint.value:
-                continue
-            fallback = datetime.fromtimestamp(jsonl.stat().st_mtime, tz=timezone.utc)
-            records.append(
-                SourceRecord(
-                    identity=identity,
-                    locator=OpaqueSourceLocator(str(jsonl)),
-                    fingerprint=fingerprint,
-                    project_hint=str(self._project_dir),
-                    started_at=sidecar.started_at or fallback,
-                    updated_at=sidecar.updated_at or fallback,
-                    title=sidecar.title,
-                    health=SessionHealth.UNKNOWN,
-                    header=sidecar.header,
+
+        for session_dir in session_dirs:
+            try:
+                if not session_dir.is_dir():
+                    continue
+                jsonl = session_dir / f"{session_dir.name}.jsonl"
+                if not jsonl.is_file():
+                    continue
+                native_id = session_dir.name
+                identity = SessionIdentity(
+                    self.adapter_key, self.source_namespace, native_id
                 )
-            )
-            current[canonical] = fingerprint.value
+                chat_dir = self._chat_session_dir(native_id)
+                # Fingerprint first so unchanged sessions skip sidecar SQL/JSON work.
+                fingerprint = _fingerprint_session(jsonl, chat_dir)
+                canonical = identity.canonical
+                present.add(canonical)
+                if current.get(canonical) == fingerprint.value:
+                    continue
+                sidecar = _load_sidecar(
+                    chat_dir,
+                    identity,
+                    warnings,
+                )
+                fallback = datetime.fromtimestamp(
+                    jsonl.stat().st_mtime, tz=timezone.utc
+                )
+                records.append(
+                    SourceRecord(
+                        identity=identity,
+                        locator=OpaqueSourceLocator(str(jsonl)),
+                        fingerprint=fingerprint,
+                        project_hint=str(self._project_dir),
+                        started_at=sidecar.started_at or fallback,
+                        updated_at=sidecar.updated_at or fallback,
+                        title=sidecar.title,
+                        health=SessionHealth.UNKNOWN,
+                        header=sidecar.header,
+                    )
+                )
+                current[canonical] = fingerprint.value
+            except OSError:
+                warnings.append(
+                    AdapterWarning(
+                        "unreadable-session",
+                        "A Cursor transcript session could not be read and was skipped.",
+                    )
+                )
+                continue
 
-        seen = {record.identity.canonical for record in records}
+        removed: list[SessionIdentity] = []
         for key in previous:
-            if key not in seen and key not in current:
+            if key not in present:
                 removed.append(SessionIdentity.from_canonical(key))
+                current.pop(key, None)
 
         next_checkpoint = None
-        if records or current != previous:
+        if records or removed or current != previous:
             next_checkpoint = AdapterCheckpoint(
                 self.adapter_key,
                 self.source_namespace,
@@ -170,7 +203,7 @@ class CursorAdapter:
             )
 
         return ScanBatch(
-            status=BatchStatus.COMPLETE,
+            status=BatchStatus.PARTIAL if warnings else BatchStatus.COMPLETE,
             records=tuple(records),
             removed=tuple(removed),
             warnings=tuple(warnings),
@@ -197,38 +230,55 @@ class CursorAdapter:
         warnings: list[AdapterWarning] = []
         index = 0
         observed_header = SessionHeader()
-        with path.open(encoding="utf-8") as handle:
-            for line in handle:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    payload = json.loads(line)
-                except json.JSONDecodeError:
-                    warnings.append(
-                        AdapterWarning(
-                            "malformed-turn",
-                            "A Cursor transcript line could not be parsed.",
-                            source.identity,
+        try:
+            with path.open(encoding="utf-8") as handle:
+                for line_no, raw_line in enumerate(handle, start=1):
+                    line = raw_line.strip()
+                    if not line:
+                        continue
+                    try:
+                        payload = json.loads(line)
+                    except json.JSONDecodeError:
+                        warnings.append(
+                            AdapterWarning(
+                                "malformed-turn",
+                                "A Cursor transcript line could not be parsed.",
+                                source.identity,
+                            )
+                        )
+                        continue
+                    observed_header = _merge_task_model_header(
+                        payload, observed_header
+                    )
+                    role = payload.get("role")
+                    if role not in {"user", "assistant"}:
+                        continue
+                    text = _visible_text(payload)
+                    if not text.strip():
+                        continue
+                    index += 1
+                    turns.append(
+                        VisibleTurn(
+                            ordinal=index,
+                            role=TurnRole.USER if role == "user" else TurnRole.AGENT,
+                            text=text,
+                            citation_locator=f"line:{line_no}",
                         )
                     )
-                    continue
-                observed_header = _merge_task_model_header(payload, observed_header)
-                role = payload.get("role")
-                if role not in {"user", "assistant"}:
-                    continue
-                text = _visible_text(payload)
-                if not text.strip():
-                    continue
-                index += 1
-                turns.append(
-                    VisibleTurn(
-                        ordinal=index,
-                        role=TurnRole.USER if role == "user" else TurnRole.AGENT,
-                        text=text,
-                        citation_locator=f"line:{index}",
-                    )
-                )
+        except OSError:
+            return TurnBatch(
+                source.identity,
+                BatchStatus.UNAVAILABLE,
+                (),
+                header=SessionHeader(),
+                warnings=(
+                    AdapterWarning(
+                        "unreadable-transcript",
+                        "The Cursor transcript file could not be read.",
+                        source.identity,
+                    ),
+                ),
+            )
         header = source.header.merged_with(observed_header)
         if not turns:
             warnings.append(
@@ -255,38 +305,15 @@ class CursorAdapter:
         checkpoint: AdapterCheckpoint | None,
         warnings: list[AdapterWarning],
     ) -> tuple[dict[str, str], frozenset[str]]:
-        if checkpoint is None:
-            return {}, frozenset()
-        if (
-            checkpoint.adapter != self.adapter_key
-            or checkpoint.source_namespace != self.source_namespace
-        ):
-            warnings.append(
-                AdapterWarning(
-                    "checkpoint-scope",
-                    "The checkpoint belongs to another adapter namespace; a full scan ran.",
-                )
-            )
-            return {}, frozenset()
-        try:
-            payload = json.loads(checkpoint.cursor)
-            fingerprints = payload["fingerprints"]
-            if not isinstance(fingerprints, dict):
-                raise ValueError
-            return {
-                str(key): str(value)
-                for key, value in fingerprints.items()
-                if isinstance(key, str) and isinstance(value, str)
-            }, frozenset()
-        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
-            warnings.append(
-                AdapterWarning(
-                    "checkpoint-invalid",
-                    "The Cursor checkpoint was invalid; a full scan ran.",
-                )
-            )
-            return {}, frozenset()
-
+        return decode_fingerprint_checkpoint(
+            checkpoint,
+            adapter_key=self.adapter_key,
+            source_namespace=self.source_namespace,
+            allowed_schema_versions=frozenset({1}),
+            # Cursor stores fingerprints only; treat schema 1 as pre-validated.
+            legacy_rescan_versions=frozenset({1}),
+            warnings=warnings,
+        )
 
 def _fingerprint_session(jsonl: Path, chat_dir: Path | None) -> SourceFingerprint:
     digest = hashlib.sha256()

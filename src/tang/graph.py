@@ -66,7 +66,10 @@ class GraphService:
         project_edges = self._repository.continuations_for_project(project_key)
         component_ids = self._weak_component(session_id, project_edges)
         material = load_multiverse_material(
-            self._repository, project_key, component_ids
+            self._repository,
+            project_key,
+            component_ids,
+            project_edges=project_edges,
         )
         sessions_by_id = {node.source_id: node for node in material.nodes}
         nodes = tuple(
