@@ -14,6 +14,7 @@ from tang.redaction import (
     required_redaction,
 )
 from tang.repository import StoredContinuation, TangRepository
+from tang.multiverse_material import load_multiverse_material
 
 
 MAX_TIMELINE_LANES = 256
@@ -64,33 +65,33 @@ class GraphService:
         project_key = anchor.project_key
         project_edges = self._repository.continuations_for_project(project_key)
         component_ids = self._weak_component(session_id, project_edges)
-        sessions = {
-            item.session.source.identity.canonical: item
-            for item in self._repository.graph_sessions(
-                project_key, tuple(component_ids)
-            )
-        }
+        material = load_multiverse_material(
+            self._repository, project_key, component_ids
+        )
+        sessions_by_id = {node.source_id: node for node in material.nodes}
         nodes = tuple(
             GraphNode(
                 source_id=source_id,
-                handle=sessions[source_id].session.handle,
-                harness=sessions[source_id].session.source.identity.adapter,
-                native_id=sessions[source_id].session.source.identity.native_id,
-                title=self._title(sessions[source_id].title),
-                updated_at=sessions[source_id].session.source.updated_at,
-                health=sessions[source_id].session.source.health,
-                native_available=sessions[source_id].session.native_available,
+                handle=sessions_by_id[source_id].handle,
+                harness=sessions_by_id[source_id].harness,
+                native_id=sessions_by_id[source_id].native_id,
+                title=self._title(sessions_by_id[source_id].display_title),
+                updated_at=sessions_by_id[source_id].updated_at,
+                health=sessions_by_id[source_id].health,
+                native_available=sessions_by_id[source_id].native_available,
                 current=source_id == current_id,
             )
             for source_id in sorted(
-                sessions,
-                key=lambda value: (sessions[value].session.source.updated_at, value),
+                sessions_by_id,
+                key=lambda value: (
+                    sessions_by_id[value].updated_at,
+                    value,
+                ),
             )
         )
         edges = tuple(
             GraphEdge(edge.source_id, edge.target_id, edge.confirmed_at)
-            for edge in project_edges
-            if edge.source_id in component_ids and edge.target_id in component_ids
+            for edge in material.edges
         )
         timelines, timelines_truncated = self._timelines(component_ids, edges)
         return MultiverseGraph(

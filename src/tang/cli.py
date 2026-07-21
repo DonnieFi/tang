@@ -239,6 +239,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="treat OpenCode readiness as required rather than optional",
     )
+    doctor.add_argument(
+        "--quick",
+        action="store_true",
+        help="presence-only adapter checks without full native scans",
+    )
     continuity = subparsers.add_parser(
         "continuity",
         help="show git and indexed session-start signals",
@@ -941,6 +946,7 @@ def _run_doctor(args: argparse.Namespace) -> int:
         require_opencode=(
             args.require_opencode or args.opencode_executable is not None
         ),
+        quick=args.quick,
     )
     if args.as_json:
         print(
@@ -954,6 +960,7 @@ def _run_doctor(args: argparse.Namespace) -> int:
                         }
                         for check in checks
                     ],
+                    "mode": "quick" if args.quick else "full",
                     "schema_version": 1,
                     "status": "ready" if doctor_exit_code(checks) == 0 else "degraded",
                 },

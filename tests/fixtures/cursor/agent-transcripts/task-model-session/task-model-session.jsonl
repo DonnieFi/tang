@@ -1,0 +1,2 @@
+{"role":"user","message":{"content":[{"type":"text","text":"Run a subagent review."}]}}
+{"role":"assistant","message":{"content":[{"type":"text","text":"Launching review."},{"type":"tool_use","name":"Task","input":{"description":"Review","prompt":"x","subagent_type":"generalPurpose","model":"claude-sonnet-5-thinking-high"}}]}}

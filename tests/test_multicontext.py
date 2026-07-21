@@ -23,6 +23,54 @@ from tang.multicontext import MultiSourceAllocator, ValidatedSourceRead
 NOW = datetime(2026, 7, 15, 0, 0, tzinfo=timezone.utc)
 
 
+def _validated_with_first_user(index: int, first_user: str) -> ValidatedSourceRead:
+    identity = SessionIdentity("codex", "fixture", f"source-{index}")
+    source = SourceRecord(
+        identity=identity,
+        locator=OpaqueSourceLocator(f"private/source-{index}.jsonl"),
+        fingerprint=SourceFingerprint("sha256", f"digest-{index}"),
+        project_hint="/synthetic/project",
+        started_at=NOW,
+        updated_at=NOW + timedelta(minutes=index),
+    )
+    turns = (
+        VisibleTurn(
+            0,
+            TurnRole.USER,
+            first_user,
+            "jsonl:1",
+            NOW,
+        ),
+        VisibleTurn(
+            1,
+            TurnRole.AGENT,
+            "ack",
+            "jsonl:2",
+            NOW,
+        ),
+    )
+    return ValidatedSourceRead(
+        source,
+        TurnBatch(identity, BatchStatus.COMPLETE, turns),
+        "project-a",
+    )
+
+
+def test_conflicting_first_user_goals_emit_constraint_signals() -> None:
+    pack = MultiSourceAllocator().allocate(
+        (
+            _validated_with_first_user(0, "Use Redis for the cache boundary"),
+            _validated_with_first_user(1, "Use SQLite for the cache boundary"),
+        ),
+        "project-a",
+    )
+    document = json.loads(pack.to_json())
+    assert document["constraint_signals"][0]["kind"] == "first_user_goal_mismatch"
+    assert len(document["untrusted_data_envelope"]["sources"]) == 2
+    assert all(section["excerpts"] for section in document["untrusted_data_envelope"]["sources"])
+    assert any("disagree" in warning for warning in document["warnings"])
+
+
 def validated(index: int, project_key: str = "project-a") -> ValidatedSourceRead:
     identity = SessionIdentity("codex", "fixture", f"source-{index}")
     source = SourceRecord(
@@ -37,7 +85,11 @@ def validated(index: int, project_key: str = "project-a") -> ValidatedSourceRead
         VisibleTurn(
             ordinal=ordinal,
             role=TurnRole.USER if ordinal % 2 == 0 else TurnRole.AGENT,
-            text=f"source-{index}-turn-{ordinal} " + "x" * 500,
+            text=(
+                "Implement the shared cache boundary"
+                if ordinal == 0
+                else f"source-{index}-turn-{ordinal} " + "x" * 500
+            ),
             citation_locator=f"jsonl:{ordinal + 1}",
             timestamp=NOW + timedelta(minutes=index, seconds=ordinal),
         )

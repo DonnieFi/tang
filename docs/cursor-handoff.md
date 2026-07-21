@@ -1,7 +1,10 @@
 # Continue into Cursor with Tang (handoff)
 
 Cursor sessions can be indexed when agent transcripts exist under
-`~/.cursor/projects/<path-slug>/agent-transcripts/`. Tang does not ship a
+`~/.cursor/projects/<path-slug>/agent-transcripts/`. When Cursor also writes
+`~/.cursor/chats/<md5(project)>/<sessionId>/meta.json` and `store.db`, Tang
+reads native **title**, **timestamps**, **lastUsedModel**, and **mode** at scan
+time and merges **Task** `model` hints from JSONL on read. Tang does not ship a
 Cursor plugin in v0.2.9; use the CLI from the project terminal or invoke the
 same commands through a project **Cursor Agent skill** that wraps them.
 

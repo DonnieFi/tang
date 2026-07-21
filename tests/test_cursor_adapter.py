@@ -1,34 +1,109 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 from tang.adapters import TurnSelection
 from tang.adapters.cursor import CursorAdapter
+from tang.indexing import ProjectIndexer
+from tang.project import resolve_project
+from tang.repository import TangRepository
+from tang.storage import open_database
+
+
+def _layout_session(
+    cursor_home: Path,
+    project: Path,
+    native_id: str,
+    *,
+    jsonl_name: str = "fixture-session.jsonl",
+    with_meta: bool = False,
+    with_store: bool = False,
+) -> Path:
+    slug = CursorAdapter._project_slug(project)
+    jsonl = (
+        cursor_home
+        / "projects"
+        / slug
+        / "agent-transcripts"
+        / native_id
+        / f"{native_id}.jsonl"
+    )
+    jsonl.parent.mkdir(parents=True, exist_ok=True)
+    fixture = (
+        Path(__file__).parent
+        / "fixtures"
+        / "cursor"
+        / "agent-transcripts"
+        / jsonl_name.replace(".jsonl", "")
+        / jsonl_name
+    )
+    if not fixture.is_file():
+        fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "cursor"
+            / "agent-transcripts"
+            / native_id
+            / jsonl_name
+        )
+    jsonl.write_text(fixture.read_text(encoding="utf-8"), encoding="utf-8")
+
+    if not (with_meta or with_store):
+        return jsonl
+
+    chat_dir = (
+        cursor_home
+        / "chats"
+        / CursorAdapter.workspace_chat_hash(project)
+        / native_id
+    )
+    chat_dir.mkdir(parents=True)
+    if with_meta:
+        meta_fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "cursor"
+            / "chats"
+            / "ws-placeholder"
+            / "fixture-session"
+            / "meta.json"
+        )
+        (chat_dir / "meta.json").write_text(
+            meta_fixture.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+    if with_store:
+        meta = {
+            "agentId": native_id,
+            "name": "Store-backed title",
+            "lastUsedModel": "composer-2.5",
+            "mode": "agent",
+            "createdAt": 1784570653707,
+        }
+        encoded = json.dumps(meta, sort_keys=True).encode("utf-8")
+        db_path = chat_dir / "store.db"
+        connection = sqlite3.connect(db_path)
+        connection.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
+        connection.execute(
+            "CREATE TABLE blobs (id TEXT PRIMARY KEY, data BLOB)"
+        )
+        connection.execute(
+            "INSERT INTO meta(key, value) VALUES (?, ?)",
+            ("0", encoded.hex()),
+        )
+        connection.commit()
+        connection.close()
+    return jsonl
 
 
 def test_cursor_scan_and_read_fixture(tmp_path: Path) -> None:
     project = (tmp_path / "work").resolve()
     project.mkdir()
     cursor_home = tmp_path / "cursor"
-    slug = CursorAdapter._project_slug(project)
-    transcript = (
-        cursor_home
-        / "projects"
-        / slug
-        / "agent-transcripts"
-        / "fixture-session"
-        / "fixture-session.jsonl"
-    )
-    transcript.parent.mkdir(parents=True)
-    fixture = (
-        Path(__file__).parent
-        / "fixtures"
-        / "cursor"
-        / "agent-transcripts"
-        / "fixture-session"
-        / "fixture-session.jsonl"
-    )
-    transcript.write_text(fixture.read_text(encoding="utf-8"), encoding="utf-8")
+    _layout_session(cursor_home, project, "fixture-session")
 
     adapter = CursorAdapter(project, cursor_home=cursor_home)
     batch = adapter.scan(None)
@@ -37,3 +112,104 @@ def test_cursor_scan_and_read_fixture(tmp_path: Path) -> None:
     read = adapter.read(batch.records[0], TurnSelection())
     assert read.turns
     assert "indexer" in read.turns[0].text
+
+
+def test_cursor_scan_uses_meta_json_title_and_timestamps(tmp_path: Path) -> None:
+    project = (tmp_path / "work").resolve()
+    project.mkdir()
+    cursor_home = tmp_path / "cursor"
+    _layout_session(
+        cursor_home, project, "fixture-session", with_meta=True
+    )
+
+    record = CursorAdapter(project, cursor_home=cursor_home).scan(None).records[0]
+
+    assert record.title == "Fixture Cursor session title"
+    assert record.started_at == datetime(2026, 7, 20, 18, 4, 13, 707000, tzinfo=timezone.utc)
+    assert record.updated_at == datetime(2026, 7, 20, 18, 4, 20, tzinfo=timezone.utc)
+
+
+def test_cursor_scan_merges_store_db_model_and_mode(tmp_path: Path) -> None:
+    project = (tmp_path / "work").resolve()
+    project.mkdir()
+    cursor_home = tmp_path / "cursor"
+    _layout_session(
+        cursor_home, project, "fixture-session", with_meta=True, with_store=True
+    )
+
+    record = CursorAdapter(project, cursor_home=cursor_home).scan(None).records[0]
+
+    assert record.title == "Fixture Cursor session title"
+    assert record.header.model_id == "composer-2.5"
+    assert record.header.effort == "agent"
+
+
+def test_cursor_read_extracts_task_model_into_header(tmp_path: Path) -> None:
+    project = (tmp_path / "work").resolve()
+    project.mkdir()
+    cursor_home = tmp_path / "cursor"
+    _layout_session(
+        cursor_home,
+        project,
+        "task-model-session",
+        jsonl_name="task-model-session.jsonl",
+    )
+
+    adapter = CursorAdapter(project, cursor_home=cursor_home)
+    record = adapter.scan(None).records[0]
+    read = adapter.read(record, TurnSelection())
+
+    assert read.header.model_id == "claude-sonnet-5-thinking-high"
+
+
+def test_cursor_fingerprint_includes_sidecars(tmp_path: Path) -> None:
+    project = (tmp_path / "work").resolve()
+    project.mkdir()
+    cursor_home = tmp_path / "cursor"
+    _layout_session(cursor_home, project, "fixture-session")
+    adapter = CursorAdapter(project, cursor_home=cursor_home)
+    first = adapter.scan(None).records[0].fingerprint.value
+
+    _layout_session(
+        cursor_home, project, "fixture-session", with_meta=True
+    )
+    second = adapter.scan(None).records[0].fingerprint.value
+
+    assert first != second
+
+
+def test_cursor_indexing_surfaces_session_header_in_capsule(tmp_path: Path) -> None:
+    project = (tmp_path / "work").resolve()
+    project.mkdir()
+    cursor_home = tmp_path / "cursor"
+    _layout_session(
+        cursor_home,
+        project,
+        "fixture-session",
+        with_meta=True,
+        with_store=True,
+    )
+    adapter = CursorAdapter(project, cursor_home=cursor_home)
+    database = project / ".tang" / "tang.db"
+    connection = open_database(database)
+    repository = TangRepository(connection)
+    project_identity = resolve_project(project)
+    indexed = ProjectIndexer(repository).index((adapter,), project_identity)
+    assert indexed.indexed == 1
+    row = repository.search_discovery(project_identity.key, "Fixture", limit=5)[0]
+    assert row.title == "Fixture Cursor session title"
+    assert row.model_id == "composer-2.5"
+    assert row.effort == "agent"
+    capsule = repository.get_capsule(row.source_id)
+    assert capsule is not None
+    header = capsule.content["session_header"]
+    assert header["model_id"] == "composer-2.5"
+    assert header["title_origin"] == "native"
+    connection.close()
+
+
+def test_workspace_chat_hash_matches_cursor_layout() -> None:
+    project = Path("/opt/tang")
+    assert CursorAdapter.workspace_chat_hash(project) == hashlib.md5(
+        b"/opt/tang"
+    ).hexdigest()

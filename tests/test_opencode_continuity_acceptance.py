@@ -135,7 +135,9 @@ def test_clean_database_multisource_context_continues_into_exact_opencode_target
         document = pack.as_dict()
 
         assert indexed.indexed == 4
-        assert indexed.status == pack.status == "complete"
+        assert indexed.status == "complete"
+        assert pack.status == "partial"
+        assert document["constraint_signals"][0]["kind"] == "first_user_goal_mismatch"
         assert {section.harness for section in pack.sections} == {
             "codex",
             "grok",

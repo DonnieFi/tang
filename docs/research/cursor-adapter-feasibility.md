@@ -9,9 +9,17 @@ shape verification.** Treat as bead `tang-sis.13`, not a third-party plugin.
 
 | Source | Location | Content |
 | --- | --- | --- |
-| Agent transcripts | `~/.cursor/projects/<slug>/agent-transcripts/*.jsonl` | User/assistant turns; workspace-scoped |
-| Workspace metadata | `~/.cursor/User/workspaceStorage/*/workspace.json` | Path hash → folder path |
-| Global composer state | `~/.cursor/User/globalStorage/state.vscdb` | Session lists (SQLite; read-only) |
+| **Store-backed agent tree** | `~/.cursor/chats/<md5(workspace path)>/<agentId>/` | `store.db` (SQLite blobs + hex meta), `meta.json`, `prompt_history.json` — often **authoritative** for CLI/agent sessions |
+| Agent transcripts | `~/.cursor/projects/<slug>/agent-transcripts/<id>/<id>.jsonl` | Read-only JSONL mirror; text + `tool_use` blocks |
+| Project artifacts | `~/.cursor/projects/<slug>/` | `repo.json`, `agent-tools/*.txt`, `terminals/` |
+| Workspace metadata | `~/.config/Cursor/User/workspaceStorage/*/workspace.json` | Path hash → folder URI |
+| Global composer state | `~/.config/Cursor/User/globalStorage/state.vscdb` | `composerData`, `bubbleId`, `composer.composerHeaders`, `agentKv`, … |
+| AI tracking (optional) | `~/.cursor/ai-tracking/ai-code-tracking.db` | `conversationId`, `model`, file hashes — not turn text |
+
+On Linux, IDE SQLite lives under **`~/.config/Cursor/User/`**, not under `~/.cursor/`.
+Workspace chat index hash under `~/.cursor/chats/` uses **MD5(absolute path)**; `workspaceStorage/` folder names are **opaque**.
+
+See **`docs/research/cursor-storage-inventory.md`** for a live audit and indexable fields.
 
 Community precedent: [cursor-chat-browser](https://github.com/snehaendait/cursor-chat-browser)
 indexes agent-transcripts with FTS; aligns with Tang's capsule model.

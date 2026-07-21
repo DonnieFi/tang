@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import sqlite3
 from dataclasses import dataclass
@@ -9,7 +10,16 @@ from pathlib import Path
 
 from tang.adapter_registry import configured_adapters
 from tang.adapters.base import BatchStatus, ScanBatch
+from tang.adapters.cursor import CursorAdapter
 from tang.storage import SCHEMA_VERSION
+
+
+def _default_codex_home() -> Path:
+    return Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")).expanduser()
+
+
+def _default_grok_home() -> Path:
+    return Path(os.environ.get("GROK_HOME", Path.home() / ".grok")).expanduser()
 
 
 @dataclass(frozen=True)
@@ -29,6 +39,7 @@ def run_doctor(
     opencode_executable: Path | str | None = None,
     project_dir: Path | str | None = None,
     require_opencode: bool = False,
+    quick: bool = False,
 ) -> tuple[DoctorCheck, ...]:
     """Check the CLI, database, FTS5, and configured harness adapters."""
 
@@ -102,6 +113,18 @@ def run_doctor(
         )
 
     adapter_project = project_dir or Path.cwd()
+    if quick:
+        checks.extend(
+            _quick_adapter_checks(
+                adapter_project,
+                codex_home=codex_home,
+                grok_home=grok_home,
+                opencode_executable=opencode_executable,
+                require_opencode=require_opencode,
+            )
+        )
+        return tuple(checks)
+
     for adapter in configured_adapters(
         adapter_project,
         codex_home=codex_home,
@@ -114,6 +137,89 @@ def run_doctor(
                 adapter.adapter_key,
                 adapter.scan(None),
                 opencode_required=require_opencode,
+            )
+        )
+    return tuple(checks)
+
+
+def _quick_adapter_checks(
+    project_dir: Path | str,
+    *,
+    codex_home: Path | None,
+    grok_home: Path | None,
+    opencode_executable: Path | str | None,
+    require_opencode: bool,
+) -> tuple[DoctorCheck, ...]:
+    """Presence-only harness checks without hashing logs or starting OpenCode."""
+
+    checks: list[DoctorCheck] = []
+    codex_root = (codex_home or _default_codex_home()) / "sessions"
+    if codex_root.is_dir():
+        checks.append(
+            DoctorCheck(
+                "codex",
+                "present",
+                "Codex session store is present; omit --quick to count recoverable sessions.",
+            )
+        )
+    else:
+        checks.append(
+            DoctorCheck(
+                "codex",
+                "unavailable",
+                "Configure a readable Codex session store.",
+            )
+        )
+    grok_root = (grok_home or _default_grok_home()) / "sessions"
+    if grok_root.is_dir():
+        checks.append(
+            DoctorCheck(
+                "grok",
+                "present",
+                "Grok session store is present; omit --quick to count recoverable sessions.",
+            )
+        )
+    else:
+        checks.append(
+            DoctorCheck(
+                "grok",
+                "unavailable",
+                "Configure a readable Grok session store.",
+            )
+        )
+    cursor_root = CursorAdapter(project_dir)._transcript_root()
+    if cursor_root is not None:
+        checks.append(
+            DoctorCheck(
+                "cursor",
+                "present",
+                "Cursor agent transcripts are present; omit --quick to count recoverable sessions.",
+            )
+        )
+    configured = opencode_executable or os.environ.get("TANG_OPENCODE_EXECUTABLE")
+    discovered = configured or shutil.which("opencode")
+    if discovered:
+        checks.append(
+            DoctorCheck(
+                "opencode",
+                "present",
+                "OpenCode executable is available; omit --quick to probe the session catalog.",
+            )
+        )
+    elif require_opencode:
+        checks.append(
+            DoctorCheck(
+                "opencode",
+                "missing",
+                "Install OpenCode >=1.17.18,<2.0.0 or configure --opencode-executable.",
+            )
+        )
+    else:
+        checks.append(
+            DoctorCheck(
+                "opencode",
+                "optional",
+                "OpenCode is not installed; Codex/Grok recovery remains available.",
             )
         )
     return tuple(checks)
@@ -186,4 +292,5 @@ def _adapter_check(
 def doctor_exit_code(checks: tuple[DoctorCheck, ...]) -> int:
     """Return zero only when every readiness component is ready."""
 
-    return 0 if all(check.status in {"ready", "optional"} for check in checks) else 1
+    ok = {"ready", "optional", "present"}
+    return 0 if all(check.status in ok for check in checks) else 1

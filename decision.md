@@ -492,3 +492,27 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) change tangspec immediately; (b) document policy in docs/ and link from the harness matrix pending spec amendment; (c) allow transcript writes for parity.
 - Decision: (b) — `docs/native-write-policy.md` states read-only adapters, `.tang`-only derived writes, and host-chat import only; Grok/Cursor destinations remain blocked in release claims until spec amendment and live proof. Serves: Design, Potential Impact, Quality of Idea.
 - By: agent (Epic 10 beta branch); spec amendment remains human-gated per bead acceptance.
+
+## 2026-07-21T01:55:00Z · tang-xzo · Deterministic constraint_signals for multi-source packs
+- Context: Build Week feedback asked whether Tang may collapse disagreeing recovered constraints; multi-source allocation already kept all sources but had no machine-readable conflict hint.
+- Options: (a) model-inferred merge in core; (b) source/excerpt-only disclosure via skill; (c) add deterministic `first_user_goal_mismatch` signals plus policy doc without persisting resolutions.
+- Decision: (c) — `docs/conflicting-source-constraints.md`, Context Pack `constraint_signals`, skill requirement to ask the user before acting; budget fitting excludes signals until after excerpt allocation. Serves: Design, Potential Impact, Quality of Idea.
+- By: agent
+
+## 2026-07-21T01:55:00Z · tang-7ql · Doctor quick observational mode
+- Context: Full doctor hashes every native log and may start OpenCode catalog; skill often only needs path sanity.
+- Options: (a) make full scan default only on index; (b) add `--quick` presence checks with `present` status; (c) skip doctor entirely.
+- Decision: (b) — `tang doctor --quick`, JSON `mode`, `docs/doctor-performance.md`; full path unchanged. Serves: Technological Implementation, Design.
+- By: agent
+
+## 2026-07-21T01:55:00Z · tang-9nb · Cross-project discovery research
+- Context: Post-release need for explicit opt-in foreign session browse without global FTS.
+- Options: (a) implement registry now; (b) research doc and spec delta for human review; (c) global capsule DB.
+- Decision: (b) — `docs/research/cross-project-discovery-opt-in.md` recommends project registry (design C) and defers code until spec approval. Serves: Design, Potential Impact.
+- By: agent
+
+## 2026-07-21T01:55:00Z · tang-c4v · Multiverse material projection
+- Context: GraphService inlined repository graph_sessions and capsule title parsing.
+- Options: (a) split TangRepository wholesale; (b) `load_multiverse_material()` seam keeping redaction in GraphService; (c) defer.
+- Decision: (b) — `src/tang/multiverse_material.py`; GraphService consumes typed nodes/edges. Serves: Technological Implementation, Design.
+- By: agent

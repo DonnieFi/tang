@@ -12,6 +12,7 @@ from tang.adapters import (
     SourceRecord,
 )
 from tang.graph import MAX_TIMELINE_LANES, GraphEdge, GraphService
+from tang.multiverse_material import load_multiverse_material
 from tang.repository import StoredCapsule, StoredContinuation, TangRepository
 from tang.continuation_persistence import insert_continuation
 from tang.storage import open_database
@@ -207,5 +208,24 @@ def test_graph_uses_redacted_capsule_display_name_when_native_title_is_absent(
         graph = GraphService(repository).component(source_id)
         title = next(node.title for node in graph.nodes if node.source_id == source_id)
         assert title == "Derived recovery title"
+    finally:
+        connection.close()
+
+
+def test_multiverse_material_feeds_graph_without_extra_title_queries(
+    tmp_path: Path,
+) -> None:
+    connection, repository, document = seeded(tmp_path)
+    try:
+        graph = GraphService(repository).component("codex:multiverse:c")
+        component_ids = frozenset(node.source_id for node in graph.nodes)
+        material = load_multiverse_material(
+            repository, document["project_key"], component_ids
+        )
+        by_id = {node.source_id: node.title for node in graph.nodes}
+        assert len(material.nodes) == len(graph.nodes)
+        for node in material.nodes:
+            assert node.display_title
+            assert by_id[node.source_id] is not None
     finally:
         connection.close()

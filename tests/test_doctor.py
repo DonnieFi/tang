@@ -238,3 +238,47 @@ def test_doctor_treats_absent_optional_opencode_as_non_blocking() -> None:
     assert "Codex/Grok recovery remains available" in optional.message
     assert required.status == "missing"
     assert doctor_exit_code((DoctorCheck("cli", "ready", "ready"), optional)) == 0
+
+
+def test_doctor_quick_skips_full_scan_but_reports_presence(
+    tmp_path: Path, monkeypatch, capsys, codex_fixture_home: Path
+) -> None:
+    grok = Path(__file__).parent / "fixtures" / "grok"
+    database = tmp_path / "tang.db"
+    open_database(database).close()
+    scans = {"count": 0}
+
+    class CountingCodex(CodexAdapter):
+        def scan(self, checkpoint):
+            scans["count"] += 1
+            return super().scan(checkpoint)
+
+    monkeypatch.setattr("tang.doctor.shutil.which", lambda command: "/bin/tang")
+    monkeypatch.setattr("tang.adapter_registry.CodexAdapter", CountingCodex)
+
+    result = main(
+        [
+            "doctor",
+            "--quick",
+            "--json",
+            "--database",
+            str(database),
+            "--codex-home",
+            str(codex_fixture_home),
+            "--grok-home",
+            str(grok),
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert result == 0
+    assert payload["mode"] == "quick"
+    assert scans["count"] == 0
+    statuses = {check["component"]: check["status"] for check in payload["checks"]}
+    assert statuses["codex"] == "present"
+    assert statuses["grok"] == "present"
+    assert doctor_exit_code(
+        tuple(
+            DoctorCheck(check["component"], check["status"], check["message"])
+            for check in payload["checks"]
+        )
+    ) == 0

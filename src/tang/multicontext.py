@@ -6,8 +6,59 @@ import json
 import math
 from dataclasses import dataclass, replace
 
-from tang.adapters import SourceRecord, TurnBatch
+from tang.adapters import SourceRecord, TurnBatch, TurnRole
 from tang.context import ContextExcerpt, ContextPackBuilder, UNTRUSTED_NOTICE
+
+
+def _normalize_goal(text: str) -> str:
+    return " ".join(text.split()).casefold()
+
+
+def constraint_signals(
+    sources: tuple[ValidatedSourceRead, ...],
+) -> tuple[dict[str, object], ...]:
+    """Deterministic hints when first visible user goals disagree across sources."""
+
+    goals: list[dict[str, str]] = []
+    for item in sources:
+        for turn in item.read.turns:
+            if turn.role is not TurnRole.USER or not turn.text.strip():
+                continue
+            goals.append(
+                {
+                    "harness": item.source.identity.adapter,
+                    "normalized_goal": _normalize_goal(turn.text),
+                    "source_id": item.source.identity.canonical,
+                    "turn_locator": turn.citation_locator,
+                }
+            )
+            break
+    if len(goals) < 2:
+        return ()
+    norms = {entry["normalized_goal"] for entry in goals}
+    if len(norms) <= 1:
+        return ()
+    public = tuple(
+        {
+            "harness": entry["harness"],
+            "source_id": entry["source_id"],
+            "turn_locator": entry["turn_locator"],
+        }
+        for entry in sorted(goals, key=lambda row: row["source_id"])
+    )
+    return (
+        {
+            "kind": "first_user_goal_mismatch",
+            "sources": public,
+        },
+    )
+
+
+CONFLICT_WARNING = (
+    "Recovered sources disagree on the first visible user goal; name the "
+    "conflict in the Continuation Brief and ask which constraint to follow "
+    "before acting."
+)
 
 
 def _indented(text: str) -> list[str]:
@@ -60,6 +111,7 @@ class MultiSourceContextPack:
     project_key: str
     sections: tuple[SourceSection, ...]
     warnings: tuple[str, ...] = ()
+    constraint_signals: tuple[dict[str, object], ...] = ()
     markdown_estimated_tokens: int = 0
     json_estimated_tokens: int = 0
     schema_version: int = 1
@@ -77,7 +129,7 @@ class MultiSourceContextPack:
         return "complete"
 
     def as_dict(self) -> dict[str, object]:
-        return {
+        document: dict[str, object] = {
             "estimated_tokens": self.json_estimated_tokens,
             "project_key": self.project_key,
             "schema_version": self.schema_version,
@@ -88,6 +140,9 @@ class MultiSourceContextPack:
                 "sources": [section.as_dict() for section in self.sections],
             },
         }
+        if self.constraint_signals:
+            document["constraint_signals"] = list(self.constraint_signals)
+        return document
 
     def to_json(self) -> str:
         return json.dumps(
@@ -118,6 +173,11 @@ class MultiSourceContextPack:
             lines.append("Pack warnings (untrusted):")
             for warning in self.warnings:
                 lines.extend(_indented(warning))
+            lines.append("")
+        if self.constraint_signals:
+            lines.append("Constraint signals (deterministic, non-authoritative):")
+            for signal in self.constraint_signals:
+                lines.extend(_indented(json.dumps(signal, sort_keys=True)))
             lines.append("")
         for section in self.sections:
             lines.extend(
@@ -214,7 +274,17 @@ class MultiSourceAllocator:
                 candidate = self._pack(ordered, prepared, selected, project_key, warnings)
                 if candidate.estimated_tokens > self._token_budget:
                     selected[index].remove(excerpt)
-        return self._pack(ordered, prepared, selected, project_key, warnings)
+        pack = self._pack(ordered, prepared, selected, project_key, warnings)
+        signals = constraint_signals(ordered)
+        if not signals:
+            return pack
+        return self._estimated(
+            replace(
+                pack,
+                warnings=warnings + (CONFLICT_WARNING,),
+                constraint_signals=signals,
+            )
+        )
 
     def _fit_reserves(
         self,
@@ -265,6 +335,7 @@ class MultiSourceAllocator:
         selected: list[list[ContextExcerpt]],
         project_key: str,
         warnings: tuple[str, ...],
+        constraint_signals: tuple[dict[str, object], ...] = (),
     ) -> MultiSourceContextPack:
         sections = tuple(
             SourceSection(
@@ -280,7 +351,11 @@ class MultiSourceAllocator:
             )
             for item, single, chosen in zip(sources, prepared, selected)
         )
-        return self._estimated(MultiSourceContextPack(project_key, sections, warnings))
+        return self._estimated(
+            MultiSourceContextPack(
+                project_key, sections, warnings, constraint_signals
+            )
+        )
 
     @staticmethod
     def _estimated(pack: MultiSourceContextPack) -> MultiSourceContextPack:
