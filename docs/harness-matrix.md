@@ -29,12 +29,13 @@ Legend: **yes** · **no** · **partial** (CLI or source-only) · **planned**
 
 **Partial** notes:
 
-| Grok — predecessor recall:** Grok sessions may be **targets** for explicit
+- **Grok — predecessor recall:** Grok sessions may be **targets** for explicit
   `tang link --to` edges; there is no Grok host skill for `--current` linking
   or one-step predecessor recall in v0.2.9.
 - **Grok — import from Tang:** Developers recover Grok **into** Codex or
   OpenCode via the skill/CLI, or record edges **into** an indexed Grok session
-  with explicit `--to`; there is no Grok-side Tang integration in v0.2.9.
+  with explicit `--to`; see [grok-handoff.md](grok-handoff.md). There is no
+  Grok-side Tang integration in v0.2.9.
 
 ## Version and platform pins
 
