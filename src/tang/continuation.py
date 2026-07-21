@@ -6,11 +6,12 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from tang.adapters import SessionIdentity
+from tang.harness_capabilities import supported_destination_adapters
 from tang.repository import StoredContinuation, TangRepository
 from tang.target import TargetResolution, TargetResolutionKind
 
 
-SUPPORTED_DESTINATION_ADAPTERS = frozenset(("codex", "grok", "opencode"))
+SUPPORTED_DESTINATION_ADAPTERS = supported_destination_adapters()
 
 
 class ContinuationError(ValueError):

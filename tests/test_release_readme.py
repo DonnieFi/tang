@@ -50,7 +50,7 @@ def test_harness_matrix_matches_release_claims() -> None:
     assert "Grok 0.2.99" in matrix
     assert "OpenCode 1.17.18" in matrix
     assert "Cursor IDE" in matrix
-    assert "SUPPORTED_DESTINATION_ADAPTERS" in matrix
+    assert "SUPPORTED_DESTINATION_ADAPTERS" in matrix or "harness_capabilities" in matrix
     assert "never** appends recovered transcript" in matrix
     assert "planned" in matrix
     policy = (ROOT / "docs" / "native-write-policy.md").read_text(encoding="utf-8")
