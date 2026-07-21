@@ -486,3 +486,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) leave the version as a local candidate; (b) publish a different untested rebuild; (c) tag the reviewed main commit and attach the matching wheel and source archive.
 - Decision: (c) — publish only the deterministic artifacts validated from the final public documentation: wheel SHA-256 `7e9722ccf7cabdc581bf0c81c450f51fc2931e194b40481ff1db6cdb5f8abc44`; source archive SHA-256 `3d83e4ab9e356b6536f632f1f7cc75527681ace880286219b06d12277f627194`. Serves: Quality of Idea, Technological Implementation, Potential Impact.
 - By: human (release authority) and agent (release validation)
+
+## 2026-07-21T01:20:00Z · tang-sis.18 · Native write and import policy for beta parity work
+- Context: Epic 10 adds Grok/Cursor destination and import beads; the spec forbids silent native mutation but had no standalone policy doc for reviewers.
+- Options: (a) change tangspec immediately; (b) document policy in docs/ and link from the harness matrix pending spec amendment; (c) allow transcript writes for parity.
+- Decision: (b) — `docs/native-write-policy.md` states read-only adapters, `.tang`-only derived writes, and host-chat import only; Grok/Cursor destinations remain blocked in release claims until spec amendment and live proof. Serves: Design, Potential Impact, Quality of Idea.
+- By: agent (Epic 10 beta branch); spec amendment remains human-gated per bead acceptance.
