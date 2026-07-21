@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import unquote
 from uuid import UUID
 
+from tang.adapters.incremental_checkpoint import decode_fingerprint_checkpoint
 from tang.adapters.base import (
     AdapterCheckpoint,
     AdapterWarning,
@@ -646,51 +647,14 @@ class GrokAdapter:
         checkpoint: AdapterCheckpoint | None,
         warnings: list[AdapterWarning],
     ) -> tuple[dict[str, str], frozenset[str]]:
-        if checkpoint is None:
-            return {}, frozenset()
-        if (
-            checkpoint.adapter != self.adapter_key
-            or checkpoint.source_namespace != self.source_namespace
-        ):
-            warnings.append(
-                AdapterWarning(
-                    "checkpoint-scope",
-                    "The checkpoint belongs to another adapter namespace; a full scan ran.",
-                )
-            )
-            return {}, frozenset()
-        try:
-            payload = json.loads(checkpoint.cursor)
-            fingerprints = payload["fingerprints"]
-            schema_version = payload.get("schema_version")
-            if schema_version not in {1, 2, 3} or not isinstance(fingerprints, dict):
-                raise ValueError
-            if not all(
-                isinstance(key, str) and isinstance(value, str)
-                for key, value in fingerprints.items()
-            ):
-                raise ValueError
-            if schema_version in {1, 2}:
-                # Revalidate legacy checkpoint entries once before treating them
-                # as safe to skip. Earlier formats predate derived Capsule
-                # header metadata and must re-emit records for one refresh.
-                return fingerprints, frozenset()
-            validated = payload["validated"]
-            if (
-                not isinstance(validated, list)
-                or not all(isinstance(value, str) for value in validated)
-                or not set(validated).issubset(fingerprints)
-            ):
-                raise ValueError
-            return fingerprints, frozenset(validated)
-        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
-            warnings.append(
-                AdapterWarning(
-                    "checkpoint-invalid",
-                    "The checkpoint was invalid; a full scan ran.",
-                )
-            )
-            return {}, frozenset()
+        return decode_fingerprint_checkpoint(
+            checkpoint,
+            adapter_key=self.adapter_key,
+            source_namespace=self.source_namespace,
+            allowed_schema_versions=frozenset({1, 2, 3}),
+            legacy_rescan_versions=frozenset({1, 2}),
+            warnings=warnings,
+        )
 
     @staticmethod
     def _visible_update(
