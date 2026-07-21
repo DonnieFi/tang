@@ -59,7 +59,7 @@ store. Continuation is:
 4. **Resume** — launching the harness CLI to reopen an **exact** indexed session
    (Codex/OpenCode only today).
 
-See [getting-started.md](getting-started.md) for operator workflows.
+See [native-write-policy.md](native-write-policy.md) for write/import rules.
 
 ## Non-goals (v0.2)
 

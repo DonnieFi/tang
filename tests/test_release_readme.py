@@ -53,6 +53,8 @@ def test_harness_matrix_matches_release_claims() -> None:
     assert "SUPPORTED_DESTINATION_ADAPTERS" in matrix
     assert "never** appends recovered transcript" in matrix
     assert "planned" in matrix
+    policy = (ROOT / "docs" / "native-write-policy.md").read_text(encoding="utf-8")
+    assert "No silent transcript injection" in policy
     # README must not imply Cursor is supported today.
     assert "Cursor" not in readme
 
