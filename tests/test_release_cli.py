@@ -11,6 +11,7 @@ from tang.cli import build_parser
 RELEASE_COMMANDS = {
     "browse",
     "context",
+    "continuity",
     "demo",
     "doctor",
     "graph",

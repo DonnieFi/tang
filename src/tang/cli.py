@@ -19,6 +19,7 @@ from rich.text import Text
 from tang import __version__
 from tang.adapter_registry import configured_adapters
 from tang.adapters import OpenCodeAdapter, SessionHealth, SessionIdentity
+from tang.continuity_brief import build_continuity_brief
 from tang.context_service import ContextGenerationError, ContextPackService
 from tang.continuation import ContinuationError, ContinuationService, LinkResult
 from tang.discovery import (
@@ -237,6 +238,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="treat OpenCode readiness as required rather than optional",
     )
+    continuity = subparsers.add_parser(
+        "continuity",
+        help="show git and indexed session-start signals",
+    )
+    continuity.add_argument("--json", action="store_true", dest="as_json")
+    continuity.add_argument("--database", type=Path)
+    continuity.add_argument("--cwd", type=Path, default=Path.cwd())
     skill = subparsers.add_parser("skill", help="manage harness skills")
     skill_subparsers = skill.add_subparsers(dest="skill_command")
     install = skill_subparsers.add_parser("install", help="install a harness skill")
@@ -885,6 +893,42 @@ def _run_purge(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_continuity(args: argparse.Namespace) -> int:
+    project = resolve_project(args.cwd)
+    database = _required_database_for(args, project)
+    if database is None:
+        return 2
+    connection = open_database(database)
+    try:
+        brief = build_continuity_brief(TangRepository(connection), project)
+    finally:
+        connection.close()
+    if args.as_json:
+        print(
+            json.dumps(
+                brief.as_dict(),
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
+    else:
+        print(f"Project {brief.project_key}")
+        if brief.git_available:
+            print("Recent git commits:")
+            for line in brief.git_log:
+                print(f"  {line}")
+            if brief.git_status:
+                print("Working tree:")
+                for line in brief.git_status:
+                    print(f"  {line}")
+        else:
+            print("Git history unavailable; use indexed session handles only.")
+        if brief.recent_handles:
+            print("Recent indexed handles:", ", ".join(brief.recent_handles))
+    return 0
+
+
 def _run_doctor(args: argparse.Namespace) -> int:
     project = resolve_project(args.cwd)
     checks = run_doctor(
@@ -1259,6 +1303,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_purge(args)
         if args.command == "doctor":
             return _run_doctor(args)
+        if args.command == "continuity":
+            return _run_continuity(args)
         if args.command == "skill":
             return _run_skill(args)
         if args.command == "link":
