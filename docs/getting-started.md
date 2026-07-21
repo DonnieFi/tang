@@ -9,6 +9,9 @@ after you confirm it.
 Tang v0.2.9 is the **minimum reviewed build** and the current tagged Linux
 release. Install its exact wheel rather than an unversioned development build.
 
+Harness capabilities (Codex, Grok, OpenCode, and post-release roadmap) are
+listed in [harness-matrix.md](harness-matrix.md).
+
 ## What you need
 
 - A Linux computer.

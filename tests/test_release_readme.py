@@ -41,6 +41,22 @@ def test_readme_is_a_verified_release_candidate_surface() -> None:
     assert "complete isolated\ndemo under 0.2 seconds" not in readme
 
 
+def test_harness_matrix_matches_release_claims() -> None:
+    matrix = (ROOT / "docs" / "harness-matrix.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "docs/harness-matrix.md" in readme
+    assert "Codex CLI 0.144.4" in matrix
+    assert "Grok 0.2.99" in matrix
+    assert "OpenCode 1.17.18" in matrix
+    assert "Cursor IDE" in matrix
+    assert "SUPPORTED_DESTINATION_ADAPTERS" in matrix
+    assert "never** appends recovered transcript" in matrix
+    assert "planned" in matrix
+    # README must not imply Cursor is supported today.
+    assert "Cursor" not in readme
+
+
 def test_supported_install_contract_has_one_skill_path() -> None:
     spec = (ROOT / "docs" / "tangspec.md").read_text(encoding="utf-8")
     guide = (ROOT / "docs" / "getting-started.md").read_text(encoding="utf-8")

@@ -177,6 +177,9 @@ already know a handle or need a scriptable path.
 | macOS | Unsupported | No compatibility or CI claim |
 | Windows | Unsupported | No native compatibility claim |
 
+For per-capability detail (index, link, resume, host skill, import, and roadmap
+columns), see [docs/harness-matrix.md](docs/harness-matrix.md).
+
 Within the documented OpenCode range, Tang still validates the native catalog
 and export shapes on every use and fails closed on incompatible data. Tang makes
 no compatibility claim for OpenCode versions outside that range, or for other
