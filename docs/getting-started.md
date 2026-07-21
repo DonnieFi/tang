@@ -423,6 +423,10 @@ schema, and WAL configuration can be reused. Native history is never removed.
 
 ## Where Tang keeps data
 
+Tang stores derived continuity data under `.tang/tang.db` in the project root.
+Native harness logs are never modified. For how this interacts with host context
+compaction and `--resume`, see [session-continuity.md](session-continuity.md).
+
 Tang reads supported native session stores but does not rewrite them. Its own
 derived SQLite database lives in the canonical project folder:
 
