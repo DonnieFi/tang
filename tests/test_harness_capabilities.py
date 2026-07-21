@@ -8,7 +8,7 @@ from tang.harness_capabilities import (
 
 def test_registry_matches_continuation_destinations() -> None:
     assert supported_destination_adapters() == frozenset(
-        ("codex", "grok", "opencode")
+        ("codex", "grok", "opencode", "cursor")
     )
 
 
@@ -25,7 +25,7 @@ def test_cursor_is_roadmap_only() -> None:
     assert cursor is not None
     assert cursor.release_claim_linux is False
     assert cursor.link_source is True
-    assert cursor.link_destination is False
+    assert cursor.link_destination is True
 
 
 def test_all_entries_have_display_names() -> None:

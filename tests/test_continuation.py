@@ -213,10 +213,11 @@ def test_confirmed_opencode_target_accepts_all_supported_source_harnesses_atomic
         assert next(node for node in graph.nodes if node.current).harness == "opencode"
 
         before = repository.continuations_for_project("project")
-        with pytest.raises(ContinuationError) as failure:
-            service.link((ids["b"],), cursor_target_id, "project", "explicit", NOW)
-        assert failure.value.code == "unsupported-target"
-        assert repository.continuations_for_project("project") == before
+        cursor_link = service.link(
+            (ids["b"],), cursor_target_id, "project", "explicit", NOW
+        )
+        assert cursor_link.inserted == 1
+        assert len(repository.continuations_for_project("project")) == len(before) + 1
     finally:
         connection.close()
 
@@ -255,7 +256,7 @@ def test_supported_destination_policy_is_explicit_and_idempotent_for_opencode(
         second = service.link((ids["a"],), target_id, "project", "explicit", NOW)
 
         assert SUPPORTED_DESTINATION_ADAPTERS == frozenset(
-            ("codex", "grok", "opencode")
+            ("codex", "grok", "opencode", "cursor")
         )
         assert (first.inserted, first.existing) == (1, 0)
         assert (second.inserted, second.existing) == (0, 1)

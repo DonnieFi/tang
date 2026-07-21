@@ -2,8 +2,8 @@
 
 Authoritative comparison of what Tang supports **today (v0.2.9)** versus the
 **post-release roadmap** on branch `epic/10-beta-release`. Implementation
-truth is defined by `tang.adapter_registry.configured_adapters`,
-`ContinuationService.SUPPORTED_DESTINATION_ADAPTERS`, and `ResumeService`.
+truth is defined by `tang.harness_capabilities`,
+`tang.adapter_registry.configured_adapters`, and `ResumeService`.
 
 Legend: **yes** · **no** · **partial** (CLI or source-only) · **planned**
 
@@ -16,7 +16,7 @@ Legend: **yes** · **no** · **partial** (CLI or source-only) · **planned**
 | Browse / search (current project) | yes | yes | yes | planned |
 | Context pack (cited native reread) | yes | yes | yes | planned |
 | Link as **source** | yes | yes | yes | planned |
-| Link as **destination** | yes | yes | yes | planned |
+| Link as **destination** | yes | yes | yes | yes |
 | Host current-target resolution | yes (skill) | no | yes (`/tang` tools) | planned |
 | Predecessor recall (`context all`) | yes | partial | yes | planned |
 | `tang resume` native session | yes | no | yes | planned |
