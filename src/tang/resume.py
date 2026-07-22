@@ -72,6 +72,22 @@ def _codex_native_id(value: str) -> str:
     return value
 
 
+def _uuid_native_id(value: str, harness: str) -> str:
+    try:
+        parsed = UUID(value)
+    except ValueError as error:
+        raise ResumeError(
+            "resume-native-id-invalid",
+            f"The indexed {harness} session does not have a supported native identity.",
+        ) from error
+    if str(parsed) != value.lower():
+        raise ResumeError(
+            "resume-native-id-invalid",
+            f"The indexed {harness} session does not have a supported native identity.",
+        )
+    return value
+
+
 def _opencode_native_id(value: str) -> str:
     if _OPENCODE_SESSION_ID.fullmatch(value) is None:
         raise ResumeError(
@@ -100,9 +116,11 @@ class ResumeService:
         launch_directory: Path,
         *,
         codex_executable: Path | str | None = None,
+        grok_executable: Path | str | None = None,
         opencode_executable: Path | str | None = None,
+        cursor_executable: Path | str | None = None,
     ) -> int:
-        """Launch a native Codex/OpenCode session without exposing its identity."""
+        """Launch an exact native session without exposing its identity."""
 
         if ":" in handle:
             raise ResumeError(
@@ -145,22 +163,29 @@ class ResumeService:
                 str(launch_directory),
                 native_id,
             )
+        elif adapter == "grok":
+            native_id = _uuid_native_id(native_id, "Grok")
+            self._require_recorded_directory(
+                stored.source.project_hint, launch_directory
+            )
+            executable = _executable(
+                grok_executable,
+                environment_name="TANG_GROK_EXECUTABLE",
+                default="grok",
+                harness="Grok",
+            )
+            command = (
+                executable,
+                "--cwd",
+                str(launch_directory),
+                "--resume",
+                native_id,
+            )
         elif adapter == "opencode":
             native_id = _opencode_native_id(native_id)
-            try:
-                recorded_directory = (
-                    Path(stored.source.project_hint).expanduser().resolve(strict=True)
-                )
-            except (OSError, RuntimeError) as error:
-                raise ResumeError(
-                    "resume-project-unavailable",
-                    "The indexed OpenCode session directory is unavailable.",
-                ) from error
-            if recorded_directory != launch_directory:
-                raise ResumeError(
-                    "resume-project-mismatch",
-                    "The selected OpenCode session belongs to another worktree.",
-                )
+            self._require_recorded_directory(
+                stored.source.project_hint, launch_directory
+            )
             executable = _executable(
                 opencode_executable,
                 environment_name="TANG_OPENCODE_EXECUTABLE",
@@ -176,6 +201,24 @@ class ResumeService:
                 "--session",
                 native_id,
             )
+        elif adapter == "cursor":
+            native_id = _uuid_native_id(native_id, "Cursor")
+            self._require_recorded_directory(
+                stored.source.project_hint, launch_directory
+            )
+            executable = _executable(
+                cursor_executable,
+                environment_name="TANG_CURSOR_EXECUTABLE",
+                default="agent",
+                harness="Cursor Agent",
+            )
+            command = (
+                executable,
+                "--workspace",
+                str(launch_directory),
+                "--resume",
+                native_id,
+            )
         else:
             raise ResumeError(
                 "resume-unsupported-harness",
@@ -189,3 +232,23 @@ class ResumeService:
                 f"{adapter.title()} exited before the selected Tang session was resumed.",
             )
         return result
+
+    @staticmethod
+    def _require_recorded_directory(value: str | None, launch_directory: Path) -> None:
+        if not value:
+            raise ResumeError(
+                "resume-project-unavailable",
+                "The indexed session directory is unavailable.",
+            )
+        try:
+            recorded_directory = Path(value).expanduser().resolve(strict=True)
+        except (OSError, RuntimeError) as error:
+            raise ResumeError(
+                "resume-project-unavailable",
+                "The indexed session directory is unavailable.",
+            ) from error
+        if recorded_directory != launch_directory:
+            raise ResumeError(
+                "resume-project-mismatch",
+                "The selected session belongs to another worktree.",
+            )

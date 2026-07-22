@@ -28,18 +28,15 @@ def test_matrix_release_claim_matches_registry() -> None:
     )
     cursor = capability_for("cursor")
     assert cursor is not None
-    assert not cursor.release_claim_linux
+    assert cursor.release_claim_linux
     assert "Cursor IDE" in matrix
-    assert "beta" in matrix
     assert re.search(
-        r"Read-only session adapter\s*\|\s*yes\s*\|\s*yes\s*\|\s*yes\s*\|\s*beta",
+        r"Read-only session adapter\s*\|\s*yes\s*\|\s*yes\s*\|\s*yes\s*\|\s*yes",
         matrix,
     )
 
 
 def test_resume_requires_native_flag() -> None:
-    for key in ("codex", "opencode"):
+    for key in ("codex", "grok", "opencode", "cursor"):
         entry = capability_for(key)
         assert entry is not None and entry.native_resume
-    assert capability_for("grok") is not None
-    assert capability_for("grok").native_resume is False

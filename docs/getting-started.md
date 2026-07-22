@@ -1,15 +1,15 @@
 # Tang: download, install, test, and use
 
-Tang is a Linux tool for finding earlier Grok, Codex, or OpenCode work from the
-project you are currently in and continuing that work inside Codex or OpenCode
+Tang is a Linux tool for finding earlier Codex, Grok, OpenCode, or Cursor work from the
+project you are currently in and continuing that work inside any of those harnesses
 with citations. Tang does not copy whole transcripts into a new tool. It builds
 a small, redacted, source-cited Context Pack and records a continuation only
 after you confirm it.
 
-Tang v0.2.9 is the **minimum reviewed build** and the current tagged Linux
+Tang v0.3.0 is the **minimum reviewed build** and the current tagged Linux
 release. Install its exact wheel rather than an unversioned development build.
 
-Harness capabilities (Codex, Grok, OpenCode, and post-release roadmap) are
+Harness capabilities for Codex, Grok, OpenCode, and Cursor are
 listed in [harness-matrix.md](harness-matrix.md).
 
 ## What you need
@@ -17,8 +17,8 @@ listed in [harness-matrix.md](harness-matrix.md).
 - A Linux computer.
 - Python 3.11 or newer.
 - `uv`, which installs Tang into an isolated environment.
-- Codex CLI, OpenCode `>=1.17.18,<2.0.0`, and/or a supported local Grok
-  session store if you want to use Tang with your own sessions.
+- Codex CLI, Grok Build, OpenCode `>=1.17.18,<2.0.0`, and/or Cursor Agent with
+  a supported local session store if you want to use Tang with your own sessions.
 
 Check the basics:
 
@@ -41,14 +41,14 @@ Clone the repository on the test host if that host can reach GitHub:
 ```bash
 git clone https://github.com/DonnieFi/tang.git
 cd tang
-git checkout v0.2.9
+git checkout v0.3.0
 ```
 
 Download the wheel beside that checkout and record its SHA-256 hash:
 
 ```bash
-curl -LO https://github.com/DonnieFi/tang/releases/download/v0.2.9/tang_multiverse-0.2.9-py3-none-any.whl
-sha256sum tang_multiverse-0.2.9-py3-none-any.whl
+curl -LO https://github.com/DonnieFi/tang/releases/download/v0.3.0/tang_multiverse-0.3.0-py3-none-any.whl
+sha256sum tang_multiverse-0.3.0-py3-none-any.whl
 ```
 
 Compare that hash with the release notes. This proves that the host tested the
@@ -60,7 +60,7 @@ From the source checkout, run:
 
 ```bash
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.9-py3-none-any.whl \
+  ./tang_multiverse-0.3.0-py3-none-any.whl \
   --output tang-functional-evidence.json
 ```
 
@@ -68,14 +68,14 @@ To test a particular supported interpreter:
 
 ```bash
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.9-py3-none-any.whl \
+  ./tang_multiverse-0.3.0-py3-none-any.whl \
   --python python3.11 \
   --output tang-functional-evidence-python311.json
 ```
 
 The script does all of its product work in a temporary directory. It installs
 the wheel into a fresh virtual environment and uses only Tang's synthetic test
-sessions. It does not read your real Codex, Grok, or OpenCode history and does
+sessions. It does not read your real Codex, Grok, OpenCode, or Cursor history and does
 not use your normal project Tang database.
 
 The run checks:
@@ -104,7 +104,7 @@ debugging:
 ```bash
 mkdir tang-functional-work
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.9-py3-none-any.whl \
+  ./tang_multiverse-0.3.0-py3-none-any.whl \
   --work-dir ./tang-functional-work \
   --output tang-functional-evidence.json
 ```
@@ -118,7 +118,7 @@ reproduced and fixed.
 For local development, install a local wheel:
 
 ```bash
-uv tool install ./tang_multiverse-0.2.9-py3-none-any.whl
+uv tool install ./tang_multiverse-0.3.0-py3-none-any.whl
 tang skill install codex
 ```
 
@@ -126,7 +126,7 @@ For normal use, install the exact version-pinned GitHub release. Do not install
 an unversioned development build when verifying the release:
 
 ```bash
-uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.9/tang_multiverse-0.2.9-py3-none-any.whl
+uv tool install https://github.com/DonnieFi/tang/releases/download/v0.3.0/tang_multiverse-0.3.0-py3-none-any.whl
 tang skill install codex
 ```
 
@@ -139,7 +139,7 @@ tang doctor
 ```
 
 Start a new Codex session after installing the skill. Invoke `$tang` or ask
-Codex in plain English to use Tang. Tang v0.2.9 installs a Codex skill, not a
+Codex in plain English to use Tang. Tang v0.3.0 installs a Codex skill, not a
 `/tang` slash command, so it might not appear in a slash-command picker.
 
 For OpenCode `>=1.17.18,<2.0.0` on Linux, install the integration into the
@@ -166,16 +166,18 @@ as interchangeable native session stores.
   project and invoke `$tang` (or ask Codex in plain English).
 - **OpenCode:** run the project-local install command above, restart OpenCode
   in that project, and invoke `/tang`.
-- **Grok:** no Tang plugin is installed in Grok for v0.2. Its local history is
-  a supported read-only source; run the same Tang CLI from the project terminal,
-  Codex, or OpenCode to recover it into the current supported target.
+- **Grok:** run the Tang CLI beside Grok. Its local history is read-only, and
+  indexed `G*` handles support context, explicit links, graphs, and native resume.
+- **Cursor:** run the Tang CLI beside Cursor Agent. Project agent transcripts
+  are read-only, and indexed `R*` handles support context, explicit links,
+  graphs, and native resume.
 - **CLI:** `tang index`, `browse`, `search`, `context`, `link`, `graph`, and
   `resume` work from any of those project terminals. Use a harness skill when
   you want guided, native selection.
 
-From a normal terminal, `tang resume C5` reopens the exact indexed Codex session
-behind `C5`; `tang resume O1` does the same for OpenCode. Tang keeps the native
-ID private and refuses Grok, missing, foreign-worktree, and unavailable
+From a normal terminal, `tang resume C5`, `G1`, `O1`, or `R1` reopens the exact
+indexed session through Codex, Grok, OpenCode, or Cursor Agent. Tang keeps the native
+ID private and refuses malformed, missing, foreign-worktree, and unavailable
 sessions. Resume is only a native launcher: it does not build context, inject
 transcript text, or create a continuation edge. Inside an already-running Codex
 or OpenCode session, use `$tang` or `/tang` for cross-harness recovery rather
@@ -199,7 +201,7 @@ commit and the wheel's SHA-256 on the build host, compare that hash on the test
 host, then install and verify the artifact:
 
 ```bash
-uv tool install --force ./tang_multiverse-0.2.9-py3-none-any.whl
+uv tool install --force ./tang_multiverse-0.3.0-py3-none-any.whl
 tang --version
 tang doctor
 tang demo --ascii
@@ -216,7 +218,7 @@ tang skill install opencode --project-root "$PWD" --force  # restart, then use /
 In a real project, test `tang index`, `browse`, `search`, `context HANDLE`, an
 explicitly confirmed link, `tang graph HANDLE`, and `tang context all --for
 HANDLE`; verify its cited predecessors match the displayed graph. Then test
-`tang resume HANDLE` for one Codex or OpenCode session, followed by deletion
+`tang resume HANDLE` for each available harness, followed by deletion
 without touching native history:
 
 ```bash
@@ -239,7 +241,7 @@ command -v tang  # prints nothing after a successful uninstall
 ```
 
 This removes the global executable and its isolated uv environment. It does not
-delete a project's `.tang/tang.db`, rewrite Codex, Grok, or OpenCode history, or
+delete a project's `.tang/tang.db`, rewrite Codex, Grok, OpenCode, or Cursor history, or
 remove a skill integration installed separately. Reinstall the same or a newer wheel with the
 version-pinned `uv tool install ...` command above.
 
@@ -395,12 +397,14 @@ To reopen an indexed session in its own native harness, pass its displayed
 handle from a normal terminal:
 
 ```bash
-tang resume C5  # launches Codex with the private native ID
-tang resume O1  # launches OpenCode with the private native ID
+tang resume C5  # Codex
+tang resume G1  # Grok
+tang resume O1  # OpenCode
+tang resume R1  # Cursor Agent
 ```
 
 Tang never prints the private native ID. Only current-project, native-available
-Codex and OpenCode sessions can launch. Resuming does not imply that another
+sessions can launch. Resuming does not imply that another
 source supplied context and never records a continuation; use `$tang` or
 `/tang` inside the active host for that recovery and confirmation workflow.
 
@@ -456,7 +460,7 @@ not store Codex's generated Continuation Brief or a Tang-generated session
 summary. These header facts are harness-dependent: missing fields mean the
 native source did not supply evidence, not that Tang inferred an absence.
 
-The first `tang index` after upgrading to v0.2.9 may reread previously indexed
+The first `tang index` after upgrading to v0.3.0 may reread previously indexed
 sessions once to refresh derived labels and these bounded headers. It preserves
 handles and confirmed edges, then resumes normal incremental refresh behavior.
 
@@ -464,7 +468,7 @@ handles and confirmed edges, then resumes normal incremental refresh behavior.
 
 ### Why does search show nothing?
 
-Make sure you ran `tang index` from the same project. Tang v0.2.9 deliberately
+Make sure you ran `tang index` from the same project. Tang v0.3.0 deliberately
 does not search across unrelated projects. Try another memorable keyword or a
 quoted phrase and inspect indexing warnings.
 
@@ -476,7 +480,7 @@ still cannot find it, rerun `tang skill install codex --force`, start another
 new session, and confirm that the `tang` CLI itself is available with
 `tang --help`.
 
-### Does Tang modify my Codex or Grok sessions?
+### Does Tang modify my native harness sessions?
 
 No. Supported adapters are read-only. `tang purge --all` deletes Tang's derived
 database records, not native history.
@@ -487,15 +491,15 @@ No. Tang excludes hidden/tool content and applies redaction at storage and
 display boundaries to reduce accidental disclosure. That is not encryption or
 a promise of protection against forensic recovery.
 
-### Can Tang continue work into Grok?
+### Can Tang continue work into Grok or Cursor?
 
-No. Grok is a supported read-only source. Codex and OpenCode are supported
-destinations, and Tang requires an exact current target plus explicit approval
-before it records a continuation.
+Yes. An indexed Grok or Cursor session can be an explicit continuation target,
+and Tang can reopen it through the native CLI. The context handoff is manual,
+and only Tang's derived graph is written; native transcripts stay read-only.
 
 ### Are macOS and Windows supported?
 
-No compatibility claim is made for v0.2.9. The release is tested and supported
+No compatibility claim is made for v0.3.0. The release is tested and supported
 on Linux with Python 3.11 or newer.
 
 ### Why did `tang index` exit with code 1 even though search works?

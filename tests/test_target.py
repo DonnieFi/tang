@@ -26,7 +26,6 @@ from tang.target import (
     confirm_target,
     candidates_for_project,
     resolve_current_target,
-    resolve_destination_target,
     resolve_opencode_target,
 )
 

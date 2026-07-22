@@ -64,11 +64,13 @@ format is too risky to promise without repeatable recovery from real data.
   support is an approved completed extension, not a claim for the unnamed
   origin environment.
 
-### Approved native-resume extension
+### Approved four-harness continuation extension
 
-- `tang resume HANDLE` may launch the exact indexed, native-available Codex or
-  OpenCode session through that harness's native CLI from a normal project
-  terminal.
+- Codex, Grok, OpenCode, and Cursor are read-only session sources and may be
+  explicit continuation destinations. Destination writes are Tang-owned graph
+  edges only; Tang never appends to native transcripts.
+- `tang resume HANDLE` may launch the exact indexed, native-available session
+  through that harness's native CLI from a normal project terminal.
 - Resume accepts a project-local Tang handle, keeps the native identity private,
   and refuses missing, unavailable, foreign-worktree, malformed, or unsupported
   sessions. It never guesses a session, builds cross-harness context, records a
@@ -128,7 +130,7 @@ remain mandatory before any continuation is recorded.
 | `tang browse` | List indexed sessions with harness, time, title, health, and capability status. |
 | `tang search QUERY` | Search Discovery Capsules with project, harness, time, and health filters. |
 | `tang context [SESSION...]` | Emit a deterministic Markdown or JSON Context Pack using the compact budget. Bare `context` and `context all` recall every confirmed predecessor of one unambiguous latest target; `context N` limits ancestry to N link hops. |
-| `tang resume HANDLE` | Reopen one exact indexed Codex or OpenCode session in its native harness; it never injects context or records an edge. |
+| `tang resume HANDLE` | Reopen one exact indexed Codex, Grok, OpenCode, or Cursor session in its native harness; it never injects context or records an edge. |
 | `tang link --from SESSION... --current` | Link selected sources into the current session after target confirmation. |
 | `tang link --from SESSION... --to SESSION` | Explicit scripting and ambiguity-resolution path. |
 | `tang graph [SESSION]` | Render the containing Multiverse Map in the terminal. |
@@ -164,6 +166,8 @@ Adapters return partial results with warnings for malformed or truncated data. A
   server catalog and native export contracts. Tang can resolve only the exact
   active OpenCode session supplied privately by the host, then requires an
   explicit user confirmation before it becomes a continuation target.
+- **Cursor:** Read project-scoped agent transcript JSONL and supported sidecar
+  metadata. Composer-only SQLite history remains out of scope.
 - **Future adapters:** Read only through separately isolated adapters. Do not
   claim support until live recovery, fixture, and failure tests pass.
 
@@ -288,7 +292,7 @@ The distribution name is `tang-multiverse`; the installed command is `tang`. The
 Publish a tagged wheel so judges can install Tang without rebuilding it from source. The README leads with a version-pinned command after the public repository owner is known:
 
 ```bash
-uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.9/tang_multiverse-0.2.9-py3-none-any.whl
+uv tool install https://github.com/DonnieFi/tang/releases/download/v0.3.0/tang_multiverse-0.3.0-py3-none-any.whl
 tang skill install codex
 ```
 
@@ -309,7 +313,7 @@ Treat the README as a judged product surface, not auxiliary documentation.
    implying support for that environment.
 4. A short recorded recovery-to-continuation workflow.
 5. Three-step explanation: find, continue here, see the timeline.
-6. Codex/Grok/OpenCode support matrix with Linux as the only supported
+6. Codex/Grok/OpenCode/Cursor support matrix with Linux as the only supported
    platform.
 7. Discovery Capsule, local data lifecycle, redaction limits, and purge instructions.
 8. Architecture diagram and concise CLI reference.

@@ -48,8 +48,8 @@ def test_functional_acceptance_covers_installed_skill_and_demo_contracts() -> No
     module = _module()
     source = SCRIPT.read_text()
 
-    assert module.PROJECT_VERSION == "0.2.9"
-    assert module.EXPECTED_WHEEL_FILENAME == "tang_multiverse-0.2.9-py3-none-any.whl"
+    assert module.PROJECT_VERSION == "0.3.0"
+    assert module.EXPECTED_WHEEL_FILENAME == "tang_multiverse-0.3.0-py3-none-any.whl"
 
     for required in (
         '"Keep the canonical `source_id` private"',

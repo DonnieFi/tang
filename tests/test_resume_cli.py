@@ -22,6 +22,8 @@ from tang.storage import open_database
 NOW = datetime(2026, 7, 18, tzinfo=timezone.utc)
 CODEX_ID = "019f6000-5678-7000-8000-000000000005"
 OPENCODE_ID = "ses_tangResume0000000000000000001"
+GROK_ID = "019f6000-1234-7000-8000-000000000001"
+CURSOR_ID = "019f6000-abcd-7000-8000-000000000002"
 
 
 def _record(adapter: str, native_id: str, project: Path) -> SourceRecord:
@@ -145,9 +147,60 @@ def test_resume_launches_opencode_in_the_exact_worktree(
 
 
 @pytest.mark.parametrize(
+    ("adapter", "native_id", "expected_command"),
+    (
+        (
+            "grok",
+            GROK_ID,
+            ("/tools/grok", "--cwd", "{project}", "--resume", GROK_ID),
+        ),
+        (
+            "cursor",
+            CURSOR_ID,
+            ("/tools/agent", "--workspace", "{project}", "--resume", CURSOR_ID),
+        ),
+    ),
+)
+def test_resume_launches_grok_and_cursor_by_private_native_identity(
+    adapter: str,
+    native_id: str,
+    expected_command: tuple[str, ...],
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    database = tmp_path / "tang.db"
+    _seed(database, project, _record(adapter, native_id, project))
+    launches = _capture_runner(monkeypatch)
+
+    result = main(
+        [
+            "resume",
+            "R1" if adapter == "cursor" else f"{adapter[0]}1",
+            "--database",
+            str(database),
+            "--cwd",
+            str(project),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert result == 0
+    assert captured.out == captured.err == ""
+    rendered = tuple(
+        str(project.resolve()) if part == "{project}" else part
+        for part in expected_command
+    )
+    assert launches == [(rendered, project.resolve())]
+
+
+@pytest.mark.parametrize(
     ("adapter", "native_id", "expected_code"),
     (
-        ("grok", "grok-source", "resume-unsupported-harness"),
+        ("grok", "grok-source", "resume-native-id-invalid"),
+        ("cursor", "cursor-source", "resume-native-id-invalid"),
         ("codex", "not-a-uuid", "resume-native-id-invalid"),
         ("opencode", "not-a-session", "resume-native-id-invalid"),
     ),
@@ -175,7 +228,7 @@ def test_resume_rejects_unsupported_or_malformed_native_targets(
         main(
             [
                 "resume",
-                f"{adapter[0]}1",
+                "R1" if adapter == "cursor" else f"{adapter[0]}1",
                 "--database",
                 str(database),
                 "--cwd",
@@ -263,6 +316,53 @@ def test_resume_rejects_tombstones_and_cross_worktree_opencode(
     assert main(["resume", "O1", *common]) == 2
     mismatch = capsys.readouterr()
     assert "error[resume-project-mismatch]" in mismatch.err
+
+
+@pytest.mark.parametrize(
+    ("adapter", "native_id", "handle"),
+    (
+        ("grok", GROK_ID, "G1"),
+        ("cursor", CURSOR_ID, "R1"),
+    ),
+)
+def test_resume_rejects_cross_worktree_grok_and_cursor(
+    adapter: str,
+    native_id: str,
+    handle: str,
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    project = tmp_path / "project"
+    other = tmp_path / "other-worktree"
+    project.mkdir()
+    other.mkdir()
+    database = tmp_path / "tang.db"
+    _seed(database, project, _record(adapter, native_id, other))
+    monkeypatch.setattr(
+        "tang.resume._run_native",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("a foreign-worktree target must not launch a harness")
+        ),
+    )
+
+    assert (
+        main(
+            [
+                "resume",
+                handle,
+                "--database",
+                str(database),
+                "--cwd",
+                str(project),
+            ]
+        )
+        == 2
+    )
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "error[resume-project-mismatch]" in captured.err
+    assert native_id not in captured.err
 
 
 def test_resume_reports_missing_executable_and_safe_launch_failure(

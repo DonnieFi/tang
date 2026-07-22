@@ -5,11 +5,11 @@
 <td width="68%" valign="top">
 <strong>Keep the blade, switch the handle.</strong><br><br>
 <strong>Continue one coding agent's work inside another, with the original sources cited.</strong><br><br>
-Bring one session or many from Grok, Codex, or OpenCode into your current
+Bring one session or many from Grok, Codex, OpenCode, or Cursor into your current
 handle. Tang preserves every explicitly confirmed continuation in a
 terminal-native Multiverse Map—whether you start from Codex, OpenCode, or the
 same CLI in a normal terminal.<br><br>
-<strong>Across Grok, Codex, and OpenCode today—with every continuation explicitly confirmed.</strong>
+<strong>Across Codex, Grok, OpenCode, and Cursor—with every continuation explicitly confirmed.</strong>
 </td>
 <td width="32%" align="right" valign="top">
 <img src="docs/assets/tang-mascot-concept.png" width="280" alt="Tang samurai holding the blade as the work changes handles">
@@ -42,17 +42,14 @@ This capture comes from the real isolated `tang demo` output. From a development
 checkout, regenerate it with `python scripts/capture_demo_hero.py --tang
 .venv/bin/tang --output docs/assets/tang-multiverse-demo.svg`.
 
-> **v0.2.9 is the reviewed Linux release:** the complete demo path and OpenCode
-> source/destination integration are verified in source, then separately
-> smoke-tested from the matching wheel. The source repository is public and the
-> immutable version-pinned artifact is available below.
->
-> **Beta capabilities** (not part of the v0.2.9 claim until reconciled in a
-> tagged release): optional **Cursor** indexing from agent transcripts,
-> **Grok/Cursor link destinations**, multi-source **conflict disclosure**, and
-> `tang doctor --quick`. See [harness-matrix.md](docs/harness-matrix.md).
-> Remove or rewrite this callout when the next Linux release absorbs the beta
-> work.
+> **v0.3.0 is the four-harness Linux release:** Codex, Grok, OpenCode, and
+> Cursor sessions can be indexed, reread into cited Context Packs, used as
+> explicit continuation sources or destinations, and reopened through
+> `tang resume`. Tang writes only its derived graph and capsules; native
+> transcript stores remain read-only. See [harness-matrix.md](docs/harness-matrix.md).
+
+The source repository is public, and the immutable version-pinned artifact is
+available below.
 
 ## The work should outlive the tool
 
@@ -63,7 +60,7 @@ Coding harnesses can usually reopen their own sessions, but the continuity stops
 Tang is the fitted continuity layer:
 
 - **The blade** is the work itself.
-- **The handles** are Codex, Grok, OpenCode, and future supported harnesses.
+- **The handles** are Codex, Grok, OpenCode, and Cursor.
 - **The tang** is the part that lets the same work seat securely in a new handle.
 
 Tang finds the prior session, rereads the native source, redacts it, builds a
@@ -72,8 +69,8 @@ evidence-backed resume point. It then records only the continuations you
 confirm.
 
 One source into one target is recovery. Many sources feeding many later
-sessions become continuity. A later Codex or OpenCode session can merge more
-Grok, Codex, or OpenCode sources, branch into several future sessions, and
+sessions become continuity. A later session in any supported harness can merge more
+Grok, Codex, OpenCode, or Cursor sources, branch into several future sessions, and
 extend the same Multiverse without flattening its history.
 
 ## Start where you already work
@@ -97,10 +94,10 @@ No transcript copy-and-paste. No pretending that a generic summary is provenance
 
 ## Install on Linux
 
-Install the immutable, version-pinned v0.2.9 wheel:
+Install the immutable, version-pinned v0.3.0 wheel:
 
 ```bash
-uv tool install https://github.com/DonnieFi/tang/releases/download/v0.2.9/tang_multiverse-0.2.9-py3-none-any.whl
+uv tool install https://github.com/DonnieFi/tang/releases/download/v0.3.0/tang_multiverse-0.3.0-py3-none-any.whl
 tang skill install codex
 tang --help
 ```
@@ -110,7 +107,7 @@ Requirements: Linux and Python 3.11 or later. The hackathon release makes no mac
 For local development, install a wheel you built yourself instead:
 
 ```bash
-uv tool install ./tang_multiverse-0.2.9-py3-none-any.whl
+uv tool install ./tang_multiverse-0.3.0-py3-none-any.whl
 tang skill install codex
 tang --help
 ```
@@ -142,13 +139,16 @@ and writes the cited Continuation Brief in one turn. It never creates a link.
   new session in the project, then invoke `$tang` or ask in plain English.
 - **OpenCode:** install the project-local integration above, restart OpenCode
   in that project, then invoke `/tang`.
-- **Grok:** no Tang plugin is installed in Grok for v0.2; its local history is a
-  supported read-only source. Run `tang index` from the project terminal—or
-  from Codex or OpenCode—to recover it into the current supported target.
+- **Grok:** run Tang beside Grok in the project terminal. Its history is a
+  read-only source; explicit `G*` handles can be link targets and can be reopened
+  with `tang resume G1`.
+- **Cursor:** run Tang beside Cursor Agent in the project terminal. Agent
+  transcripts are read-only sources; explicit `R*` handles can be link targets
+  and can be reopened with `tang resume R1`.
 - **CLI:** `tang index`, `browse`, `search`, `context`, `link`, `graph`, and
   `resume` are the same scriptable commands from either host or a normal
-  project terminal. `tang resume HANDLE` reopens an indexed Codex or OpenCode
-  session through its native CLI.
+  project terminal. `tang resume HANDLE` reopens an indexed session through
+  its owning native CLI.
 
 For download verification, uninstall instructions, a plain-English
 walkthrough, and FAQs, see [`docs/getting-started.md`](docs/getting-started.md).
@@ -161,7 +161,7 @@ Tang indexes small Discovery Capsules for the current project. Search by harness
 
 ### 2. Continue here
 
-Choose one or more source sessions from Grok, Codex, or OpenCode. Tang rereads
+Choose one or more source sessions from Grok, Codex, OpenCode, or Cursor. Tang rereads
 and redacts the native sources, fairly allocates a compact Context Pack across
 them, and cites every recovered excerpt. The active agent uses that evidence
 without treating recovered transcript text as instructions.
@@ -175,11 +175,12 @@ already know a handle or need a scriptable path.
 
 ## What Tang supports
 
-| Harness or platform | Hackathon release | Claim |
+| Harness or platform | v0.3.0 | Claim |
 |---|---:|---|
-| Codex CLI 0.144.4 | Supported on Linux | Representative local store live-verified; read-only source adapter and current continuation target |
-| Grok 0.2.99 | Supported on Linux | Representative local store live-verified; read-only source adapter |
+| Codex CLI 0.145.0 | Supported on Linux | Live-verified read-only source, destination, host bridge, and native resume |
+| Grok 0.2.106 | Supported on Linux | Live-verified read-only source, explicit destination, handoff, and native resume |
 | OpenCode `>=1.17.18,<2.0.0` | Supported on Linux | Runtime contracts fail closed; 1.17.20 live-verified with OpenAI- and xAI-backed sessions; read-only source adapter and explicitly confirmed current continuation target |
+| Cursor Agent 2026.07.17 | Supported on Linux | Live-verified read-only agent transcripts, explicit destination, handoff, and native resume |
 | Linux x86-64 | Supported | Clean-wheel acceptance on Python 3.11.11 and 3.12.8; synthetic fixture coverage in CI |
 | macOS | Unsupported | No compatibility or CI claim |
 | Windows | Unsupported | No native compatibility claim |
@@ -192,10 +193,8 @@ and export shapes on every use and fails closed on incompatible data. Tang makes
 no compatibility claim for OpenCode versions outside that range, or for other
 Codex and Grok versions without separate evidence.
 
-The longer-term product direction is symmetrical continuity: any supported
-handle should be able to receive the blade. Tang v0.2 supports repeated,
-multi-source continuation into explicitly confirmed Codex, OpenCode, and (on
-the beta branch) Grok or Cursor targets when those sessions are indexed.
+Tang v0.3 supports repeated, multi-source continuation into explicitly
+confirmed Codex, Grok, OpenCode, and Cursor targets when those sessions are indexed.
 Grok and Cursor native logs remain read-only; Tang never writes recovered
 transcript text into a native harness.
 
@@ -235,9 +234,9 @@ Redaction reduces accidental disclosure; it is not encryption and does not promi
 ## How it fits together
 
 ```text
- native Codex logs    native Grok data    OpenCode export
-          │                   │                   │
-          └────────── read-only adapters ─────────┘
+ native Codex logs    native Grok data    OpenCode export    Cursor transcripts
+          │                   │                   │                   │
+          └────────────────── read-only adapters ────────────────────┘
                               │
                               ▼
                      redaction boundary
@@ -277,7 +276,7 @@ OpenCode. The CLI stays scriptable and does not introduce a competing selector.
 | `tang link --from SESSION... --current` | Record selected sources into an explicitly confirmed current Codex session |
 | `tang link --from SESSION... --to SESSION` | Record selected sources into an explicitly confirmed target, including the OpenCode skill's current target |
 | `tang graph [SESSION]` | Render the containing Multiverse Map |
-| `tang resume SESSION` | Reopen one indexed Codex or OpenCode session by its Tang handle |
+| `tang resume SESSION` | Reopen one indexed Codex, Grok, OpenCode, or Cursor session by its Tang handle |
 | `tang purge --all` | Remove Tang-derived data after confirmation |
 | `tang doctor` | Check installation, database, FTS5, and adapter readiness without creating absent derived storage |
 | `tang skill install codex` | Install or update the bundled Codex skill without silently overwriting changes |
@@ -292,8 +291,8 @@ session proven to belong to another project remains visible without degrading
 the active project's successful index.
 
 Human `browse` and `search` show at most five numbered choices per page with a
-short project-local handle (`C1` for Codex, `G1` for Grok, or `O1` for
-OpenCode), redacted display
+short project-local handle (`C1` for Codex, `G1` for Grok, `O1` for
+OpenCode, or `R1` for Cursor), redacted display
 name, harness, time, health, capability, and snippet. Use `--page 2` for the
 next page. Pass those case-insensitive handles directly to `context`, `link`,
 or `graph`. Handles remain stable in the project's `.tang/tang.db`; `purge
@@ -354,7 +353,7 @@ codes, privacy checks, and timings as JSON without reading native user history:
 
 ```bash
 python3 scripts/functional_acceptance.py \
-  ./tang_multiverse-0.2.9-py3-none-any.whl \
+  ./tang_multiverse-0.3.0-py3-none-any.whl \
   --output tang-functional-evidence.json
 ```
 
@@ -376,7 +375,7 @@ Majority-core Codex thread and `/feedback` evidence ID:
 `019f62b2-5a7d-75c3-922d-969b182ec9a2`.
 
 Concrete collaboration examples include turning live native-store observations
-into three tested read-only adapters, using adversarial review to harden poisoned
+into four tested read-only adapters, using adversarial review to harden poisoned
 checkpoints and fair multi-source allocation, and converting functional-host
 feedback into project-local storage, faster unchanged refresh, paged discovery,
 short linkable session handles, and the provider-independent OpenCode workflow.
@@ -394,14 +393,14 @@ promotion. Those choices are dated in [`decision.md`](decision.md).
 | Transcript export | As static text | Sometimes | Varies | No |
 | Tang | **Yes, by exact indexed handle** | **Yes** | **Yes** | **Yes** |
 
-`tang resume HANDLE` launches only the exact selected Codex or OpenCode session
+`tang resume HANDLE` launches only the exact selected native session
 through that harness's native CLI. It does not inject another transcript, build
 a Context Pack, infer an edge, or remote-control a running harness. Tang's
 cross-harness wedge remains source-cited recovery plus explicit continuation.
 
 ## Roadmap
 
-After the v0.2 path is proven:
+After the v0.3 path is proven:
 
 - opt-in cross-project discovery
 - custom Context Pack budgets
@@ -418,7 +417,7 @@ platform claims require representative live evidence, sanitized fixtures, and
 failure-path tests. Never contribute native transcripts, credentials, private
 paths, third-party logos, or a database built from real user history.
 
-Tang is licensed under the [`MIT License`](LICENSE). v0.2.9 is the reviewed,
+Tang is licensed under the [`MIT License`](LICENSE). v0.3.0 is the reviewed,
 tagged Linux release.
 Report security issues privately using the process in
 [`SECURITY.md`](SECURITY.md); never attach native transcripts or credentials to

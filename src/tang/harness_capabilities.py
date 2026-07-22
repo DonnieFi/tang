@@ -21,13 +21,13 @@ _CAPABILITIES: tuple[HarnessCapabilities, ...] = (
         "codex", "Codex CLI", True, True, True, True, True
     ),
     HarnessCapabilities(
-        "grok", "Grok Build", True, True, False, False, True
+        "grok", "Grok Build", True, True, True, False, True
     ),
     HarnessCapabilities(
         "opencode", "OpenCode", True, True, True, True, True
     ),
     HarnessCapabilities(
-        "cursor", "Cursor IDE", True, True, False, False, False
+        "cursor", "Cursor Agent", True, True, True, False, True
     ),
 )
 

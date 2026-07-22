@@ -1,6 +1,6 @@
 # Continue into Grok with Tang (handoff)
 
-Grok has no bundled Tang skill in v0.2.9. Use this **explicit** workflow to
+Grok has no bundled Tang skill in v0.3.0. Use this **explicit** workflow to
 import cited evidence without writing to Grok's native store.
 
 ## Steps
@@ -35,7 +35,8 @@ import cited evidence without writing to Grok's native store.
 
 - No `tang link --current` for Grok until a host supplies the active Grok
   session ID privately.
-- No `tang resume` for Grok handles (`resume-unsupported-harness`).
+- `tang resume G1` reopens the exact indexed session through Grok's native
+  `--resume` contract. It does not import context or create an edge.
 - Tang never appends turns to Grok session files.
 
 See [native-write-policy.md](native-write-policy.md).

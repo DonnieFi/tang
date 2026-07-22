@@ -1,7 +1,7 @@
 # Native write and import policy
 
 This document defines what Tang may and must not do to harness-native session
-stores. It applies to Codex, Grok, OpenCode, and any future Cursor integration.
+stores. It applies symmetrically to Codex, Grok, OpenCode, and Cursor.
 
 ## Principles
 
@@ -23,23 +23,24 @@ stores. It applies to Codex, Grok, OpenCode, and any future Cursor integration.
 | Context pack generation | read | — | output only |
 | Continuation link | — | write edges | — |
 | Continuation brief | — | — | model output (not persisted by Tang) |
-| `tang resume` | launch CLI only | — | — |
+| `tang resume` | launch exact native session through its CLI | — | — |
 | Import from Tang | — | — | inject pack/brief via skill/CLI/MCP |
 
 **Import from Tang** means the developer (or host) places cited context into the
 *current* session through supported host channels. It is not a write to disk
 inside the source or target harness archive.
 
-## Future destinations (Grok, Cursor)
+## Four-harness continuation boundary
 
-Before Grok or Cursor become **link destinations** or receive automated import:
+Codex, Grok, OpenCode, and Cursor may all be indexed as read-only sources,
+selected as explicit continuation destinations, and reopened by
+`tang resume HANDLE` when the corresponding native CLI and exact native
+session remain available. A continuation destination writes only a confirmed
+edge to `.tang/tang.db`; it does not write to the target harness archive.
 
-- Spec maintainer approves an explicit amendment to `docs/tangspec.md`.
-- Live-verified Linux proof for target resolution and confirmation UX.
-- Redaction and project-isolation tests match Codex/OpenCode bars.
-
-Until then, Grok remains a **read-only source** in release claims; Cursor
-remains **unclaimed**.
+Only Codex and OpenCode currently expose a private active-session bridge for
+`tang link --current` and one-step predecessor recall. Grok and Cursor use an
+explicit indexed target handle plus the documented Context Pack handoff.
 
 ## Related documents
 

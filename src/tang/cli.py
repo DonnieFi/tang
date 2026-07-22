@@ -130,18 +130,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="open an indexed session in its native harness",
         description=(
             "Privately resolve one current-project Tang handle and open the "
-            "corresponding Codex or OpenCode session. This does not build "
-            "context, create links, or modify native history."
+            "corresponding Codex, Grok, OpenCode, or Cursor session. This does "
+            "not build context, create links, or modify native history."
         ),
     )
     resume.add_argument(
         "session",
-        help="displayed Tang handle for a Codex or OpenCode session",
+        help="displayed Tang handle for a supported native session",
     )
     resume.add_argument("--database", type=Path)
     resume.add_argument("--cwd", type=Path, default=Path.cwd())
     resume.add_argument("--codex-executable", type=Path)
+    resume.add_argument("--grok-executable", type=Path)
     resume.add_argument("--opencode-executable", type=Path)
+    resume.add_argument("--cursor-executable", type=Path)
     purge = subparsers.add_parser("purge", help="remove Tang-derived data")
     purge.add_argument("--all", action="store_true", dest="purge_all")
     purge.add_argument("--yes", action="store_true", help="confirm without a prompt")
@@ -862,7 +864,9 @@ def _run_resume(args: argparse.Namespace) -> int:
                 project,
                 launch_directory,
                 codex_executable=args.codex_executable,
+                grok_executable=args.grok_executable,
                 opencode_executable=args.opencode_executable,
+                cursor_executable=args.cursor_executable,
             )
         except ResumeError as error:
             print(f"error[{error.code}]: {error}", file=sys.stderr)

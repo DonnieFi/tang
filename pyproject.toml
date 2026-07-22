@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tang-multiverse"
-version = "0.2.9"
+version = "0.3.0"
 description = "Continue coding-agent work across harnesses with source-cited context."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-keywords = ["codex", "grok", "developer-tools", "session-continuity"]
+keywords = ["codex", "grok", "opencode", "cursor", "developer-tools", "session-continuity"]
 dependencies = [
   "rich>=13.9,<15",
 ]

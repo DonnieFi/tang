@@ -164,11 +164,11 @@ native sessions. Indexed OpenCode sessions use `O1`, `O2`, and later
 project-local handles and can be filtered with `--harness opencode`.
 
 Continuation policy is deliberately harness-based rather than provider-based:
-Codex and OpenCode are supported destinations; Codex, Grok, and OpenCode can
-be sources. An OpenCode destination must come from the exact, fresh host
-context described above and receive explicit confirmation before Tang records
-any derived edge. Tang neither writes transcript content into OpenCode nor
-reads provider credentials.
+Codex, Grok, OpenCode, and Cursor can be read-only sources and explicit
+destinations. An OpenCode **current** destination must come from the exact,
+fresh host context described above and receive explicit confirmation before
+Tang records any derived edge. Tang neither writes transcript content into
+OpenCode nor reads provider credentials.
 
 ## Product workflow installation
 
