@@ -5,11 +5,11 @@
 <td width="68%" valign="top">
 <strong>Keep the blade, switch the handle.</strong><br><br>
 <strong>Continue one coding agent's work inside another, with the original sources cited.</strong><br><br>
-Bring one session or many from Grok, Codex, OpenCode, or Cursor into your current
-handle. Tang preserves every explicitly confirmed continuation in a
-terminal-native Multiverse Map—whether you start from Codex, OpenCode, or the
-same CLI in a normal terminal.<br><br>
-<strong>Across Codex, Grok, OpenCode, and Cursor—with every continuation explicitly confirmed.</strong>
+Bring one session or many from Grok, Codex, OpenCode, Cursor, Claude Code, or
+Antigravity into your current handle. Tang preserves every explicitly confirmed
+continuation in a terminal-native Multiverse Map—whether you start from Codex,
+OpenCode, or the same CLI in a normal terminal.<br><br>
+<strong>Across Codex, Grok, OpenCode, Cursor, Claude Code, and Antigravity—with every continuation explicitly confirmed.</strong>
 </td>
 <td width="32%" align="right" valign="top">
 <img src="docs/assets/tang-mascot-concept.png" width="280" alt="Tang samurai holding the blade as the work changes handles">
@@ -47,6 +47,14 @@ checkout, regenerate it with `python scripts/capture_demo_hero.py --tang
 > explicit continuation sources or destinations, and reopened through
 > `tang resume`. Tang writes only its derived graph and capsules; native
 > transcript stores remain read-only. See [harness-matrix.md](docs/harness-matrix.md).
+>
+> **Epic 11 (branch `epic/11-claude-antigravity`):** Claude Code and Antigravity
+> ship at **full harness parity** with the v0.3.0 four—index, browse, search,
+> cited context, explicit link as source and destination, and native
+> `tang resume` (`L*` and `A*` handles). Claude adds `tang skill install claude`;
+> Antigravity uses CLI handoff docs. Linux **release claims** stay false until
+> live smoke pins; see [Claude handoff](docs/claude-handoff.md) and
+> [Antigravity handoff](docs/antigravity-handoff.md).
 
 The source repository is public, and the immutable version-pinned artifact is
 available below.
@@ -60,7 +68,7 @@ Coding harnesses can usually reopen their own sessions, but the continuity stops
 Tang is the fitted continuity layer:
 
 - **The blade** is the work itself.
-- **The handles** are Codex, Grok, OpenCode, and Cursor.
+- **The handles** are Codex, Grok, OpenCode, Cursor, Claude Code, and Antigravity.
 - **The tang** is the part that lets the same work seat securely in a new handle.
 
 Tang finds the prior session, rereads the native source, redacts it, builds a
@@ -70,7 +78,7 @@ confirm.
 
 One source into one target is recovery. Many sources feeding many later
 sessions become continuity. A later session in any supported harness can merge more
-Grok, Codex, OpenCode, or Cursor sources, branch into several future sessions, and
+Grok, Codex, OpenCode, Cursor, Claude Code, or Antigravity sources, branch into several future sessions, and
 extend the same Multiverse without flattening its history.
 
 ## Start where you already work
@@ -145,6 +153,12 @@ and writes the cited Continuation Brief in one turn. It never creates a link.
 - **Cursor:** run Tang beside Cursor Agent in the project terminal. Agent
   transcripts are read-only sources; explicit `R*` handles can be link targets
   and can be reopened with `tang resume R1`.
+- **Claude Code:** full harness parity on Epic 11—index, browse, search, context,
+  link, and `tang resume L1`. Run Tang beside Claude in the project terminal or
+  install the bundled skill with `tang skill install claude`.
+- **Antigravity:** full harness parity on Epic 11—index, browse, search, context,
+  link, and `tang resume A1`. Run Tang beside the Antigravity CLI; see
+  [handoff docs](docs/antigravity-handoff.md) for the CLI workflow.
 - **CLI:** `tang index`, `browse`, `search`, `context`, `link`, `graph`, and
   `resume` are the same scriptable commands from either host or a normal
   project terminal. `tang resume HANDLE` reopens an indexed session through
@@ -161,7 +175,7 @@ Tang indexes small Discovery Capsules for the current project. Search by harness
 
 ### 2. Continue here
 
-Choose one or more source sessions from Grok, Codex, OpenCode, or Cursor. Tang rereads
+Choose one or more source sessions from Grok, Codex, OpenCode, Cursor, Claude Code, or Antigravity. Tang rereads
 and redacts the native sources, fairly allocates a compact Context Pack across
 them, and cites every recovered excerpt. The active agent uses that evidence
 without treating recovered transcript text as instructions.
@@ -181,6 +195,8 @@ already know a handle or need a scriptable path.
 | Grok 0.2.106 | Supported on Linux | Live-verified read-only source, explicit destination, handoff, and native resume |
 | OpenCode `>=1.17.18,<2.0.0` | Supported on Linux | Runtime contracts fail closed; 1.17.20 live-verified with OpenAI- and xAI-backed sessions; read-only source adapter and explicitly confirmed current continuation target |
 | Cursor Agent 2026.07.17 | Supported on Linux | Live-verified read-only agent transcripts, explicit destination, handoff, and native resume |
+| Claude Code 2.1.x | Epic 11 (fixture + live smoke) | Full harness parity: index through resume, link source/destination, `tang skill install claude`; no v0.3.0 release claim yet |
+| Antigravity CLI (`agy`) 1.1.x | Epic 11 (fixture + live smoke) | Full harness parity: index through resume, link source/destination, CLI handoff; no v0.3.0 release claim yet |
 | Linux x86-64 | Supported | Clean-wheel acceptance on Python 3.11.11 and 3.12.8; synthetic fixture coverage in CI |
 | macOS | Unsupported | No compatibility or CI claim |
 | Windows | Unsupported | No native compatibility claim |
@@ -195,8 +211,10 @@ Codex and Grok versions without separate evidence.
 
 Tang v0.3 supports repeated, multi-source continuation into explicitly
 confirmed Codex, Grok, OpenCode, and Cursor targets when those sessions are indexed.
-Grok and Cursor native logs remain read-only; Tang never writes recovered
-transcript text into a native harness.
+Epic 11 extends full harness parity to Claude Code and Antigravity on the
+`epic/11-claude-antigravity` branch. As with every supported harness, Tang
+never writes recovered transcript text into native archives—only into derived
+`.tang` continuity data.
 
 ## The incident that started it
 
@@ -234,9 +252,9 @@ Redaction reduces accidental disclosure; it is not encryption and does not promi
 ## How it fits together
 
 ```text
- native Codex logs    native Grok data    OpenCode export    Cursor transcripts
-          │                   │                   │                   │
-          └────────────────── read-only adapters ────────────────────┘
+ native Codex logs    native Grok data    OpenCode export    Cursor transcripts    Claude JSONL    Antigravity brain
+          │                   │                   │                   │                  │                │
+          └──────────────────────────── read-only adapters ────────────────────────────────────────────┘
                               │
                               ▼
                      redaction boundary
@@ -276,10 +294,11 @@ OpenCode. The CLI stays scriptable and does not introduce a competing selector.
 | `tang link --from SESSION... --current` | Record selected sources into an explicitly confirmed current Codex session |
 | `tang link --from SESSION... --to SESSION` | Record selected sources into an explicitly confirmed target, including the OpenCode skill's current target |
 | `tang graph [SESSION]` | Render the containing Multiverse Map |
-| `tang resume SESSION` | Reopen one indexed Codex, Grok, OpenCode, or Cursor session by its Tang handle |
+| `tang resume SESSION` | Reopen one indexed Codex, Grok, OpenCode, Cursor, Claude, or Antigravity session by its Tang handle |
 | `tang purge --all` | Remove Tang-derived data after confirmation |
 | `tang doctor` | Check installation, database, FTS5, and adapter readiness without creating absent derived storage |
 | `tang skill install codex` | Install or update the bundled Codex skill without silently overwriting changes |
+| `tang skill install claude` | Install or update the bundled Claude Code skill without silently overwriting changes |
 | `tang skill install opencode --project-root PATH` | Install or update the bundled project-local OpenCode skill, `/tang` command, and current-target bridge |
 | `tang demo` | Run the isolated synthetic judge demonstration |
 
@@ -292,7 +311,7 @@ the active project's successful index.
 
 Human `browse` and `search` show at most five numbered choices per page with a
 short project-local handle (`C1` for Codex, `G1` for Grok, `O1` for
-OpenCode, or `R1` for Cursor), redacted display
+OpenCode, `R1` for Cursor, `L1` for Claude Code, or `A1` for Antigravity), redacted display
 name, harness, time, health, capability, and snippet. Use `--page 2` for the
 next page. Pass those case-insensitive handles directly to `context`, `link`,
 or `graph`. Handles remain stable in the project's `.tang/tang.db`; `purge
@@ -333,11 +352,12 @@ Run `tang doctor` separately when you want component-by-component readiness.
 Before the first real project index, its expected `database: not_initialized`
 result is informative rather than a demo failure.
 
-The demo copies only bundled synthetic Codex and Grok fixtures into a temporary
-workspace, indexes and searches them, builds a two-source cited Context Pack,
-maps those exact sources into a branch-and-merge DAG, then confirms the final
-continuation into a synthetic OpenCode target before rendering the active
-Multiverse and deleting the workspace. On the clean-wheel
+The demo copies bundled synthetic Codex, Grok, Claude Code, and Antigravity
+fixtures into a temporary workspace, indexes all four harnesses, searches the
+Grok + Codex recovery path, builds a two-source cited Context Pack, maps those
+exact sources into a branch-and-merge DAG, then confirms the final continuation
+into a synthetic OpenCode target before rendering the active Multiverse and
+deleting the workspace. Expect `INDEX: 4 indexed` on a healthy run. On the clean-wheel
 Linux gate runs kept search and Context Pack generation under 0.2 seconds each,
 the search/context/link/graph core under 0.6 seconds, and the complete isolated
 demo under 2 seconds. These are observed release-host timings, not universal
@@ -360,7 +380,8 @@ python3 scripts/functional_acceptance.py \
 OpenCode support is covered by sanitized contract fixtures, provider-independent
 live transcript evidence, target-confirmation tests, and the installed `/tang`
 workflow. The isolated judge demo keeps its focused Grok-to-Codex recovery
-story and visibly ends with a confirmed OpenCode continuation target.
+story, indexes Claude and Antigravity fixtures alongside them, and visibly ends
+with a confirmed OpenCode continuation target.
 
 ## Built with Codex and GPT-5.6
 

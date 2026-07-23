@@ -24,6 +24,18 @@ CODEX_ID = "019f6000-5678-7000-8000-000000000005"
 OPENCODE_ID = "ses_tangResume0000000000000000001"
 GROK_ID = "019f6000-1234-7000-8000-000000000001"
 CURSOR_ID = "019f6000-abcd-7000-8000-000000000002"
+CLAUDE_ID = "019f6000-c1a0-7000-8000-000000000001"
+ANTIGRAVITY_ID = "019f6000-a017-7000-8000-000000000001"
+
+
+def _resume_handle(adapter: str) -> str:
+    if adapter == "cursor":
+        return "R1"
+    if adapter == "claude":
+        return "L1"
+    if adapter == "antigravity":
+        return "A1"
+    return f"{adapter[0]}1"
 
 
 def _record(adapter: str, native_id: str, project: Path) -> SourceRecord:
@@ -159,6 +171,16 @@ def test_resume_launches_opencode_in_the_exact_worktree(
             CURSOR_ID,
             ("/tools/agent", "--workspace", "{project}", "--resume", CURSOR_ID),
         ),
+        (
+            "claude",
+            CLAUDE_ID,
+            ("/tools/claude", "--resume", CLAUDE_ID),
+        ),
+        (
+            "antigravity",
+            ANTIGRAVITY_ID,
+            ("/tools/agy", "--conversation", ANTIGRAVITY_ID),
+        ),
     ),
 )
 def test_resume_launches_grok_and_cursor_by_private_native_identity(
@@ -178,7 +200,7 @@ def test_resume_launches_grok_and_cursor_by_private_native_identity(
     result = main(
         [
             "resume",
-            "R1" if adapter == "cursor" else f"{adapter[0]}1",
+            _resume_handle(adapter),
             "--database",
             str(database),
             "--cwd",
@@ -228,7 +250,7 @@ def test_resume_rejects_unsupported_or_malformed_native_targets(
         main(
             [
                 "resume",
-                "R1" if adapter == "cursor" else f"{adapter[0]}1",
+                _resume_handle(adapter),
                 "--database",
                 str(database),
                 "--cwd",

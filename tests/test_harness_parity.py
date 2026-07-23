@@ -5,7 +5,7 @@ from tang.harness_capabilities import all_capabilities, capability_for
 
 def test_registry_covers_indexed_adapters() -> None:
     keys = {entry.adapter_key for entry in all_capabilities()}
-    assert keys >= {"codex", "grok", "opencode", "cursor"}
+    assert keys >= {"codex", "grok", "opencode", "cursor", "claude", "antigravity"}
 
 
 def test_destination_adapters_are_cited_in_matrix_docs() -> None:
@@ -37,6 +37,6 @@ def test_matrix_release_claim_matches_registry() -> None:
 
 
 def test_resume_requires_native_flag() -> None:
-    for key in ("codex", "grok", "opencode", "cursor"):
+    for key in ("codex", "grok", "opencode", "cursor", "claude", "antigravity"):
         entry = capability_for(key)
         assert entry is not None and entry.native_resume

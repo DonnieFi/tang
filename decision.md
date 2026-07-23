@@ -508,7 +508,7 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 ## 2026-07-21T01:55:00Z · tang-9nb · Cross-project discovery research
 - Context: Post-release need for explicit opt-in foreign session browse without global FTS.
 - Options: (a) implement registry now; (b) research doc and spec delta for human review; (c) global capsule DB.
-- Decision: (b) — `docs/research/cross-project-discovery-opt-in.md` recommends project registry (design C) and defers code until spec approval. Serves: Design, Potential Impact.
+- Decision: (b) — `plan/research/cross-project-discovery-opt-in.md` recommends project registry (design C) and defers code until spec approval. Serves: Design, Potential Impact.
 - By: agent
 
 ## 2026-07-21T01:55:00Z · tang-c4v · Multiverse material projection
@@ -529,3 +529,15 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Decision: (c) — `tang resume` validates the exact indexed UUID and recorded worktree before invoking Grok with `--cwd … --resume …` or Cursor Agent with `--workspace … --resume …`. All four harnesses are read-only evidence sources and explicit graph destinations; no command appends recovered content to native history. Codex/OpenCode alone retain private active-target bridges, while Grok/Cursor use explicit handles and manual cited Context Pack handoff.
 - Verification: Ruff clean; 433 tests passed on Python 3.11.11 and 3.12.8; two v0.3.0 builds were byte-identical. Final wheel SHA-256: `b4f62396a1162fb9227b0c1bc34f8786657c8d902818b18f3bb4ca6e48342dec`; final source archive SHA-256: `8d61409e0f56da415d46b94a86e62a8e2bb4da8b334d395f7ce1d5d363cb943d`. Isolated clean-wheel functional acceptance passed on Linux with both Python versions.
 - By: human (explicit v0.3.0 release and four-source parity authority) and agent (bounded native-launch, documentation, and verification implementation)
+
+## 2026-07-23T19:35:00Z · tang-wxa · Post-hackathon harness expansion without spec gate
+- Context: Epic 11 added Claude Code and Antigravity adapters after v0.3.0 shipped; bead `tang-wxa.2` still framed a human-gated tangspec amendment as blocking implementation.
+- Options: (a) halt until full tangspec rewrite and approval; (b) ship adapters with harness-matrix + registry truth and amend tangspec incrementally when convenient; (c) bundle with global-discovery v0.4 spec delta.
+- Decision: (b) — post-hackathon Tang continues on `epic/11-claude-antigravity` with matrix/registry/docs as product truth; `release_claim_linux` stays false for new harnesses until live smoke pins. Global discovery v0.4 remains a separate track. Serves: Potential Impact, Technological Implementation.
+- By: human (direction to continue past hackathon gate) and agent
+
+## 2026-07-23T19:50:00Z · tang-wxa · Research under gitignored plan/
+- Context: Feasibility notes and draft spec deltas (`docs/research/`, `docs/spec-deltas/`) were tracked or sitting untracked in `docs/` while `/plan/` was already gitignored scratch space.
+- Options: (a) keep research in tracked `docs/research/`; (b) move to `plan/research/` and `plan/spec-deltas/` with a tracked pointer README; (c) delete research from repo entirely.
+- Decision: (b) — private planning material lives under `/plan/`; tracked tree keeps `docs/research/README.md` and approved spec in `docs/tangspec.md`. Serves: Design, Quality of Idea.
+- By: human and agent

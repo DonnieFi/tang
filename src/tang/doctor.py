@@ -10,12 +10,30 @@ from pathlib import Path
 
 from tang.adapter_registry import configured_adapters
 from tang.adapters.base import BatchStatus, ScanBatch
+from tang.adapters.antigravity import AntigravityAdapter
+from tang.adapters.claude import ClaudeAdapter
 from tang.adapters.cursor import CursorAdapter
 from tang.storage import SCHEMA_VERSION
 
 
 def _default_codex_home() -> Path:
     return Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")).expanduser()
+
+
+def _default_antigravity_home() -> Path:
+    configured = os.environ.get("ANTIGRAVITY_HOME")
+    if configured:
+        return Path(configured).expanduser()
+    cli_home = Path.home() / ".gemini" / "antigravity-cli"
+    if cli_home.is_dir():
+        return cli_home
+    return Path.home() / ".gemini" / "antigravity"
+
+
+def _default_claude_home() -> Path:
+    return Path(
+        os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude")
+    ).expanduser()
 
 
 def _default_grok_home() -> Path:
@@ -37,6 +55,8 @@ def run_doctor(
     codex_home: Path | None = None,
     grok_home: Path | None = None,
     cursor_home: Path | None = None,
+    claude_home: Path | None = None,
+    antigravity_home: Path | None = None,
     opencode_executable: Path | str | None = None,
     project_dir: Path | str | None = None,
     require_opencode: bool = False,
@@ -121,6 +141,8 @@ def run_doctor(
                 codex_home=codex_home,
                 grok_home=grok_home,
                 cursor_home=cursor_home,
+                claude_home=claude_home,
+                antigravity_home=antigravity_home,
                 opencode_executable=opencode_executable,
                 require_opencode=require_opencode,
             )
@@ -132,6 +154,8 @@ def run_doctor(
         codex_home=codex_home,
         grok_home=grok_home,
         cursor_home=cursor_home,
+        claude_home=claude_home,
+        antigravity_home=antigravity_home,
         opencode_executable=opencode_executable,
         require_opencode=True,
     ):
@@ -151,6 +175,8 @@ def _quick_adapter_checks(
     codex_home: Path | None,
     grok_home: Path | None,
     cursor_home: Path | None,
+    claude_home: Path | None,
+    antigravity_home: Path | None,
     opencode_executable: Path | str | None,
     require_opencode: bool,
 ) -> tuple[DoctorCheck, ...]:
@@ -197,6 +223,24 @@ def _quick_adapter_checks(
                 "cursor",
                 "present",
                 "Cursor agent transcripts are present; omit --quick to count recoverable sessions.",
+            )
+        )
+    if ClaudeAdapter(project_dir, claude_home=claude_home).has_project_sessions():
+        checks.append(
+            DoctorCheck(
+                "claude",
+                "present",
+                "Claude Code session logs are present; omit --quick to count recoverable sessions.",
+            )
+        )
+    if AntigravityAdapter(
+        project_dir, antigravity_home=antigravity_home
+    ).has_project_sessions():
+        checks.append(
+            DoctorCheck(
+                "antigravity",
+                "present",
+                "Antigravity history is present; omit --quick to count recoverable sessions.",
             )
         )
     configured = opencode_executable or os.environ.get("TANG_OPENCODE_EXECUTABLE")

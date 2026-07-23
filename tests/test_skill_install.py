@@ -7,8 +7,10 @@ import pytest
 
 from tang.cli import main
 from tang.skill_install import (
+    bundled_claude_skill_path,
     bundled_opencode_paths,
     bundled_skill_path,
+    install_claude_skill,
     install_codex_skill,
     install_opencode_skill,
 )
@@ -81,6 +83,47 @@ def test_bundled_skill_resolves_installed_wheel_data(tmp_path: Path, monkeypatch
     )
 
     assert bundled_skill_path() == installed
+
+
+def test_claude_skill_install_is_idempotent(tmp_path: Path) -> None:
+    source = _bundle(tmp_path, content="claude workflow")
+    claude_home = tmp_path / "claude"
+
+    first = install_claude_skill(claude_home, source=source)
+    second = install_claude_skill(claude_home, source=source)
+
+    assert first.status == "installed"
+    assert second.status == "unchanged"
+    assert (claude_home / "skills" / "tang" / "SKILL.md").read_text() == "claude workflow"
+
+
+def test_claude_skill_install_cli_uses_bundled_skill(tmp_path: Path, capsys) -> None:
+    claude_home = tmp_path / "claude"
+
+    assert main(["skill", "install", "claude", "--claude-home", str(claude_home)]) == 0
+    first = capsys.readouterr()
+    assert first.err == ""
+    assert first.out == "Tang Claude Code skill installed.\n"
+    assert "name: tang" in (claude_home / "skills" / "tang" / "SKILL.md").read_text()
+
+    assert main(["skill", "install", "claude", "--claude-home", str(claude_home)]) == 0
+    second = capsys.readouterr()
+    assert second.out == "Tang Claude Code skill is already current.\n"
+
+
+def test_bundled_claude_skill_resolves_installed_wheel_data(
+    tmp_path: Path, monkeypatch
+) -> None:
+    installed = tmp_path / "share" / "tang" / "skills" / "claude" / "tang"
+    installed.mkdir(parents=True)
+    (installed / "SKILL.md").write_text("installed claude bundle")
+    monkeypatch.setattr("tang.skill_install.sys.prefix", str(tmp_path))
+    monkeypatch.setattr(
+        "tang.skill_install.__file__",
+        str(tmp_path / "site-packages" / "tang" / "skill_install.py"),
+    )
+
+    assert bundled_claude_skill_path() == installed
 
 
 def test_opencode_install_is_idempotent_change_safe_and_cli_accessible(

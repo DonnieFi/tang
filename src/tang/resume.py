@@ -119,6 +119,8 @@ class ResumeService:
         grok_executable: Path | str | None = None,
         opencode_executable: Path | str | None = None,
         cursor_executable: Path | str | None = None,
+        claude_executable: Path | str | None = None,
+        antigravity_executable: Path | str | None = None,
     ) -> int:
         """Launch an exact native session without exposing its identity."""
 
@@ -217,6 +219,38 @@ class ResumeService:
                 "--workspace",
                 str(launch_directory),
                 "--resume",
+                native_id,
+            )
+        elif adapter == "claude":
+            native_id = _uuid_native_id(native_id, "Claude")
+            self._require_recorded_directory(
+                stored.source.project_hint, launch_directory
+            )
+            executable = _executable(
+                claude_executable,
+                environment_name="TANG_CLAUDE_EXECUTABLE",
+                default="claude",
+                harness="Claude Code",
+            )
+            command = (
+                executable,
+                "--resume",
+                native_id,
+            )
+        elif adapter == "antigravity":
+            native_id = _uuid_native_id(native_id, "Antigravity")
+            self._require_recorded_directory(
+                stored.source.project_hint, launch_directory
+            )
+            executable = _executable(
+                antigravity_executable,
+                environment_name="TANG_ANTIGRAVITY_EXECUTABLE",
+                default="agy",
+                harness="Antigravity",
+            )
+            command = (
+                executable,
+                "--conversation",
                 native_id,
             )
         else:

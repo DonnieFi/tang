@@ -371,7 +371,7 @@ def run_acceptance(wheel: Path, work: Path, python: str) -> dict[str, Any]:
         timeout=10,
     )
     _require(
-        "INDEX: 2 indexed; status complete (0 warning(s))" in demo.stdout,
+        "INDEX: 4 indexed; status complete (0 warning(s))" in demo.stdout,
         "installed demo did not use the clean synthetic corpus",
     )
     _require(

@@ -34,7 +34,7 @@ def test_demo_is_reproducible_and_cannot_touch_ambient_user_data(
     assert output.err == ""
     assert "TANG ISOLATED DEMO" in output.out
     assert "SEARCH:" in output.out
-    assert "INDEX: 2 indexed; status complete (0 warning(s))" in output.out
+    assert "INDEX: 4 indexed; status complete (0 warning(s))" in output.out
     assert "CONTEXT: 2 cited sources" in output.out
     assert "RESUME POINT:" in output.out
     assert "NEXT ACTION:" in output.out

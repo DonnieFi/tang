@@ -89,3 +89,40 @@ See [native-write-policy.md](native-write-policy.md) for write/import rules.
 | In-code capability registry | `tang-sis.16` |
 | Parity integration tests | `tang-sis.17` |
 | Native-write spec amendment | `tang-sis.18` |
+
+## Epic 11 extension (in progress — not a v0.3.0 release claim)
+
+Implementation on branch `epic/11-claude-antigravity`. Fixture-verified on Linux;
+live smoke uses `/opt/family-bot` Antigravity history and Claude Code JSONL.
+
+| Capability | Claude Code 2.1.x | Antigravity CLI (`agy`) 1.1.x |
+| --- | --- | --- |
+| Linux release claim | no | no |
+| Read-only session adapter | yes | yes |
+| Incremental index + checkpoint | yes | yes |
+| Discovery capsule + FTS search | yes | yes |
+| Browse / search (current project) | yes | yes |
+| Context pack (cited native reread) | yes | yes |
+| Link as **source** | yes | yes |
+| Link as **destination** | yes | yes |
+| `tang resume` native session | yes (`claude --resume`) | yes (`agy --conversation`) |
+| Host workflow (skill / handoff) | partial | partial |
+| `tang skill install …` | yes | no |
+
+**Notes:**
+
+- **Claude Code:** indexes flat `~/.claude/projects/<slug>/*.jsonl` for the
+  resolved project path. Directory-only session folders without a root JSONL are
+  skipped. Subagent sidechains are deferred.
+- **Antigravity:** indexes `history.jsonl` rows filtered by `workspace`, rereads
+  `brain/<id>/.system_generated/logs/transcript.jsonl`. Encrypted `conversations/*.pb`
+  stores and nested subagent brains are out of scope for v1.
+- **`/opt/tang`:** no native sessions on the dev host; use `/opt/family-bot` for
+  live verification until Claude sessions exist under `-opt-tang`.
+
+| Track | Bead |
+| --- | --- |
+| Session storage research | `tang-wxa.1` |
+| Claude adapter + resume | `tang-wxa.3`, `tang-wxa.4` |
+| Antigravity adapter + resume | `tang-wxa.6`, `tang-wxa.7` |
+| Registry + matrix | `tang-wxa.9` |

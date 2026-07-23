@@ -6,7 +6,15 @@ import os
 import shutil
 from pathlib import Path
 
-from tang.adapters import CodexAdapter, CursorAdapter, GrokAdapter, OpenCodeAdapter, SessionAdapter
+from tang.adapters import (
+    AntigravityAdapter,
+    ClaudeAdapter,
+    CodexAdapter,
+    CursorAdapter,
+    GrokAdapter,
+    OpenCodeAdapter,
+    SessionAdapter,
+)
 
 
 def _default_opencode_executable() -> Path | None:
@@ -24,6 +32,8 @@ def configured_adapters(
     codex_home: Path | None = None,
     grok_home: Path | None = None,
     cursor_home: Path | None = None,
+    claude_home: Path | None = None,
+    antigravity_home: Path | None = None,
     opencode_executable: Path | str | None = None,
     require_opencode: bool = False,
 ) -> tuple[SessionAdapter, ...]:
@@ -44,6 +54,14 @@ def configured_adapters(
     cursor = CursorAdapter(project_dir, cursor_home=cursor_home)
     if cursor.has_project_transcripts():
         adapters.append(cursor)
+    claude = ClaudeAdapter(project_dir, claude_home=claude_home)
+    if claude.has_project_sessions():
+        adapters.append(claude)
+    antigravity = AntigravityAdapter(
+        project_dir, antigravity_home=antigravity_home
+    )
+    if antigravity.has_project_sessions():
+        adapters.append(antigravity)
     if discovered_opencode is not None or require_opencode:
         adapters.append(
             OpenCodeAdapter(
