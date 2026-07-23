@@ -1,0 +1,2 @@
+{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-07-01T12:00:00Z","content":"<USER_REQUEST>\nConfirm the branch for the release.\n</USER_REQUEST>"}
+{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-07-01T12:00:01Z","content":"The release branch is still open on epic/11."}

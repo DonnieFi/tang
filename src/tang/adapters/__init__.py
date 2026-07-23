@@ -17,6 +17,8 @@ from tang.adapters.base import (
     TurnSelection,
     VisibleTurn,
 )
+from tang.adapters.antigravity import AntigravityAdapter
+from tang.adapters.claude import ClaudeAdapter
 from tang.adapters.codex import CodexAdapter
 from tang.adapters.cursor import CursorAdapter
 from tang.adapters.grok import GrokAdapter
@@ -26,6 +28,8 @@ __all__ = [
     "AdapterCheckpoint",
     "AdapterWarning",
     "BatchStatus",
+    "AntigravityAdapter",
+    "ClaudeAdapter",
     "CodexAdapter",
     "CursorAdapter",
     "GrokAdapter",

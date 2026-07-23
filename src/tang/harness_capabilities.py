@@ -29,6 +29,12 @@ _CAPABILITIES: tuple[HarnessCapabilities, ...] = (
     HarnessCapabilities(
         "cursor", "Cursor Agent", True, True, True, False, True
     ),
+    HarnessCapabilities(
+        "claude", "Claude Code", True, True, True, False, False
+    ),
+    HarnessCapabilities(
+        "antigravity", "Antigravity CLI", True, True, True, False, False
+    ),
 )
 
 _BY_KEY = {entry.adapter_key: entry for entry in _CAPABILITIES}

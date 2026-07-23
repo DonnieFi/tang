@@ -85,6 +85,8 @@ def build_parser() -> argparse.ArgumentParser:
     index.add_argument("--codex-home", type=Path)
     index.add_argument("--grok-home", type=Path)
     index.add_argument("--cursor-home", type=Path)
+    index.add_argument("--claude-home", type=Path)
+    index.add_argument("--antigravity-home", type=Path)
     index.add_argument("--opencode-executable", type=Path)
     browse = subparsers.add_parser("browse", help="list current-project sessions")
     _add_discovery_arguments(browse)
@@ -124,13 +126,16 @@ def build_parser() -> argparse.ArgumentParser:
     context.add_argument("--codex-home", type=Path)
     context.add_argument("--grok-home", type=Path)
     context.add_argument("--cursor-home", type=Path)
+    context.add_argument("--claude-home", type=Path)
+    context.add_argument("--antigravity-home", type=Path)
     context.add_argument("--opencode-executable", type=Path)
     resume = subparsers.add_parser(
         "resume",
         help="open an indexed session in its native harness",
         description=(
             "Privately resolve one current-project Tang handle and open the "
-            "corresponding Codex, Grok, OpenCode, or Cursor session. This does "
+            "corresponding Codex, Grok, OpenCode, Cursor, Claude Code, or "
+            "Antigravity session. This does "
             "not build context, create links, or modify native history."
         ),
     )
@@ -144,6 +149,8 @@ def build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--grok-executable", type=Path)
     resume.add_argument("--opencode-executable", type=Path)
     resume.add_argument("--cursor-executable", type=Path)
+    resume.add_argument("--claude-executable", type=Path)
+    resume.add_argument("--antigravity-executable", type=Path)
     purge = subparsers.add_parser("purge", help="remove Tang-derived data")
     purge.add_argument("--all", action="store_true", dest="purge_all")
     purge.add_argument("--yes", action="store_true", help="confirm without a prompt")
@@ -238,6 +245,8 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--codex-home", type=Path)
     doctor.add_argument("--grok-home", type=Path)
     doctor.add_argument("--cursor-home", type=Path)
+    doctor.add_argument("--claude-home", type=Path)
+    doctor.add_argument("--antigravity-home", type=Path)
     doctor.add_argument("--opencode-executable", type=Path)
     doctor.add_argument(
         "--require-opencode",
@@ -499,6 +508,8 @@ def _run_index(args: argparse.Namespace) -> int:
                 codex_home=args.codex_home,
                 grok_home=args.grok_home,
                 cursor_home=args.cursor_home,
+                claude_home=args.claude_home,
+                antigravity_home=args.antigravity_home,
                 opencode_executable=args.opencode_executable,
             ),
             project,
@@ -764,6 +775,8 @@ def _run_context(args: argparse.Namespace) -> int:
                 codex_home=args.codex_home,
                 grok_home=args.grok_home,
                 cursor_home=args.cursor_home,
+                claude_home=args.claude_home,
+                antigravity_home=args.antigravity_home,
                 opencode_executable=args.opencode_executable,
             ),
         )
@@ -867,6 +880,8 @@ def _run_resume(args: argparse.Namespace) -> int:
                 grok_executable=args.grok_executable,
                 opencode_executable=args.opencode_executable,
                 cursor_executable=args.cursor_executable,
+                claude_executable=args.claude_executable,
+                antigravity_executable=args.antigravity_executable,
             )
         except ResumeError as error:
             print(f"error[{error.code}]: {error}", file=sys.stderr)
@@ -951,6 +966,8 @@ def _run_doctor(args: argparse.Namespace) -> int:
         codex_home=args.codex_home,
         grok_home=args.grok_home,
         cursor_home=args.cursor_home,
+        claude_home=args.claude_home,
+        antigravity_home=args.antigravity_home,
         opencode_executable=args.opencode_executable,
         project_dir=args.cwd,
         require_opencode=(

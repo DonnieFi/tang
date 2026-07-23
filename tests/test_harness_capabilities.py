@@ -8,10 +8,10 @@ from tang.harness_capabilities import (
 
 def test_registry_matches_continuation_destinations() -> None:
     assert supported_destination_adapters() == frozenset(
-        ("codex", "grok", "opencode", "cursor")
+        ("codex", "grok", "opencode", "cursor", "claude", "antigravity")
     )
     assert supported_resume_adapters() == frozenset(
-        ("codex", "grok", "opencode", "cursor")
+        ("codex", "grok", "opencode", "cursor", "claude", "antigravity")
     )
 
 
@@ -33,5 +33,5 @@ def test_cursor_is_a_linux_release_capability() -> None:
 
 
 def test_all_entries_have_display_names() -> None:
-    assert len(all_capabilities()) >= 4
+    assert len(all_capabilities()) >= 6
     assert all(entry.display_name for entry in all_capabilities())
