@@ -508,7 +508,7 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 ## 2026-07-21T01:55:00Z · tang-9nb · Cross-project discovery research
 - Context: Post-release need for explicit opt-in foreign session browse without global FTS.
 - Options: (a) implement registry now; (b) research doc and spec delta for human review; (c) global capsule DB.
-- Decision: (b) — `docs/research/cross-project-discovery-opt-in.md` recommends project registry (design C) and defers code until spec approval. Serves: Design, Potential Impact.
+- Decision: (b) — `plan/research/cross-project-discovery-opt-in.md` recommends project registry (design C) and defers code until spec approval. Serves: Design, Potential Impact.
 - By: agent
 
 ## 2026-07-21T01:55:00Z · tang-c4v · Multiverse material projection
@@ -535,3 +535,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) halt until full tangspec rewrite and approval; (b) ship adapters with harness-matrix + registry truth and amend tangspec incrementally when convenient; (c) bundle with global-discovery v0.4 spec delta.
 - Decision: (b) — post-hackathon Tang continues on `epic/11-claude-antigravity` with matrix/registry/docs as product truth; `release_claim_linux` stays false for new harnesses until live smoke pins. Global discovery v0.4 remains a separate track. Serves: Potential Impact, Technological Implementation.
 - By: human (direction to continue past hackathon gate) and agent
+
+## 2026-07-23T19:50:00Z · tang-wxa · Research under gitignored plan/
+- Context: Feasibility notes and draft spec deltas (`docs/research/`, `docs/spec-deltas/`) were tracked or sitting untracked in `docs/` while `/plan/` was already gitignored scratch space.
+- Options: (a) keep research in tracked `docs/research/`; (b) move to `plan/research/` and `plan/spec-deltas/` with a tracked pointer README; (c) delete research from repo entirely.
+- Decision: (b) — private planning material lives under `/plan/`; tracked tree keeps `docs/research/README.md` and approved spec in `docs/tangspec.md`. Serves: Design, Quality of Idea.
+- By: human and agent

@@ -328,7 +328,7 @@ Do not use third-party logos in the demo or README without permission. Plain-tex
 
 1. Initialize the existing empty `.git` directory with `git init --initial-branch=main` without deleting it.
 2. Ignore `/plan/`, `/.agents/`, `/.codex/`, `/.beads/`, `/.tang/`, virtual environments, Python caches, build output, coverage, local demo output, and OS metadata.
-3. Track this approved specification at `docs/tangspec.md`; `/plan/` remains private scratch material.
+3. Track this approved specification at `docs/tangspec.md`; `/plan/` remains private scratch material (research notes, spec deltas, agent planning).
 4. Initialize Beads with `bd init --non-interactive --skip-agents`; treat it as local execution state rather than public project history.
 5. Track `README.md`, `CONTEXT.md`, concise ADRs, `LICENSE`, package code, tests, fixtures, and submission assets.
 6. Create dated milestone commits linking decisions, Beads work, tests, and Codex sessions so post-July 13 work is auditable.

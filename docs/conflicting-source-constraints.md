@@ -55,4 +55,4 @@ See `skills/tang/SKILL.md` and `tests/test_continuation_brief.py`.
 
 - Automatic conflict clustering or NLP similarity
 - Writing conflict outcomes back to the index
-- Cross-project constraint mixing (see `docs/research/cross-project-discovery-opt-in.md`)
+- Cross-project constraint mixing (see `plan/research/cross-project-discovery-opt-in.md`, gitignored)

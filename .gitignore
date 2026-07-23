@@ -1,4 +1,4 @@
-# Private planning and agent state
+# Private planning and agent state (/plan/research, /plan/spec-deltas, etc.)
 /plan/
 /.agents/
 /.codex/
