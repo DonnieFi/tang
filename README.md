@@ -49,11 +49,11 @@ checkout, regenerate it with `python scripts/capture_demo_hero.py --tang
 > transcript stores remain read-only. See [harness-matrix.md](docs/harness-matrix.md).
 >
 > **Epic 11 (branch `epic/11-claude-antigravity`):** Claude Code and Antigravity
-> join the same read-only adapter surface—index, browse, search, cited context,
-> explicit link source/destination, and native `tang resume` (`L*` and `A*`
-> handles). Host skill install ships for Claude Code; Antigravity uses CLI
-> handoff docs. Linux release claims stay false until live smoke pins; see
-> [Claude handoff](docs/claude-handoff.md) and
+> ship at **full harness parity** with the v0.3.0 four—index, browse, search,
+> cited context, explicit link as source and destination, and native
+> `tang resume` (`L*` and `A*` handles). Claude adds `tang skill install claude`;
+> Antigravity uses CLI handoff docs. Linux **release claims** stay false until
+> live smoke pins; see [Claude handoff](docs/claude-handoff.md) and
 > [Antigravity handoff](docs/antigravity-handoff.md).
 
 The source repository is public, and the immutable version-pinned artifact is
@@ -153,13 +153,12 @@ and writes the cited Continuation Brief in one turn. It never creates a link.
 - **Cursor:** run Tang beside Cursor Agent in the project terminal. Agent
   transcripts are read-only sources; explicit `R*` handles can be link targets
   and can be reopened with `tang resume R1`.
-- **Claude Code:** run Tang beside Claude in the project terminal, or install
-  the bundled skill with `tang skill install claude`. Native JSONL under
-  `~/.claude/projects/` is read-only; explicit `L*` handles support link,
-  cited context, and `tang resume L1` via `claude --resume`.
-- **Antigravity:** run Tang beside the Antigravity CLI in the project terminal.
-  History and brain transcripts are read-only; explicit `A*` handles support
-  link, cited context, and `tang resume A1` via `agy --conversation`.
+- **Claude Code:** full harness parity on Epic 11—index, browse, search, context,
+  link, and `tang resume L1`. Run Tang beside Claude in the project terminal or
+  install the bundled skill with `tang skill install claude`.
+- **Antigravity:** full harness parity on Epic 11—index, browse, search, context,
+  link, and `tang resume A1`. Run Tang beside the Antigravity CLI; see
+  [handoff docs](docs/antigravity-handoff.md) for the CLI workflow.
 - **CLI:** `tang index`, `browse`, `search`, `context`, `link`, `graph`, and
   `resume` are the same scriptable commands from either host or a normal
   project terminal. `tang resume HANDLE` reopens an indexed session through
@@ -196,8 +195,8 @@ already know a handle or need a scriptable path.
 | Grok 0.2.106 | Supported on Linux | Live-verified read-only source, explicit destination, handoff, and native resume |
 | OpenCode `>=1.17.18,<2.0.0` | Supported on Linux | Runtime contracts fail closed; 1.17.20 live-verified with OpenAI- and xAI-backed sessions; read-only source adapter and explicitly confirmed current continuation target |
 | Cursor Agent 2026.07.17 | Supported on Linux | Live-verified read-only agent transcripts, explicit destination, handoff, and native resume |
-| Claude Code 2.1.x | Epic 11 (fixture + live smoke) | Read-only JSONL adapter, explicit destination, `tang skill install claude`, native `claude --resume`; no v0.3.0 release claim |
-| Antigravity CLI (`agy`) 1.1.x | Epic 11 (fixture + live smoke) | Read-only history + transcript adapter, explicit destination, handoff docs, native `agy --conversation`; no v0.3.0 release claim |
+| Claude Code 2.1.x | Epic 11 (fixture + live smoke) | Full harness parity: index through resume, link source/destination, `tang skill install claude`; no v0.3.0 release claim yet |
+| Antigravity CLI (`agy`) 1.1.x | Epic 11 (fixture + live smoke) | Full harness parity: index through resume, link source/destination, CLI handoff; no v0.3.0 release claim yet |
 | Linux x86-64 | Supported | Clean-wheel acceptance on Python 3.11.11 and 3.12.8; synthetic fixture coverage in CI |
 | macOS | Unsupported | No compatibility or CI claim |
 | Windows | Unsupported | No native compatibility claim |
@@ -212,9 +211,10 @@ Codex and Grok versions without separate evidence.
 
 Tang v0.3 supports repeated, multi-source continuation into explicitly
 confirmed Codex, Grok, OpenCode, and Cursor targets when those sessions are indexed.
-Epic 11 extends the same adapter contract to Claude Code and Antigravity on the
-`epic/11-claude-antigravity` branch. Grok, Cursor, Claude, and Antigravity native
-logs remain read-only; Tang never writes recovered transcript text into a native harness.
+Epic 11 extends full harness parity to Claude Code and Antigravity on the
+`epic/11-claude-antigravity` branch. As with every supported harness, Tang
+never writes recovered transcript text into native archives—only into derived
+`.tang` continuity data.
 
 ## The incident that started it
 
