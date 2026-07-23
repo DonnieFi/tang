@@ -55,7 +55,7 @@ def test_functional_acceptance_covers_installed_skill_and_demo_contracts() -> No
         '"Keep the canonical `source_id` private"',
         '"`session_handle`"',
         '["demo", "--ascii", "--width", "100"]',
-        '"INDEX: 2 indexed; status complete (0 warning(s))"',
+        '"INDEX: 4 indexed; status complete (0 warning(s))"',
         '"MULTIVERSE: selected sources G1 + C1 merge into C2"',
         '"LINK: C5 -> O1 (confirmed; inserted 1)"',
         '"confirmed OpenCode O1"',

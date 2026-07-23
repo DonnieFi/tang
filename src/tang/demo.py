@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from tang.adapters.claude import ClaudeAdapter
 from tang.adapters import (
     OpaqueSourceLocator,
     SessionHealth,
@@ -42,10 +43,14 @@ def _canonical_json(value: dict[str, object]) -> bytes:
     ).encode()
 
 
-def _prepare_native_corpus(root: Path, project: Path) -> tuple[Path, Path]:
+def _prepare_native_corpus(
+    root: Path, project: Path
+) -> tuple[Path, Path, Path, Path]:
     fixtures = _fixture_root()
     codex_home = root / "codex"
     grok_home = root / "grok"
+    claude_home = root / "claude"
+    antigravity_home = root / "antigravity"
     shutil.copytree(fixtures / "codex", codex_home)
     shutil.copytree(fixtures / "grok", grok_home)
 
@@ -59,7 +64,46 @@ def _prepare_native_corpus(root: Path, project: Path) -> tuple[Path, Path]:
     payload = json.loads(summary.read_text(encoding="utf-8"))
     payload["git_root_dir"] = str(project)
     summary.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
-    return codex_home, grok_home
+
+    slug = ClaudeAdapter.project_slug(project)
+    claude_project = claude_home / "projects" / slug
+    claude_project.mkdir(parents=True)
+    claude_fixture = (
+        fixtures
+        / "claude"
+        / "projects"
+        / "-opt-tang-fixture"
+        / "019f6000-c1a0-7000-8000-000000000001.jsonl"
+    )
+    claude_lines: list[str] = []
+    for line in claude_fixture.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        record = json.loads(line)
+        if record.get("type") == "user":
+            record["cwd"] = str(project)
+        claude_lines.append(json.dumps(record, ensure_ascii=False))
+    destination = claude_project / "019f6000-c1a0-7000-8000-000000000001.jsonl"
+    destination.write_text("\n".join(claude_lines) + "\n", encoding="utf-8")
+
+    antigravity_home.mkdir()
+    shutil.copytree(
+        fixtures / "antigravity" / "brain",
+        antigravity_home / "brain",
+    )
+    (antigravity_home / "history.jsonl").write_text(
+        json.dumps(
+            {
+                "display": "Confirm branch for release",
+                "timestamp": 1784570653707,
+                "workspace": str(project.resolve()),
+                "conversationId": "019f6000-a017-7000-8000-000000000001",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return codex_home, grok_home, claude_home, antigravity_home
 
 
 def _call_cli(arguments: list[str]) -> tuple[int, str, str]:
@@ -197,13 +241,19 @@ def run_demo(*, width: int, color: bool, ascii_only: bool) -> int:
         project = root / "project"
         project.mkdir()
         database = root / "data" / "tang.db"
-        codex_home, grok_home = _prepare_native_corpus(root, project)
+        codex_home, grok_home, claude_home, antigravity_home = _prepare_native_corpus(
+            root, project
+        )
         common = ["--database", str(database), "--cwd", str(project)]
         adapters = [
             "--codex-home",
             str(codex_home),
             "--grok-home",
             str(grok_home),
+            "--claude-home",
+            str(claude_home),
+            "--antigravity-home",
+            str(antigravity_home),
         ]
 
         index_code, index_output, _ = _call_cli(
@@ -253,12 +303,12 @@ def run_demo(*, width: int, color: bool, ascii_only: bool) -> int:
 
         print("TANG ISOLATED DEMO")
         print(f"Workspace: {root}")
-        print("Isolation: temporary database + copied synthetic native fixtures")
+        print("Isolation: temporary database + copied synthetic Codex, Grok, Claude, Antigravity fixtures")
         print(
             f"INDEX: {index['indexed']} indexed; status {index['status']} "
             f"({index['warning_count']} warning(s))"
         )
-        print(f"SEARCH: {len(results)} checkpoint matches across Codex and Grok")
+        print(f"SEARCH: {len(results)} checkpoint matches (Grok + Codex recovery path)")
         print("SELECT:")
         for source_id in selected:
             item = next(result for result in results if result["source_id"] == source_id)
