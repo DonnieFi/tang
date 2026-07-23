@@ -33,6 +33,14 @@ _USER_REQUEST = re.compile(
     r"<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>", re.DOTALL
 )
 _TOOL_OUTPUT_PREFIX = "Created At:"
+_AGENT_TOOL_MARKERS = (
+    "Completed At:",
+    "File Path:",
+    "CommandLine",
+    "toolAction",
+    "toolSummary",
+    "Output:",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,12 +78,15 @@ class AntigravityAdapter:
         return f"store-{digest}"
 
     def has_project_sessions(self) -> bool:
-        return bool(self._project_history())
+        history = self._project_history()
+        return any(
+            self._transcript_path(conversation_id).is_file()
+            for conversation_id in history
+        )
 
     def _project_history(self) -> dict[str, _HistoryEntry]:
         if not self._history_path.is_file():
             return {}
-        workspace = str(self._project_dir)
         entries: dict[str, _HistoryEntry] = {}
         try:
             lines = self._history_path.read_text(encoding="utf-8").splitlines()
@@ -94,7 +105,7 @@ class AntigravityAdapter:
                 continue
             if not _safe_conversation_id(conversation_id):
                 continue
-            if payload.get("workspace") != workspace:
+            if not _workspace_matches(payload.get("workspace"), self._project_dir):
                 continue
             timestamp = _epoch_millis(payload.get("timestamp"))
             if timestamp is None:
@@ -330,6 +341,27 @@ def _default_home() -> Path:
     return Path.home() / ".gemini" / "antigravity"
 
 
+def _workspace_matches(stored: object, project_dir: Path) -> bool:
+    if not isinstance(stored, str) or not stored.strip():
+        return False
+    try:
+        stored_path = Path(stored.strip()).expanduser().resolve()
+    except OSError:
+        return False
+    return stored_path == project_dir
+
+
+def _is_agent_prose(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped or stripped.startswith(_TOOL_OUTPUT_PREFIX):
+        return False
+    if any(marker in stripped for marker in _AGENT_TOOL_MARKERS):
+        return False
+    if "file:///" in stripped:
+        return False
+    return len(stripped) <= 4096
+
+
 def _safe_conversation_id(value: str) -> bool:
     try:
         UUID(value)
@@ -385,11 +417,6 @@ def _visible_text(payload: dict[str, object], role: TurnRole) -> str:
             return match.group(1).strip()
         return content.strip()
     content = payload.get("content")
-    if isinstance(content, str) and content.strip():
-        if content.lstrip().startswith(_TOOL_OUTPUT_PREFIX):
-            return ""
+    if isinstance(content, str) and _is_agent_prose(content):
         return content.strip()
-    thinking = payload.get("thinking")
-    if isinstance(thinking, str) and thinking.strip():
-        return thinking.strip()
     return ""
