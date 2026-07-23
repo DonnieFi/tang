@@ -43,7 +43,7 @@ from tang.redaction import (
 from tang.render import STEEL, TEAL, render_multiverse
 from tang.repository import TangRepository
 from tang.resume import ResumeError, ResumeService
-from tang.skill_install import install_codex_skill, install_opencode_skill
+from tang.skill_install import install_claude_skill, install_codex_skill, install_opencode_skill
 from tang.storage import DatabaseOpenError, open_database, project_data_path
 from tang.timeutil import rfc3339
 from tang.target import (
@@ -268,8 +268,9 @@ def build_parser() -> argparse.ArgumentParser:
     skill = subparsers.add_parser("skill", help="manage harness skills")
     skill_subparsers = skill.add_subparsers(dest="skill_command")
     install = skill_subparsers.add_parser("install", help="install a harness skill")
-    install.add_argument("harness", choices=("codex", "opencode"))
+    install.add_argument("harness", choices=("codex", "claude", "opencode"))
     install.add_argument("--codex-home", type=Path)
+    install.add_argument("--claude-home", type=Path)
     install.add_argument("--project-root", type=Path, default=Path.cwd())
     install.add_argument("--force", action="store_true")
     opencode_target = skill_subparsers.add_parser(
@@ -1106,6 +1107,8 @@ def _run_skill(args: argparse.Namespace) -> int:
         result = (
             install_codex_skill(args.codex_home, force=args.force)
             if args.harness == "codex"
+            else install_claude_skill(args.claude_home, force=args.force)
+            if args.harness == "claude"
             else install_opencode_skill(args.project_root, force=args.force)
         )
     except (FileExistsError, FileNotFoundError, OSError) as error:

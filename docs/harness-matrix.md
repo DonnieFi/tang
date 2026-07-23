@@ -107,7 +107,7 @@ live smoke uses `/opt/family-bot` Antigravity history and Claude Code JSONL.
 | Link as **destination** | yes | yes |
 | `tang resume` native session | yes (`claude --resume`) | yes (`agy --conversation`) |
 | Host workflow (skill / handoff) | partial | partial |
-| `tang skill install …` | no | no |
+| `tang skill install …` | yes | no |
 
 **Notes:**
 

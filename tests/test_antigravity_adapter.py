@@ -99,6 +99,28 @@ def test_antigravity_indexes_into_project_database(tmp_path: Path) -> None:
     assert result.indexed == 1
 
 
+def test_antigravity_skips_invalid_conversation_ids(tmp_path: Path) -> None:
+    project = (tmp_path / "work").resolve()
+    project.mkdir()
+    antigravity_home = tmp_path / "antigravity"
+    antigravity_home.mkdir()
+    (antigravity_home / "history.jsonl").write_text(
+        json.dumps(
+            {
+                "display": "evil",
+                "timestamp": 1784570653707,
+                "workspace": str(project.resolve()),
+                "conversationId": "../../etc/passwd",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    adapter = AntigravityAdapter(project, antigravity_home=antigravity_home)
+    batch = adapter.scan(None)
+    assert batch.records == ()
+
+
 def test_antigravity_skips_history_without_transcript(tmp_path: Path) -> None:
     project = (tmp_path / "work").resolve()
     project.mkdir()

@@ -46,6 +46,7 @@ where = ["src"]
 [tool.setuptools.data-files]
 "share/tang/skills/tang" = ["skills/tang/SKILL.md"]
 "share/tang/skills/tang/agents" = ["skills/tang/agents/openai.yaml"]
+"share/tang/skills/claude/tang" = ["skills/claude/tang/SKILL.md"]
 "share/tang/opencode/skills/tang" = ["skills/opencode/tang/SKILL.md"]
 "share/tang/opencode/commands" = [".opencode/commands/tang.md"]
 "share/tang/opencode/tools" = [

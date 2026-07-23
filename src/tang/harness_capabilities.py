@@ -30,7 +30,7 @@ _CAPABILITIES: tuple[HarnessCapabilities, ...] = (
         "cursor", "Cursor Agent", True, True, True, False, True
     ),
     HarnessCapabilities(
-        "claude", "Claude Code", True, True, True, False, False
+        "claude", "Claude Code", True, True, True, True, False
     ),
     HarnessCapabilities(
         "antigravity", "Antigravity CLI", True, True, True, False, False

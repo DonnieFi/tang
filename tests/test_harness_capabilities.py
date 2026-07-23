@@ -23,6 +23,13 @@ def test_grok_is_destination_and_resume() -> None:
     assert grok.host_skill is False
 
 
+def test_claude_has_skill_install() -> None:
+    claude = capability_for("claude")
+    assert claude is not None
+    assert claude.host_skill is True
+    assert claude.release_claim_linux is False
+
+
 def test_cursor_is_a_linux_release_capability() -> None:
     cursor = capability_for("cursor")
     assert cursor is not None

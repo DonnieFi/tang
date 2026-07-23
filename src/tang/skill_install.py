@@ -31,8 +31,28 @@ def bundled_skill_path() -> Path:
     return module.parents[2] / "skills" / "tang"
 
 
+def bundled_claude_skill_path() -> Path:
+    """Return the bundled Claude Code skill directory."""
+
+    module = Path(__file__).resolve()
+    packaged = module.parent / "skills" / "claude" / "tang"
+    if packaged.is_dir():
+        return packaged
+    installed_data = Path(sys.prefix) / "share" / "tang" / "skills" / "claude" / "tang"
+    if installed_data.is_dir():
+        return installed_data
+    return module.parents[2] / "skills" / "claude" / "tang"
+
+
 def codex_skill_root(codex_home: Path | None = None) -> Path:
     configured = codex_home or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    return configured.expanduser().resolve() / "skills"
+
+
+def claude_skill_root(claude_home: Path | None = None) -> Path:
+    configured = claude_home or Path(
+        os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude")
+    )
     return configured.expanduser().resolve() / "skills"
 
 
@@ -208,6 +228,60 @@ def install_codex_skill(
     finally:
         shutil.rmtree(temporary, ignore_errors=True)
     return SkillInstallResult("installed", destination, "Tang Codex skill installed.")
+
+
+def install_claude_skill(
+    claude_home: Path | None = None,
+    *,
+    force: bool = False,
+    source: Path | None = None,
+) -> SkillInstallResult:
+    """Install the bundled Claude Code skill into ~/.claude/skills/tang."""
+
+    bundle = (source or bundled_claude_skill_path()).resolve()
+    if not bundle.is_dir() or not (bundle / "SKILL.md").is_file():
+        raise FileNotFoundError("the bundled Claude Tang skill is unavailable")
+
+    root = claude_skill_root(claude_home)
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    destination = root / "tang"
+    if destination.is_symlink():
+        raise OSError("refusing to replace a symlinked Tang skill")
+    if destination.exists():
+        if not destination.is_dir():
+            raise OSError("the Tang skill destination is not a directory")
+        if _tree_digest(destination) == _tree_digest(bundle):
+            return SkillInstallResult(
+                "unchanged",
+                destination,
+                "Tang Claude Code skill is already current.",
+            )
+        if not force:
+            raise FileExistsError(
+                "the installed Tang skill differs; rerun with --force to replace it"
+            )
+
+    temporary = Path(tempfile.mkdtemp(prefix=".tang-claude-skill-", dir=root))
+    staged = temporary / "tang"
+    try:
+        shutil.copytree(bundle, staged)
+        if destination.exists():
+            backup = temporary / "previous"
+            destination.rename(backup)
+            try:
+                staged.rename(destination)
+            except BaseException:
+                backup.rename(destination)
+                raise
+        else:
+            staged.rename(destination)
+    finally:
+        shutil.rmtree(temporary, ignore_errors=True)
+    return SkillInstallResult(
+        "installed",
+        destination,
+        "Tang Claude Code skill installed.",
+    )
 
 
 def _tree_digest(root: Path) -> str:

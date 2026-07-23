@@ -9,6 +9,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from uuid import UUID
 
 from tang.adapters.base import (
     AdapterCheckpoint,
@@ -90,6 +91,8 @@ class AntigravityAdapter:
                 continue
             conversation_id = payload.get("conversationId")
             if not isinstance(conversation_id, str) or not conversation_id.strip():
+                continue
+            if not _safe_conversation_id(conversation_id):
                 continue
             if payload.get("workspace") != workspace:
                 continue
@@ -325,6 +328,14 @@ def _default_home() -> Path:
     if cli_home.is_dir():
         return cli_home
     return Path.home() / ".gemini" / "antigravity"
+
+
+def _safe_conversation_id(value: str) -> bool:
+    try:
+        UUID(value)
+    except ValueError:
+        return False
+    return value == str(UUID(value))
 
 
 def _fingerprint_file(path: Path) -> SourceFingerprint:
