@@ -55,6 +55,7 @@ def test_capsule_contains_redacted_permitted_evidence_and_citations(
     ]
     assert capsule.content["session_header"] == {
         "effort": "high",
+        "git_branch": "main",
         "model_id": "gpt-5.6-sol",
         "model_provider": "openai",
         "title_origin": "derived_goal",

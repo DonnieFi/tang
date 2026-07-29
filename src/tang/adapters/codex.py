@@ -522,6 +522,13 @@ class CodexAdapter:
                     identity,
                 )
             )
+        git_branch = None
+        if metadata is not None:
+            git_payload = metadata.get("git")
+            if isinstance(git_payload, dict):
+                branch_value = git_payload.get("branch")
+                if isinstance(branch_value, str):
+                    git_branch = branch_value
         return (
             SourceRecord(
                 identity=identity,
@@ -536,9 +543,10 @@ class CodexAdapter:
                     else SessionHealth.UNKNOWN
                 ),
                 header=SessionHeader(
-                    model_provider=metadata.get("model_provider"),
+                    model_provider=metadata.get("model_provider") if metadata else None,
                     model_id=model_id,
                     effort=effort,
+                    git_branch=git_branch,
                 ),
             ),
             tuple(warnings),

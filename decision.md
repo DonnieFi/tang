@@ -541,3 +541,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) keep research in tracked `docs/research/`; (b) move to `plan/research/` and `plan/spec-deltas/` with a tracked pointer README; (c) delete research from repo entirely.
 - Decision: (b) — private planning material lives under `/plan/`; tracked tree keeps `docs/research/README.md` and approved spec in `docs/tangspec.md`. Serves: Design, Quality of Idea.
 - By: human and agent
+
+## 2026-07-28T00:00:00Z · tang-6wm · Index-time git_branch for Option B cards
+- Context: Session cards need per-session branch without becoming a multiverse surface or probing git per session at render time.
+- Options: (a) omit branch entirely; (b) render-time `git rev-parse` per session cwd; (c) index native evidence only (Codex `session_meta.payload.git.branch`, Claude JSONL `gitBranch`), omit segment when absent; grid header shows project basename + current HEAD once.
+- Decision: (c) Option B + branch — cards stay a compact discovery scan; topology stays on `tang graph`. Existing DBs need re-index (or purge+index) before branch appears. Serves: Design, Technological Implementation.
+- By: human (2026-07-24 design choice in session-cards-design.html) and agent (implementation on epic/12-session-cards)

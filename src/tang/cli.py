@@ -43,6 +43,14 @@ from tang.redaction import (
 from tang.render import STEEL, TEAL, render_multiverse
 from tang.repository import TangRepository
 from tang.resume import ResumeError, ResumeService
+from tang.session_cards import (
+    DEFAULT_CARDS_LIMIT,
+    current_git_branch,
+    project_basename,
+    render_cards_brief,
+    render_cards_grid,
+    session_card_from_item,
+)
 from tang.skill_install import install_claude_skill, install_codex_skill, install_opencode_skill
 from tang.storage import DatabaseOpenError, open_database, project_data_path
 from tang.timeutil import rfc3339
@@ -55,6 +63,15 @@ from tang.target import (
     resolve_current_target,
     resolve_destination_target,
     resolve_opencode_target,
+)
+
+_DISCOVERY_HARNESS_CHOICES = (
+    "codex",
+    "grok",
+    "opencode",
+    "cursor",
+    "claude",
+    "antigravity",
 )
 
 
@@ -88,8 +105,28 @@ def build_parser() -> argparse.ArgumentParser:
     index.add_argument("--claude-home", type=Path)
     index.add_argument("--antigravity-home", type=Path)
     index.add_argument("--opencode-executable", type=Path)
-    browse = subparsers.add_parser("browse", help="list current-project sessions")
+    browse = subparsers.add_parser(
+        "browse",
+        help="list current-project sessions",
+        description=(
+            "List indexed sessions for the current project. Default output is a "
+            "paged table. --cards renders a compact discovery card grid "
+            "(smaller scan surface than tang graph); --brief is a fixed-column "
+            "scan table. Use tang graph for multiverse topology."
+        ),
+    )
     _add_discovery_arguments(browse)
+    _add_cards_arguments(browse)
+    cards = subparsers.add_parser(
+        "cards",
+        help="compact session cards (alias for browse --cards)",
+        description=(
+            "Compact discovery scan of indexed sessions. Cards answer which "
+            "session to inspect; tang graph shows how sessions connect."
+        ),
+    )
+    _add_discovery_arguments(cards)
+    _add_cards_arguments(cards, cards_default=True)
     search = subparsers.add_parser("search", help="search current-project capsules")
     search.add_argument(
         "query",
@@ -298,7 +335,7 @@ def _add_discovery_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--json", action="store_true", dest="as_json")
     parser.add_argument("--database", type=Path)
     parser.add_argument("--cwd", type=Path, default=Path.cwd())
-    parser.add_argument("--harness", choices=("codex", "grok", "opencode"))
+    parser.add_argument("--harness", choices=_DISCOVERY_HARNESS_CHOICES)
     parser.add_argument("--health", choices=tuple(health.value for health in SessionHealth))
     parser.add_argument("--since", type=_timestamp)
     parser.add_argument("--until", type=_timestamp)
@@ -318,6 +355,57 @@ def _add_discovery_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_cards_arguments(
+    parser: argparse.ArgumentParser, *, cards_default: bool = False
+) -> None:
+    parser.add_argument(
+        "--cards",
+        action="store_true",
+        default=cards_default,
+        help=(
+            "render a compact card grid for discovery scan "
+            "(not the Multiverse Map; use tang graph for topology)"
+        ),
+    )
+    parser.add_argument(
+        "--brief",
+        action="store_true",
+        help="with --cards, render a fixed-column scan table instead of the grid",
+    )
+    parser.add_argument(
+        "--limit",
+        type=_cards_limit,
+        default=None,
+        help=(
+            f"with --cards, maximum sessions to show (1-100; default: {DEFAULT_CARDS_LIMIT})"
+        ),
+    )
+    parser.add_argument(
+        "--width",
+        type=int,
+        help="terminal width for card layout (default: detect)",
+    )
+    parser.add_argument(
+        "--color",
+        choices=("auto", "always", "never"),
+        default="auto",
+        help="terminal color policy for cards (default: auto)",
+    )
+    cards_layout = parser.add_mutually_exclusive_group()
+    cards_layout.add_argument(
+        "--ascii",
+        action="store_true",
+        dest="ascii_only",
+        help="force ASCII card borders",
+    )
+    cards_layout.add_argument(
+        "--unicode",
+        action="store_true",
+        dest="force_unicode",
+        help="force Unicode card borders when capturing redirected output",
+    )
+
+
 def _search_limit(value: str) -> int:
     try:
         parsed = int(value)
@@ -325,6 +413,16 @@ def _search_limit(value: str) -> int:
         raise argparse.ArgumentTypeError("search limit must be an integer") from error
     if not 1 <= parsed <= 100:
         raise argparse.ArgumentTypeError("search limit must be between 1 and 100")
+    return parsed
+
+
+def _cards_limit(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("cards limit must be an integer") from error
+    if not 1 <= parsed <= 100:
+        raise argparse.ArgumentTypeError("cards limit must be between 1 and 100")
     return parsed
 
 
@@ -540,8 +638,10 @@ def _discovery_document(
         "display_name": item.display_name,
         "harness": item.harness,
         "health": item.health.value,
+        "native_available": item.native_available,
         "session_header": {
             "effort": item.effort,
+            "git_branch": item.git_branch,
             "model_id": item.model_id,
             "model_provider": item.model_provider,
             "title_origin": item.title_origin,
@@ -677,6 +777,23 @@ def _run_discovery(args: argparse.Namespace) -> int:
     database = _required_database_for(args, project)
     if database is None:
         return 2
+    cards_mode = bool(getattr(args, "cards", False) or args.command == "cards")
+    brief_mode = bool(getattr(args, "brief", False))
+    if brief_mode and not cards_mode:
+        print("error: --brief requires --cards (or tang cards)", file=sys.stderr)
+        return 2
+    if getattr(args, "limit", None) is not None and not cards_mode and args.command != "search":
+        print(
+            "error: --limit applies to cards view; use tang browse --cards --limit N",
+            file=sys.stderr,
+        )
+        return 2
+    if cards_mode and args.page is not None:
+        print(
+            "error: --page does not apply to cards view; use --limit to bound results",
+            file=sys.stderr,
+        )
+        return 2
     connection = open_database(database)
     try:
         repository = TangRepository(connection)
@@ -712,6 +829,37 @@ def _run_discovery(args: argparse.Namespace) -> int:
             return 2
     finally:
         connection.close()
+
+    if cards_mode and not args.as_json:
+        limit = (
+            args.limit
+            if getattr(args, "limit", None) is not None
+            else DEFAULT_CARDS_LIMIT
+        )
+        selected = items[:limit]
+        cards = tuple(session_card_from_item(item) for item in selected)
+        width = getattr(args, "width", None) or max(
+            shutil.get_terminal_size((100, 24)).columns, 40
+        )
+        color = _color_enabled(getattr(args, "color", "auto"), sys.stdout)
+        ascii_only = bool(getattr(args, "ascii_only", False)) or (
+            not getattr(args, "force_unicode", False)
+            and not _supports_unicode(sys.stdout)
+        )
+        renderer = render_cards_brief if brief_mode else render_cards_grid
+        print(
+            renderer(
+                cards,
+                width=width,
+                color=color,
+                ascii_only=ascii_only,
+                project_name=project_basename(args.cwd),
+                current_branch=current_git_branch(args.cwd),
+            ),
+            end="",
+        )
+        return 0
+
     page: DiscoveryPage | None = None
     if not args.as_json or args.page is not None:
         try:
@@ -1332,7 +1480,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "index":
             return _run_index(args)
-        if args.command in {"browse", "search"}:
+        if args.command in {"browse", "search", "cards"}:
             return _run_discovery(args)
         if args.command == "context":
             return _run_context(args)

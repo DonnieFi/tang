@@ -256,6 +256,7 @@ class DiscoveryCapsuleBuilder:
             ("model_provider", source.header.model_provider),
             ("model_id", source.header.model_id),
             ("effort", source.header.effort),
+            ("git_branch", source.header.git_branch),
         ):
             if value is None:
                 values[key] = None

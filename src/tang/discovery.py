@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from tang.adapters import SessionHealth
+from tang.adapters.base import _header_value
 from tang.redaction import (
     ContentKind,
     DEFAULT_REDACTOR,
@@ -49,6 +50,8 @@ class DiscoveryItem:
     title_origin: str | None
     visible_turn_count: int | None
     visible_text_bytes: int | None
+    git_branch: str | None = None
+    native_available: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,13 +187,24 @@ class DiscoveryService:
             title=title,
             capabilities=row.capabilities,
             snippet=self._bounded_snippet(snippet),
-            model_provider=row.model_provider,
-            model_id=row.model_id,
-            effort=row.effort,
+            model_provider=self._header_field(row.model_provider, row.source_id),
+            model_id=self._header_field(row.model_id, row.source_id),
+            effort=self._header_field(row.effort, row.source_id),
             title_origin=row.title_origin,
             visible_turn_count=row.visible_turn_count,
             visible_text_bytes=row.visible_text_bytes,
+            git_branch=self._header_field(row.git_branch, row.source_id),
+            native_available=row.native_available,
         )
+
+    def _header_field(self, value: str | None, source_id: str) -> str | None:
+        """Re-validate and re-redact small header identifiers at the display seam."""
+
+        candidate = _header_value(value)
+        if candidate is None:
+            return None
+        redacted = self._redact(candidate, ContentKind.DISPLAY_METADATA, source_id)
+        return _header_value(redacted)
 
     def _display_name(self, row: DiscoveryRow) -> str:
         for value, kind in (

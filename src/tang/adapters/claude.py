@@ -355,10 +355,17 @@ def _merge_header(payload: dict[str, object], header: SessionHeader) -> SessionH
         model = message.get("model")
         if isinstance(model, str):
             model_id = model
+    git_branch = header.git_branch
+    raw_branch = payload.get("gitBranch")
+    # Prefer non-empty native values only — empty later lines must not clear
+    # an earlier valid branch (mirrors SessionHeader.merged_with semantics).
+    if isinstance(raw_branch, str) and raw_branch.strip():
+        git_branch = raw_branch
     return SessionHeader(
         model_provider=header.model_provider or "anthropic",
         model_id=model_id,
         effort=header.effort,
+        git_branch=git_branch,
     )
 
 

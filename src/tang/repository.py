@@ -112,6 +112,8 @@ class DiscoveryRow:
     title_origin: str | None = None
     visible_turn_count: int | None = None
     visible_text_bytes: int | None = None
+    git_branch: str | None = None
+    native_available: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -709,7 +711,8 @@ class TangRepository:
             exclude_source_ids=exclude_source_ids,
         )
         query = f"""
-            SELECT s.source_id, s.session_handle, s.adapter, s.updated_at, s.health, c.content_json
+            SELECT s.source_id, s.session_handle, s.adapter, s.updated_at, s.health,
+                   s.native_available, c.content_json
             FROM sessions AS s JOIN capsules AS c USING(source_id)
             WHERE {' AND '.join(conditions)}
             ORDER BY s.updated_at DESC, s.source_id
@@ -748,7 +751,8 @@ class TangRepository:
         try:
             rows = self._connection.execute(
                 f"""
-                SELECT s.source_id, s.session_handle, s.adapter, s.updated_at, s.health, c.content_json,
+                SELECT s.source_id, s.session_handle, s.adapter, s.updated_at, s.health,
+                       s.native_available, c.content_json,
                        snippet(capsules_fts, 2, '[', ']', ' … ', 18) AS snippet
                 FROM capsules_fts
                 JOIN sessions AS s USING(source_id)
@@ -821,6 +825,9 @@ class TangRepository:
             ),
             None,
         )
+        native_available = True
+        if "native_available" in row.keys():
+            native_available = bool(row["native_available"])
         return DiscoveryRow(
             source_id=row["source_id"],
             handle=row["session_handle"],
@@ -846,4 +853,6 @@ class TangRepository:
             title_origin=optional_text("title_origin"),
             visible_turn_count=optional_count("visible_turn_count"),
             visible_text_bytes=optional_count("visible_text_bytes"),
+            git_branch=optional_text("git_branch"),
+            native_available=native_available,
         )

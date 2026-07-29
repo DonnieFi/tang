@@ -76,9 +76,10 @@ class SessionHeader:
     model_provider: str | None = None
     model_id: str | None = None
     effort: str | None = None
+    git_branch: str | None = None
 
     def __post_init__(self) -> None:
-        for name in ("model_provider", "model_id", "effort"):
+        for name in ("model_provider", "model_id", "effort", "git_branch"):
             object.__setattr__(self, name, _header_value(getattr(self, name)))
 
     def merged_with(self, observed: SessionHeader) -> SessionHeader:
@@ -88,6 +89,7 @@ class SessionHeader:
             model_provider=observed.model_provider or self.model_provider,
             model_id=observed.model_id or self.model_id,
             effort=observed.effort or self.effort,
+            git_branch=observed.git_branch or self.git_branch,
         )
 
 
