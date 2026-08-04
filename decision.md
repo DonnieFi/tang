@@ -541,3 +541,71 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) keep research in tracked `docs/research/`; (b) move to `plan/research/` and `plan/spec-deltas/` with a tracked pointer README; (c) delete research from repo entirely.
 - Decision: (b) — private planning material lives under `/plan/`; tracked tree keeps `docs/research/README.md` and approved spec in `docs/tangspec.md`. Serves: Design, Quality of Idea.
 - By: human and agent
+
+## 2026-07-28T00:00:00Z · tang-6wm · Index-time git_branch for Option B cards
+- Context: Session cards need per-session branch without becoming a multiverse surface or probing git per session at render time.
+- Options: (a) omit branch entirely; (b) render-time `git rev-parse` per session cwd; (c) index native evidence only (Codex `session_meta.payload.git.branch`, Claude JSONL `gitBranch`), omit segment when absent; grid header shows project basename + current HEAD once.
+- Decision: (c) Option B + branch — cards stay a compact discovery scan; topology stays on `tang graph`. Existing DBs need re-index (or purge+index) before branch appears. Serves: Design, Technological Implementation.
+- By: human (2026-07-24 design choice in session-cards-design.html) and agent (implementation on epic/12-session-cards)
+
+## 2026-07-29T01:18:16Z · tang-6wm.11 · Bounded, redacted cards presentation
+- Context: Review found that the cards view fetched all sessions before applying its visual limit and displayed live Git metadata outside Tang's display redaction seam; `--json` also silently discarded cards presentation flags.
+- Options: (a) preserve permissive behavior; (b) define a cards-specific JSON schema; (c) bound the existing browse query, redact live header metadata, reject the undefined JSON/cards combination, and extend the existing STEEL/TEAL palette into brief rows.
+- Decision: (c) — cards remain a human terminal presentation, use the existing deterministic browse JSON when requested separately, and never place live branch/project metadata on screen before redaction. Serves: Quality of Idea, Design, Technological Implementation.
+- By: human (requested fixes and colour) and agent (bounded implementation decision)
+
+## 2026-07-29T01:41:06Z · tang-6wm.12 · Per-harness cards colour
+- Context: The cards' capability line needed concise wording to keep the resume action visible at minimum width, and the human requested visually distinct harnesses.
+- Options: (a) retain verbose neutral labels; (b) colour full cards but leave brief rows neutral; (c) use compact capability labels and one stable ANSI colour per supported harness in the shared card theme.
+- Decision: (c) — `reread · turns · resume` remains readable at the 38-column minimum; Codex, Grok, OpenCode, Cursor, Claude, and Antigravity each receive a distinct colour in headers and brief rows, with colour-off/ASCII output unchanged. Serves: Design, Quality of Idea.
+- By: human (requested harness distinction) and agent (palette implementation)
+
+## 2026-08-03T21:58:11Z · tang-6wm.14 · Option A card hierarchy and owned metadata
+- Context: Human visual review found the cards information-rich but difficult to scan because teal was repeated across identity, branch, title, and capabilities; the review requested explicit turns, custom titles, current Git status, and main/subagent role when available.
+- Options: (a) scan-first cards with full harness names, explicit `N turns`, neutral title/context, one identity accent, and one current Git header; (b) dense metadata-first cards with more facts in the header. For titles: overwrite native title or keep a separate user-owned override. For Git: probe every historical session or summarize only the current worktree.
+- Decision: (a) — keep full harness names, color only harness identity plus semantic health/action states, render `N turns`, persist custom titles in `session_overrides`, show evidence-qualified `main agent`/`subagent`, and summarize current Git status once in the project header. Native titles remain intact; historical sessions are never live-probed. Serves: Design, Technological Implementation, Quality of Idea.
+- By: human (Option A and requested metadata) and agent (implementation seam and independent UX review)
+
+## 2026-08-04T00:24:18Z · tang-6wm.15 · High-contrast harness palette
+- Context: The first restrained palette still made green compete with other identity colors and made completion/action states too prominent during visual review.
+- Options: Keep the current palette; use a brighter, distinct non-green identity palette; add more color to every metadata field.
+- Decision: Use cyan, amber, violet, blue, rose, and coral for harness identity, with a quiet ice-blue for completion/actions while leaving layout and data unchanged — serves: Design, Quality of Idea.
+- By: human direction, implemented by agent
+
+## 2026-08-04T00:33:27Z · tang-6wm.16 · Outline and turn-count hierarchy
+- Context: The harness palette was less noisy but the card frame still lacked a deliberate visual role, while turn counts were too easy to miss during scanning.
+- Options: Add more colored metadata; tint each border by harness; use one restrained frame color and one shared turn-count accent.
+- Decision: Use a slate outline for structure and a warm-gold accent for visible turn counts in grid and brief modes; keep all other metadata treatment unchanged — serves: Design, Quality of Idea.
+- By: human direction, implemented by agent
+
+## 2026-08-04T00:46:44Z · tang-6wm.17 · ColorBrewer-derived harness identity palette
+- Context: Several hand-tuned palettes still felt visually arbitrary and the earlier green-heavy treatment reduced scan clarity.
+- Options: Keep hand-tuned colors; use ColorBrewer Dark2; use a selected subset of ColorBrewer Set3's qualitative colors.
+- Decision: Use six light Set3 colors—blue, pale yellow, lavender, orange, pink, and salmon—omitting mint and gray for dark-terminal readability; keep full harness names as the non-color identity cue. Serves: Design, Quality of Idea.
+- Reference: [ColorBrewer qualitative guidance](https://colorbrewer2.org/learnmore/schemes.html) and [Set3 scheme data](https://github.com/axismaps/colorbrewer/blob/master/colorbrewer_schemes.js).
+- By: human direction, researched and implemented by agent
+
+## 2026-08-04T01:06:55Z · tang-gl9 · Bounded index diagnostics for terminal output
+- Context: A single index could print the same unresolved project-hint warning once per changed foreign session, obscuring the useful explanation; duplicate foreign diagnostics had the same noise pattern.
+- Options: Keep every line; deduplicate silently; emit one counted info summary while retaining warning counts, status, and JSON detail.
+- Decision: Emit one counted human-facing `info` summary for unresolved project hints and collapse duplicate diagnostics, while leaving indexing behavior, exit status, and machine-readable counts unchanged. Serves: Design, Quality of Idea.
+- By: human direction, implemented by agent
+
+## 2026-08-04T01:14:47Z · tang-6wm.18 · Evidence-qualified compaction marker
+- Context: Cards already identified main/subagent when native metadata proved it, but Tang did not distinguish a Codex session whose native log had undergone context compaction from one with no such evidence.
+- Options: Infer compaction from turn counts or timestamps; add an all-harness boolean with guessed false values; detect Codex `compacted`/`context_compacted` records and leave unsupported harnesses unknown.
+- Decision: Persist an optional `compacted` marker in session headers (version 3), detect only explicit Codex markers, and show `compacted` beside the existing clean `main agent`/`subagent` label in cards, brief output, and discovery JSON. Serves: Technological Implementation, Design, Quality of Idea.
+- Reference: [Codex compaction issue evidence](https://github.com/openai/codex/issues/24948) and [Codex context-compaction event evidence](https://github.com/openai/codex/issues/29426).
+- By: human direction, researched and implemented by agent
+
+## 2026-08-04T11:05:34Z · tang-6wm.19 · Semantic card color lanes
+- Context: Visual review found that the card's effort badge did not communicate low-to-max escalation, structural labels competed with status colors, and agent identity was not visually separable from risk or state.
+- Options: Keep the existing mixed palette; color every field more strongly; or assign separate identity, risk, status, structure, and action lanes using the reviewed reference values.
+- Decision: Use the reviewed palette: exact Codex/Grok identity colors, non-risk identity colors for the remaining harnesses, a green→amber→orange→red risk ramp for evidence-backed effort tiers, green/red completion/error status, violet unverified, slate compacted, gray structural text, and uniform dim-blue actions. Tang's existing `effort` field supplies the low/medium/high/max badge; no unverified risk column is invented. Serves: Design, Technological Implementation, Quality of Idea.
+- By: human direction and agent implementation
+
+## 2026-08-04T11:32:06Z · tang-6wm.20 · README session-card evidence
+- Context: Human visual approval was given for the reviewed session-card treatment, but the source reference was an HTML fragment with a large white capture margin rather than a repository-owned image.
+- Options: Link the external/local HTML only; embed the untrimmed screenshot; or render the approved fragment headlessly, trim the white margin, and include the PNG in README and the source distribution manifest.
+- Decision: Keep a 1152×178 cropped PNG at `docs/assets/tang-session-cards.png`, embed it beside the cards documentation, and list it in `MANIFEST.in`. The source HTML remains outside the repository. Serves: Design, Quality of Idea, Technological Implementation.
+- By: human visual approval and agent implementation

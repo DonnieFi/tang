@@ -99,6 +99,7 @@ class ProjectIndexer:
         warnings: list[IndexWarning] = []
         diagnostics: list[IndexDiagnostic] = []
         timestamp = now or datetime.now(timezone.utc)
+        refresh_native_metadata = False
 
         # Existing Capsule labels are already redacted, bounded, and persisted.
         # Refresh their current algorithm before deriving session titles from
@@ -107,9 +108,11 @@ class ProjectIndexer:
             for session in self._repository.sessions_for_project(active_project.key):
                 capsule = self._repository.get_capsule(session.source.identity.canonical)
                 if capsule is None:
+                    refresh_native_metadata = True
                     continue
                 if not self._capsules.needs_label_refresh(capsule):
                     continue
+                refresh_native_metadata = True
                 refreshed_capsule = self._capsules.refresh_display_label(capsule)
                 if refreshed_capsule is None:
                     continue
@@ -123,8 +126,12 @@ class ProjectIndexer:
             self._repository.backfill_untitled_sessions(active_project.key)
 
         for adapter in adapters:
-            prior_checkpoint = self._repository.get_checkpoint(
-                adapter.adapter_key, adapter.source_namespace, active_project.key
+            prior_checkpoint = (
+                None
+                if refresh_native_metadata
+                else self._repository.get_checkpoint(
+                    adapter.adapter_key, adapter.source_namespace, active_project.key
+                )
             )
             scan = adapter.scan(prior_checkpoint)
             pending: list[tuple[SourceRecord, StoredCapsule]] = []

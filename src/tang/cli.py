@@ -32,7 +32,7 @@ from tang.discovery import (
 from tang.doctor import doctor_exit_code, run_doctor
 from tang.graph import GraphService
 from tang.health import health_label, health_style
-from tang.indexing import IndexResult, ProjectIndexer
+from tang.indexing import IndexDiagnostic, IndexResult, ProjectIndexer
 from tang.project import ProjectIdentity, resolve_project
 from tang.redaction import (
     ContentKind,
@@ -43,6 +43,15 @@ from tang.redaction import (
 from tang.render import STEEL, TEAL, render_multiverse
 from tang.repository import TangRepository
 from tang.resume import ResumeError, ResumeService
+from tang.session_cards import (
+    DEFAULT_CARDS_LIMIT,
+    current_git_branch,
+    current_git_status,
+    project_basename,
+    render_cards_brief,
+    render_cards_grid,
+    session_card_from_item,
+)
 from tang.skill_install import install_claude_skill, install_codex_skill, install_opencode_skill
 from tang.storage import DatabaseOpenError, open_database, project_data_path
 from tang.timeutil import rfc3339
@@ -55,6 +64,15 @@ from tang.target import (
     resolve_current_target,
     resolve_destination_target,
     resolve_opencode_target,
+)
+
+_DISCOVERY_HARNESS_CHOICES = (
+    "codex",
+    "grok",
+    "opencode",
+    "cursor",
+    "claude",
+    "antigravity",
 )
 
 
@@ -88,8 +106,42 @@ def build_parser() -> argparse.ArgumentParser:
     index.add_argument("--claude-home", type=Path)
     index.add_argument("--antigravity-home", type=Path)
     index.add_argument("--opencode-executable", type=Path)
-    browse = subparsers.add_parser("browse", help="list current-project sessions")
+    browse = subparsers.add_parser(
+        "browse",
+        help="list current-project sessions",
+        description=(
+            "List indexed sessions for the current project. Default output is a "
+            "paged table. --cards renders a compact discovery card grid "
+            "(smaller scan surface than tang graph); --brief is a fixed-column "
+            "scan table. Use tang graph for multiverse topology."
+        ),
+    )
     _add_discovery_arguments(browse)
+    _add_cards_arguments(browse)
+    cards = subparsers.add_parser(
+        "cards",
+        help="compact session cards (alias for browse --cards)",
+        description=(
+            "Compact discovery scan of indexed sessions. Cards answer which "
+            "session to inspect; tang graph shows how sessions connect."
+        ),
+    )
+    _add_discovery_arguments(cards)
+    _add_cards_arguments(cards, cards_default=True)
+    title = subparsers.add_parser(
+        "title",
+        help="set or clear a user-owned session title",
+        description="Set a custom title without changing native session history.",
+    )
+    title.add_argument("session", help="project handle or exact indexed source ID")
+    title.add_argument("title_value", nargs="?", help="new custom title")
+    title.add_argument(
+        "--clear",
+        action="store_true",
+        help="remove the custom title and restore the derived/native title",
+    )
+    title.add_argument("--database", type=Path)
+    title.add_argument("--cwd", type=Path, default=Path.cwd())
     search = subparsers.add_parser("search", help="search current-project capsules")
     search.add_argument(
         "query",
@@ -298,7 +350,7 @@ def _add_discovery_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--json", action="store_true", dest="as_json")
     parser.add_argument("--database", type=Path)
     parser.add_argument("--cwd", type=Path, default=Path.cwd())
-    parser.add_argument("--harness", choices=("codex", "grok", "opencode"))
+    parser.add_argument("--harness", choices=_DISCOVERY_HARNESS_CHOICES)
     parser.add_argument("--health", choices=tuple(health.value for health in SessionHealth))
     parser.add_argument("--since", type=_timestamp)
     parser.add_argument("--until", type=_timestamp)
@@ -318,6 +370,57 @@ def _add_discovery_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_cards_arguments(
+    parser: argparse.ArgumentParser, *, cards_default: bool = False
+) -> None:
+    parser.add_argument(
+        "--cards",
+        action="store_true",
+        default=cards_default,
+        help=(
+            "render a compact card grid for discovery scan "
+            "(not the Multiverse Map; use tang graph for topology)"
+        ),
+    )
+    parser.add_argument(
+        "--brief",
+        action="store_true",
+        help="with --cards, render a fixed-column scan table instead of the grid",
+    )
+    parser.add_argument(
+        "--limit",
+        type=_cards_limit,
+        default=None,
+        help=(
+            f"with --cards, maximum sessions to show (1-100; default: {DEFAULT_CARDS_LIMIT})"
+        ),
+    )
+    parser.add_argument(
+        "--width",
+        type=int,
+        help="terminal width for card layout (default: detect)",
+    )
+    parser.add_argument(
+        "--color",
+        choices=("auto", "always", "never"),
+        default="auto",
+        help="terminal color policy for cards (default: auto)",
+    )
+    cards_layout = parser.add_mutually_exclusive_group()
+    cards_layout.add_argument(
+        "--ascii",
+        action="store_true",
+        dest="ascii_only",
+        help="force ASCII card borders",
+    )
+    cards_layout.add_argument(
+        "--unicode",
+        action="store_true",
+        dest="force_unicode",
+        help="force Unicode card borders when capturing redirected output",
+    )
+
+
 def _search_limit(value: str) -> int:
     try:
         parsed = int(value)
@@ -325,6 +428,16 @@ def _search_limit(value: str) -> int:
         raise argparse.ArgumentTypeError("search limit must be an integer") from error
     if not 1 <= parsed <= 100:
         raise argparse.ArgumentTypeError("search limit must be between 1 and 100")
+    return parsed
+
+
+def _cards_limit(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("cards limit must be an integer") from error
+    if not 1 <= parsed <= 100:
+        raise argparse.ArgumentTypeError("cards limit must be between 1 and 100")
     return parsed
 
 
@@ -381,7 +494,29 @@ def _redacted_index_message(code: str, message: str) -> str:
 
 
 def _show_warnings(result: IndexResult) -> None:
+    project_hint_warnings = tuple(
+        warning
+        for warning in result.warnings
+        if warning.code == "project-hint-unavailable"
+    )
+    if project_hint_warnings:
+        known_sources = {
+            warning.source_id
+            for warning in project_hint_warnings
+            if warning.source_id is not None
+        }
+        count = len(known_sources) + sum(
+            warning.source_id is None for warning in project_hint_warnings
+        )
+        noun = "session" if count == 1 else "sessions"
+        print(
+            f"info: skipped {count} changed {noun} with unresolved project hints; "
+            "they may belong to moved or deleted projects and will be retried.",
+            file=sys.stderr,
+        )
     for warning in result.warnings:
+        if warning.code == "project-hint-unavailable":
+            continue
         print(
             f"warning: {_redacted_index_message(warning.code, warning.message)}",
             file=sys.stderr,
@@ -389,10 +524,17 @@ def _show_warnings(result: IndexResult) -> None:
 
 
 def _show_diagnostics(result: IndexResult) -> None:
+    grouped: dict[tuple[str, str, str], list[IndexDiagnostic]] = {}
     for diagnostic in result.diagnostics:
+        grouped.setdefault(
+            (diagnostic.scope, diagnostic.code, diagnostic.message), []
+        ).append(diagnostic)
+    for (scope, code, message), diagnostics in grouped.items():
+        display = _redacted_index_message(code, message)
+        if len(diagnostics) > 1:
+            display = f"{display} (repeated {len(diagnostics)} times)"
         print(
-            f"diagnostic[{diagnostic.scope}]: "
-            f"{_redacted_index_message(diagnostic.code, diagnostic.message)}",
+            f"diagnostic[{scope}]: {display}",
             file=sys.stderr,
         )
 
@@ -532,6 +674,45 @@ def _run_index(args: argparse.Namespace) -> int:
     return 1 if result.status == "partial" else 0
 
 
+def _run_title(args: argparse.Namespace) -> int:
+    project = resolve_project(args.cwd)
+    database = _required_database_for(args, project)
+    if database is None:
+        return 2
+    if args.clear and args.title_value is not None:
+        print("error: --clear cannot be combined with a title", file=sys.stderr)
+        return 2
+    if not args.clear and not args.title_value:
+        print("error: provide a title or use --clear", file=sys.stderr)
+        return 2
+    connection = open_database(database)
+    try:
+        repository = TangRepository(connection)
+        try:
+            source_id = repository.resolve_session_token(args.session, project.key)
+        except ValueError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 2
+        try:
+            with repository.transaction():
+                repository.set_custom_title(
+                    source_id,
+                    project.key,
+                    None if args.clear else args.title_value,
+                    datetime.now(timezone.utc),
+                )
+        except ValueError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 2
+    finally:
+        connection.close()
+    if args.clear:
+        print(f"Cleared custom title for {args.session}.")
+    else:
+        print(f"Set custom title for {args.session}.")
+    return 0
+
+
 def _discovery_document(
     item: DiscoveryItem, *, choice_number: int | None = None
 ) -> dict[str, object]:
@@ -540,8 +721,13 @@ def _discovery_document(
         "display_name": item.display_name,
         "harness": item.harness,
         "health": item.health.value,
+        "native_available": item.native_available,
+        "custom_title": item.custom_title,
         "session_header": {
+            "agent_role": item.agent_role,
+            "compacted": item.compacted,
             "effort": item.effort,
+            "git_branch": item.git_branch,
             "model_id": item.model_id,
             "model_provider": item.model_provider,
             "title_origin": item.title_origin,
@@ -669,6 +855,10 @@ def _header_label(item: DiscoveryItem) -> str:
         parts.append(f"~{item.visible_text_bytes / 1024:.1f} KiB visible")
     if item.title_origin:
         parts.append(item.title_origin.replace("_", " "))
+    if item.agent_role:
+        parts.append("main agent" if item.agent_role == "main" else "subagent")
+    if item.compacted is True:
+        parts.append("compacted")
     return " · ".join(parts)
 
 
@@ -676,6 +866,32 @@ def _run_discovery(args: argparse.Namespace) -> int:
     project = resolve_project(args.cwd)
     database = _required_database_for(args, project)
     if database is None:
+        return 2
+    cards_mode = bool(getattr(args, "cards", False) or args.command == "cards")
+    brief_mode = bool(getattr(args, "brief", False))
+    cards_limit = (
+        args.limit if getattr(args, "limit", None) is not None else DEFAULT_CARDS_LIMIT
+    ) if cards_mode else None
+    if cards_mode and args.as_json:
+        print(
+            "error: cards presentation does not support --json; use tang browse --json",
+            file=sys.stderr,
+        )
+        return 2
+    if brief_mode and not cards_mode:
+        print("error: --brief requires --cards (or tang cards)", file=sys.stderr)
+        return 2
+    if getattr(args, "limit", None) is not None and not cards_mode and args.command != "search":
+        print(
+            "error: --limit applies to cards view; use tang browse --cards --limit N",
+            file=sys.stderr,
+        )
+        return 2
+    if cards_mode and args.page is not None:
+        print(
+            "error: --page does not apply to cards view; use --limit to bound results",
+            file=sys.stderr,
+        )
         return 2
     connection = open_database(database)
     try:
@@ -704,6 +920,7 @@ def _run_discovery(args: argparse.Namespace) -> int:
                 else service.browse(
                     project_key,
                     filters,
+                    limit=cards_limit,
                     exclude_source_ids=excluded_source_ids,
                 )
             )
@@ -712,6 +929,34 @@ def _run_discovery(args: argparse.Namespace) -> int:
             return 2
     finally:
         connection.close()
+
+    if cards_mode and not args.as_json:
+        assert cards_limit is not None
+        selected = items[:cards_limit]
+        cards = tuple(session_card_from_item(item) for item in selected)
+        width = getattr(args, "width", None) or max(
+            shutil.get_terminal_size((100, 24)).columns, 40
+        )
+        color = _color_enabled(getattr(args, "color", "auto"), sys.stdout)
+        ascii_only = bool(getattr(args, "ascii_only", False)) or (
+            not getattr(args, "force_unicode", False)
+            and not _supports_unicode(sys.stdout)
+        )
+        renderer = render_cards_brief if brief_mode else render_cards_grid
+        print(
+            renderer(
+                cards,
+                width=width,
+                color=color,
+                ascii_only=ascii_only,
+                project_name=project_basename(args.cwd),
+                current_branch=current_git_branch(args.cwd),
+                git_status=current_git_status(args.cwd),
+            ),
+            end="",
+        )
+        return 0
+
     page: DiscoveryPage | None = None
     if not args.as_json or args.page is not None:
         try:
@@ -1332,7 +1577,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "index":
             return _run_index(args)
-        if args.command in {"browse", "search"}:
+        if args.command == "title":
+            return _run_title(args)
+        if args.command in {"browse", "search", "cards"}:
             return _run_discovery(args)
         if args.command == "context":
             return _run_context(args)

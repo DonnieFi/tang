@@ -20,7 +20,7 @@ Under `.tang/tang.db` for the **current project only**:
 | --- | --- | --- |
 | Discovery Capsules | yes | Find sessions by phrase |
 | FTS index | yes | Search capsules |
-| Session metadata | yes | Handles, harness, health, timestamps |
+| Session metadata | yes | Handles, harness, health, timestamps, evidence-qualified role, and Codex compaction marker |
 | Continuation edges | yes | Multiverse graph |
 | Context Pack / Brief | no (not stored) | Generated on demand |
 
@@ -51,7 +51,9 @@ evidence without creating new edges.
 
 ## What Tang does not do
 
-- Prevent or inspect host compaction.
+- Prevent host compaction or inspect its contents. Tang records a `compacted`
+  marker for Codex when the native log contains `compacted` or
+  `context_compacted` evidence; other harnesses may remain unknown.
 - Restore host-deleted native logs.
 - Store GPT-generated Continuation Briefs in `.tang`.
 

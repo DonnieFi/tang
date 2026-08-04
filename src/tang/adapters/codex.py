@@ -411,6 +411,7 @@ class CodexAdapter:
         last_lifecycle: str | None = None
         model_id: str | None = None
         effort: str | None = None
+        compacted = False
         source_valid = True
         with log_path.open("r", encoding="utf-8") as source:
             for line_number, line in enumerate(source, start=1):
@@ -457,8 +458,12 @@ class CodexAdapter:
                     row.get("payload"), dict
                 ):
                     event_type = row["payload"].get("type")
+                    if event_type == "context_compacted":
+                        compacted = True
                     if event_type in {"task_started", "task_complete"}:
                         last_lifecycle = event_type
+                if row.get("type") == "compacted":
+                    compacted = True
                 if row.get("type") == "turn_context" and isinstance(
                     row.get("payload"), dict
                 ):
@@ -522,6 +527,13 @@ class CodexAdapter:
                     identity,
                 )
             )
+        git_branch = None
+        if metadata is not None:
+            git_payload = metadata.get("git")
+            if isinstance(git_payload, dict):
+                branch_value = git_payload.get("branch")
+                if isinstance(branch_value, str):
+                    git_branch = branch_value
         return (
             SourceRecord(
                 identity=identity,
@@ -536,14 +548,45 @@ class CodexAdapter:
                     else SessionHealth.UNKNOWN
                 ),
                 header=SessionHeader(
-                    model_provider=metadata.get("model_provider"),
+                    model_provider=metadata.get("model_provider") if metadata else None,
                     model_id=model_id,
                     effort=effort,
+                    git_branch=git_branch,
+                    agent_role=self._agent_role(metadata),
+                    compacted=compacted if source_valid else None,
                 ),
             ),
             tuple(warnings),
             source_valid,
         )
+
+    @staticmethod
+    def _agent_role(metadata: dict[str, Any] | None) -> str | None:
+        """Classify only roles explicitly evidenced by Codex metadata."""
+
+        if not metadata:
+            return None
+        for key in ("parent_thread_id", "parent_session_id", "parent_id"):
+            value = metadata.get(key)
+            if isinstance(value, str) and value.strip():
+                return "subagent"
+        thread_source = metadata.get("thread_source")
+        if isinstance(thread_source, dict):
+            return "subagent"
+        if isinstance(thread_source, str) and thread_source.strip().casefold() in {
+            "subagent",
+            "sub-agent",
+        }:
+            return "subagent"
+        source = metadata.get("source")
+        if isinstance(source, str) and source.strip().casefold() in {
+            "cli",
+            "codex_cli",
+            "codex_cli_rs",
+            "main",
+        }:
+            return "main"
+        return None
 
     def _validated_log(self, log_path: Path) -> Path:
         if log_path.is_symlink():

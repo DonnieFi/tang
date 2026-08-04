@@ -23,8 +23,8 @@ from tang.adapters import (
     TurnBatch,
     TurnSelection,
 )
-from tang.cli import main
-from tang.indexing import ProjectIndexer
+from tang.cli import _show_diagnostics, _show_warnings, main
+from tang.indexing import IndexDiagnostic, IndexResult, IndexWarning, ProjectIndexer
 from tang.project import resolve_project
 from tang.repository import TangRepository
 from tang.storage import open_database
@@ -48,6 +48,34 @@ def point_corpus_at_projects(discovery_corpus, current: Path, foreign: Path) -> 
     payload = json.loads(summary.read_text())
     payload["git_root_dir"] = str(current)
     summary.write_text(json.dumps(payload, separators=(",", ":")))
+
+
+def test_index_messages_summarize_repeated_entries(capsys) -> None:
+    result = IndexResult(
+        indexed=0,
+        deleted=0,
+        unchanged=0,
+        excluded=0,
+        warnings=(
+            IndexWarning("project-hint-unavailable", "unresolved", "codex:a"),
+            IndexWarning("project-hint-unavailable", "unresolved", "codex:b"),
+            IndexWarning("malformed-summary", "summary fallback", "grok:c"),
+        ),
+        diagnostics=(
+            IndexDiagnostic("missing-updates", "missing updates", "foreign"),
+            IndexDiagnostic("missing-updates", "missing updates", "foreign"),
+        ),
+    )
+
+    _show_warnings(result)
+    _show_diagnostics(result)
+
+    captured = capsys.readouterr()
+    assert captured.err.count("info:") == 1
+    assert "skipped 2 changed sessions with unresolved project hints" in captured.err
+    assert captured.err.count("warning:") == 1
+    assert captured.err.count("diagnostic[foreign]") == 1
+    assert "repeated 2 times" in captured.err
 
 
 def write_grok_session(

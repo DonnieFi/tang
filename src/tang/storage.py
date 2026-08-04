@@ -175,6 +175,20 @@ MIGRATIONS: tuple[Migration, ...] = (
             """,
         ),
     ),
+    (
+        8,
+        (
+            """
+            CREATE TABLE session_overrides (
+                source_id TEXT PRIMARY KEY REFERENCES sessions(source_id) ON DELETE CASCADE,
+                project_key TEXT NOT NULL,
+                custom_title TEXT NOT NULL CHECK(length(custom_title) > 0),
+                updated_at TEXT NOT NULL
+            )
+            """,
+            "CREATE INDEX session_overrides_project ON session_overrides(project_key, source_id)",
+        ),
+    ),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 

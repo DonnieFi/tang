@@ -54,11 +54,14 @@ def test_capsule_contains_redacted_permitted_evidence_and_citations(
         "visible-user-agent-turns",
     ]
     assert capsule.content["session_header"] == {
+        "agent_role": "main",
+        "compacted": False,
         "effort": "high",
+        "git_branch": "main",
         "model_id": "gpt-5.6-sol",
         "model_provider": "openai",
         "title_origin": "derived_goal",
-        "version": 1,
+        "version": 3,
         "visible_text_bytes": sum(len(turn.text.encode("utf-8")) for turn in warned.turns),
         "visible_turn_count": len(warned.turns),
     }
