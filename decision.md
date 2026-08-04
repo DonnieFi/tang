@@ -609,3 +609,8 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: Link the external/local HTML only; embed the untrimmed screenshot; or render the approved fragment headlessly, trim the white margin, and include the PNG in README and the source distribution manifest.
 - Decision: Keep a 1152×178 cropped PNG at `docs/assets/tang-session-cards.png`, embed it beside the cards documentation, and list it in `MANIFEST.in`. The source HTML remains outside the repository. Serves: Design, Quality of Idea, Technological Implementation.
 - By: human visual approval and agent implementation
+
+## 2026-08-04T22:34:59Z · tang-6wm.9 · Epic 12 promotion
+- Context: Human approved the session-card visual and directed that the reviewed Epic 12 branch be merged into `main` before pushing to GitHub.
+- Decision: Preserve milestone `epic/12-session-cards` at `41e18e44a4cc3cd80a97dcf70310880073ca34c1`; update local `main` from `origin/main` and merge the milestone with merge commit `2817a5575dafee8282aa5bcee9ee421cfe7ba421`. The merge remains subject to the remote push and final human-gated epic closure.
+- By: human direction and agent implementation
