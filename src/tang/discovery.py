@@ -51,6 +51,9 @@ class DiscoveryItem:
     visible_turn_count: int | None
     visible_text_bytes: int | None
     git_branch: str | None = None
+    custom_title: str | None = None
+    agent_role: str | None = None
+    compacted: bool | None = None
     native_available: bool = True
 
 
@@ -136,6 +139,7 @@ class DiscoveryService:
         project_key: str,
         filters: DiscoveryFilter = DiscoveryFilter(),
         *,
+        limit: int | None = None,
         exclude_source_ids: tuple[str, ...] = (),
     ) -> tuple[DiscoveryItem, ...]:
         return self._items(
@@ -145,6 +149,7 @@ class DiscoveryService:
                 health=filters.health,
                 since=filters.since,
                 until=filters.until,
+                limit=limit,
                 exclude_source_ids=exclude_source_ids,
             )
         )
@@ -194,6 +199,11 @@ class DiscoveryService:
             visible_turn_count=row.visible_turn_count,
             visible_text_bytes=row.visible_text_bytes,
             git_branch=self._header_field(row.git_branch, row.source_id),
+            custom_title=self._redact(
+                row.custom_title, ContentKind.TITLE, row.source_id
+            ),
+            agent_role=self._header_field(row.agent_role, row.source_id),
+            compacted=row.compacted,
             native_available=row.native_available,
         )
 

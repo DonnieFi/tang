@@ -361,11 +361,17 @@ def _merge_header(payload: dict[str, object], header: SessionHeader) -> SessionH
     # an earlier valid branch (mirrors SessionHeader.merged_with semantics).
     if isinstance(raw_branch, str) and raw_branch.strip():
         git_branch = raw_branch
+    agent_role = header.agent_role
+    if payload.get("isSidechain") is True:
+        agent_role = "subagent"
+    elif payload.get("isSidechain") is False and agent_role is None:
+        agent_role = "main"
     return SessionHeader(
         model_provider=header.model_provider or "anthropic",
         model_id=model_id,
         effort=header.effort,
         git_branch=git_branch,
+        agent_role=agent_role,
     )
 
 

@@ -450,6 +450,8 @@ def test_catalog_includes_child_sessions_and_filters_exact_directory(
         SESSION_ID,
         "ses_tangChild000000000000000000002",
     ]
+    assert scan.records[0].header.agent_role == "main"
+    assert scan.records[1].header.agent_role == "subagent"
 
 
 def test_catalog_bound_returns_deterministic_partial_without_deletions(

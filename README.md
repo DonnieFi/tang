@@ -291,6 +291,7 @@ OpenCode. The CLI stays scriptable and does not introduce a competing selector.
 | `tang browse [--page N]` | Show up to five numbered, redacted sessions with short project handles such as `C1` or `G2` |
 | `tang browse --cards [--brief] [--limit N]` | Compact discovery **session cards** (or a fixed-column brief table)—scan which session to open; smaller than the Multiverse Map |
 | `tang cards` | Alias for `tang browse --cards` |
+| `tang title HANDLE "TITLE"` | Set a user-owned session title; use `--clear` to restore the native/derived title |
 | `tang search QUERY [--page N] [--limit N]` | Search redacted Discovery Capsules and show numbered choices; simple keywords or quoted phrases are recommended |
 | `tang context [SESSION...]` | Produce a compact Markdown or JSON Context Pack; bare context and `context all` recall confirmed predecessors of the latest unambiguous target, while `context N` limits link depth |
 | `tang link --from SESSION... --current` | Record selected sources into an explicitly confirmed current Codex session |
@@ -323,17 +324,32 @@ Search returns up to 20 results by default; use `--limit N` (1-100) when a
 larger current-project result set is useful before paging.
 
 **Session cards** (`tang browse --cards` or `tang cards`) are a compact
-discovery scan—not a graph replacement. Each card shows handle, harness, model,
-health, indexed `git_branch` when native evidence supplied it at index time,
-relative age, turn count, capabilities, focus title, and a short context
-snippet, with `@ tang resume HANDLE` as the action hint. The grid header shows
-the project basename and the **current** git branch once for orientation.
+discovery scan—not a graph replacement. Each card shows the full harness name,
+handle, model, health, explicit turn count, indexed `git_branch` when native
+evidence supplied it at index time, evidence-qualified `main agent` or
+`subagent` role, a Codex `compacted` marker when native evidence supplied it,
+capabilities, title, and a short context snippet, with
+`@ tang resume HANDLE` as the action hint. `tang title HANDLE "TITLE"` stores a
+redacted user-owned title override without changing native history. The grid
+header shows the project basename, **current** git branch, and bounded current
+worktree status once for orientation; historical sessions are never probed for
+live Git status.
 Cards intentionally omit multiverse topology and predecessor edges—use
 `tang graph` for relationships. `--brief` switches to a fixed-column table
-(HANDLE, HARNESS, BRANCH, UPDATED, HEALTH, TURNS, SUMMARY). Default card limit
-is 12 (`--limit` only applies with `--cards`). After upgrading, run `tang index`
-(or purge then index) so existing capsules pick up `git_branch` from native
-evidence—branch is not probed per session at render time.
+(HANDLE, HARNESS, BRANCH, UPDATED, HEALTH, TURNS, ROLE, COMPACT, SUMMARY).
+With color enabled, harness identity, effort tiers (`low` through `max`),
+health/compaction status, structural labels, and action hints use separate
+semantic lanes so color reinforces the scan instead of competing with it.
+
+![Human-approved Tang session cards showing harness identity, effort tiers, health, compaction, turns, and resume actions.](docs/assets/tang-session-cards.png)
+
+*Human-approved session-card treatment: identity first, risk and status
+semantics second, with structural labels kept quiet for fast scanning.*
+
+Default card limit is 12 (`--limit` only applies with `--cards`). After upgrading, run
+`tang index` (or purge then index) so existing capsules pick up native metadata.
+Cards are a human terminal presentation; use `tang browse --json` for
+structured discovery data.
 
 Continuation is never automatic. After selecting sources and reviewing the
 Context Pack, confirm one target and run `tang link`; then use `tang graph` on

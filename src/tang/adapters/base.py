@@ -77,10 +77,22 @@ class SessionHeader:
     model_id: str | None = None
     effort: str | None = None
     git_branch: str | None = None
+    agent_role: str | None = None
+    compacted: bool | None = None
 
     def __post_init__(self) -> None:
-        for name in ("model_provider", "model_id", "effort", "git_branch"):
+        for name in (
+            "model_provider",
+            "model_id",
+            "effort",
+            "git_branch",
+            "agent_role",
+        ):
             object.__setattr__(self, name, _header_value(getattr(self, name)))
+        if self.agent_role not in {None, "main", "subagent"}:
+            object.__setattr__(self, "agent_role", None)
+        if self.compacted is not None and type(self.compacted) is not bool:
+            object.__setattr__(self, "compacted", None)
 
     def merged_with(self, observed: SessionHeader) -> SessionHeader:
         """Prefer exact reread evidence while retaining scan-only facts."""
@@ -90,6 +102,12 @@ class SessionHeader:
             model_id=observed.model_id or self.model_id,
             effort=observed.effort or self.effort,
             git_branch=observed.git_branch or self.git_branch,
+            agent_role=observed.agent_role or self.agent_role,
+            compacted=(
+                observed.compacted
+                if observed.compacted is not None
+                else self.compacted
+            ),
         )
 
 

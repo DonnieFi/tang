@@ -30,6 +30,7 @@ def test_scan_and_read_representative_visible_turns(codex_fixture_home: Path) ->
     assert len(scan.records) == 1
     record = scan.records[0]
     assert record.identity.adapter == "codex"
+    assert record.header.compacted is False
     assert record.project_hint == "/work/tang-demo"
     assert record.started_at.isoformat() == "2026-07-14T20:00:00+00:00"
     assert record.updated_at.isoformat() == "2026-07-14T20:01:02+00:00"
@@ -46,6 +47,29 @@ def test_scan_and_read_representative_visible_turns(codex_fixture_home: Path) ->
     assert all(turn.citation_locator.startswith("jsonl:") for turn in read.turns)
     assert all(turn.timestamp is not None for turn in read.turns)
     assert "agent_message" not in " ".join(turn.text for turn in read.turns)
+
+
+@pytest.mark.parametrize(
+    "marker",
+    [
+        {"type": "compacted"},
+        {
+            "type": "event_msg",
+            "payload": {"type": "context_compacted"},
+        },
+    ],
+)
+def test_scan_marks_codex_compaction_evidence(
+    copied_codex_home: Path, marker: dict[str, object]
+) -> None:
+    log = only_log(copied_codex_home)
+    marker["timestamp"] = "2026-07-14T20:02:00Z"
+    with log.open("a", encoding="utf-8") as destination:
+        destination.write(json.dumps(marker) + "\n")
+
+    record = fixture_adapter(copied_codex_home).scan(None).records[0]
+
+    assert record.header.compacted is True
 
 
 def test_incremental_scan_is_idempotent(codex_fixture_home: Path) -> None:

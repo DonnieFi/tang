@@ -25,7 +25,7 @@ _MAX_EXCERPT_CHARACTERS = 2_048
 _MAX_RECENT_EXCERPTS = 4
 _TRUNCATED = "…[Truncated]"
 _DISPLAY_NAME_VERSION = 3
-_SESSION_HEADER_VERSION = 1
+_SESSION_HEADER_VERSION = 3
 _SENTENCES = re.compile(r"(?<=[.!?])\s+")
 _TASK_VERBS = frozenset(
     {
@@ -234,7 +234,14 @@ class DiscoveryCapsuleBuilder:
         content["display_name"] = display_name
         content["display_name_truncated"] = truncated
         content["display_name_version"] = _DISPLAY_NAME_VERSION
-        content["session_header"] = {**header, "title_origin": title_origin}
+        content["session_header"] = {
+            **header,
+            "compacted": header.get("compacted")
+            if type(header.get("compacted")) is bool
+            else None,
+            "title_origin": title_origin,
+            "version": _SESSION_HEADER_VERSION,
+        }
         self._fit(content)
         encoded = _canonical(content)
         return StoredCapsule(
@@ -249,14 +256,15 @@ class DiscoveryCapsuleBuilder:
 
     def _session_header(
         self, source: SourceRecord, read: TurnBatch
-    ) -> tuple[dict[str, str | None], int]:
-        values: dict[str, str | None] = {}
+    ) -> tuple[dict[str, object], int]:
+        values: dict[str, object] = {}
         redaction_count = 0
         for key, value in (
             ("model_provider", source.header.model_provider),
             ("model_id", source.header.model_id),
             ("effort", source.header.effort),
             ("git_branch", source.header.git_branch),
+            ("agent_role", source.header.agent_role),
         ):
             if value is None:
                 values[key] = None
@@ -269,6 +277,7 @@ class DiscoveryCapsuleBuilder:
             )
             values[key] = result.text or None
             redaction_count += result.redaction_count
+        values["compacted"] = source.header.compacted
         return values, redaction_count
 
     @staticmethod

@@ -113,6 +113,9 @@ class DiscoveryRow:
     visible_turn_count: int | None = None
     visible_text_bytes: int | None = None
     git_branch: str | None = None
+    custom_title: str | None = None
+    agent_role: str | None = None
+    compacted: bool | None = None
     native_available: bool = True
 
 
@@ -306,6 +309,41 @@ class TangRepository:
         self._require_transaction()
         self._connection.execute(
             "UPDATE sessions SET title = ? WHERE source_id = ?", (title, source_id)
+        )
+
+    def set_custom_title(
+        self,
+        source_id: str,
+        project_key: str,
+        title: str | None,
+        updated_at: datetime,
+    ) -> None:
+        """Set or clear a user-owned title without changing native session data."""
+
+        self._require_transaction()
+        session = self._connection.execute(
+            "SELECT 1 FROM sessions WHERE source_id = ? AND project_key = ?",
+            (source_id, project_key),
+        ).fetchone()
+        if session is None:
+            raise ValueError("session is not indexed in the current project")
+        persisted = self._persisted_title(title)
+        if persisted is None:
+            self._connection.execute(
+                "DELETE FROM session_overrides WHERE source_id = ? AND project_key = ?",
+                (source_id, project_key),
+            )
+            return
+        self._connection.execute(
+            """
+            INSERT INTO session_overrides(source_id, project_key, custom_title, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(source_id) DO UPDATE SET
+                project_key=excluded.project_key,
+                custom_title=excluded.custom_title,
+                updated_at=excluded.updated_at
+            """,
+            (source_id, project_key, persisted, rfc3339(updated_at)),
         )
 
     def graph_sessions(
@@ -712,8 +750,10 @@ class TangRepository:
         )
         query = f"""
             SELECT s.source_id, s.session_handle, s.adapter, s.updated_at, s.health,
-                   s.native_available, c.content_json
+                   s.native_available, c.content_json, o.custom_title
             FROM sessions AS s JOIN capsules AS c USING(source_id)
+            LEFT JOIN session_overrides AS o
+                ON o.source_id = s.source_id AND o.project_key = s.project_key
             WHERE {' AND '.join(conditions)}
             ORDER BY s.updated_at DESC, s.source_id
             """
@@ -752,11 +792,13 @@ class TangRepository:
             rows = self._connection.execute(
                 f"""
                 SELECT s.source_id, s.session_handle, s.adapter, s.updated_at, s.health,
-                       s.native_available, c.content_json,
+                       s.native_available, c.content_json, o.custom_title,
                        snippet(capsules_fts, 2, '[', ']', ' … ', 18) AS snippet
                 FROM capsules_fts
                 JOIN sessions AS s USING(source_id)
                 JOIN capsules AS c USING(source_id)
+                LEFT JOIN session_overrides AS o
+                    ON o.source_id = s.source_id AND o.project_key = s.project_key
                 WHERE capsules_fts MATCH ? AND {' AND '.join(conditions)}
                 ORDER BY rank, s.updated_at DESC, s.source_id
                 LIMIT ?
@@ -815,6 +857,10 @@ class TangRepository:
         def optional_count(key: str) -> int | None:
             value = header.get(key)
             return value if type(value) is int and value >= 0 else None
+
+        def optional_bool(key: str) -> bool | None:
+            value = header.get(key)
+            return value if type(value) is bool else None
         first_user_excerpt = next(
             (
                 excerpt.get("text")
@@ -854,5 +900,13 @@ class TangRepository:
             visible_turn_count=optional_count("visible_turn_count"),
             visible_text_bytes=optional_count("visible_text_bytes"),
             git_branch=optional_text("git_branch"),
+            custom_title=(
+                row["custom_title"]
+                if "custom_title" in row.keys()
+                and isinstance(row["custom_title"], str)
+                else None
+            ),
+            agent_role=optional_text("agent_role"),
+            compacted=optional_bool("compacted"),
             native_available=native_available,
         )

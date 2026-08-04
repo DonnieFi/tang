@@ -153,6 +153,57 @@ def test_session_title_is_redacted_and_bounded_at_persistence(
         connection.close()
 
 
+def test_custom_title_is_a_separate_override_and_survives_reindex(
+    tmp_path: Path,
+) -> None:
+    connection = open_database(tmp_path / "custom-title" / "tang.db")
+    repository = TangRepository(connection)
+    record = source("custom-title", title="Native title")
+    try:
+        with repository.transaction():
+            repository.upsert_session(record, "project-a", NOW)
+            repository.set_custom_title(
+                record.identity.canonical,
+                "project-a",
+                "My recovery title",
+                NOW,
+            )
+
+        changed = replace(
+            record,
+            title="Updated native title",
+            fingerprint=SourceFingerprint("sha256", "digest-2"),
+        )
+        with repository.transaction():
+            repository.upsert_session(changed, "project-a", NOW + timedelta(seconds=1))
+
+        override = connection.execute(
+            "SELECT custom_title FROM session_overrides WHERE source_id = ?",
+            (record.identity.canonical,),
+        ).fetchone()
+        assert override[0] == "My recovery title"
+        assert repository.get_session(record.identity.canonical).source.title == (
+            "Updated native title"
+        )
+
+        with repository.transaction():
+            repository.set_custom_title(
+                record.identity.canonical,
+                "project-a",
+                None,
+                NOW + timedelta(seconds=2),
+            )
+        assert (
+            connection.execute(
+                "SELECT custom_title FROM session_overrides WHERE source_id = ?",
+                (record.identity.canonical,),
+            ).fetchone()
+            is None
+        )
+    finally:
+        connection.close()
+
+
 def test_rollback_leaves_no_partial_session_or_checkpoint(tmp_path: Path) -> None:
     connection = open_database(tmp_path / "rollback" / "tang.db")
     repository = TangRepository(connection)

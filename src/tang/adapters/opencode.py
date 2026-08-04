@@ -407,6 +407,14 @@ class OpenCodeAdapter:
             updated_at=updated_at,
             title=title,
             health=SessionHealth.UNKNOWN,
+            header=SessionHeader(
+                agent_role=(
+                    "subagent"
+                    if isinstance(item.get("parentID"), str)
+                    and item["parentID"].strip()
+                    else "main"
+                )
+            ),
         )
 
     @staticmethod

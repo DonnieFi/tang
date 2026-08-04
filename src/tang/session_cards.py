@@ -1,4 +1,4 @@
-"""Responsive terminal session cards (discovery scan, Option B + branch)."""
+"""Responsive terminal session cards (discovery scan, Option A + branch)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,12 @@ from pathlib import Path
 from tang.adapters import SessionHealth
 from tang.discovery import DiscoveryItem
 from tang.health import health_label
-from tang.render import STEEL, TEAL
+from tang.redaction import (
+    ContentKind,
+    DEFAULT_REDACTOR,
+    RedactionSeam,
+    required_redaction,
+)
 from tang.textutil import (
     compose_visible_row,
     fit_visible,
@@ -27,8 +32,37 @@ CARD_FOOTER_LINES = 3
 DEFAULT_CARDS_LIMIT = 12
 
 _CAPABILITY_LABELS = {
-    "native-reread": "native reread",
-    "visible-user-agent-turns": "visible turns",
+    "native-reread": "reread",
+    "visible-user-agent-turns": "turns",
+}
+
+# Semantic card palette. Identity, risk, status, structure, and actions occupy
+# separate lanes so a quick scan answers "which agent?" before "what state?".
+_CARD_TEXT_COLOR = "#e8eaed"
+_STRUCTURE_COLOR = "#767c8c"
+_ACTION_COLOR = "#6e9bc4"
+_OUTLINE_COLOR = "#383c46"
+_TURN_COUNT_COLOR = _STRUCTURE_COLOR
+
+_HARNESS_COLORS = {
+    "codex": "#7fc6e0",
+    "grok": "#93c08b",
+    "opencode": "#bebada",
+    "cursor": "#8dd3c7",
+    "claude": "#fccde5",
+    "antigravity": "#d9d9d9",
+}
+_RISK_COLORS = {
+    "low": "#5fbf8f",
+    "medium": "#e0a83c",
+    "high": "#e0813c",
+    "max": "#d9694a",
+}
+_STATUS_COLORS = {
+    "complete": "#4caf6d",
+    "unverified": "#9b8fc0",
+    "compacted": "#6b8cae",
+    "error": "#d9694a",
 }
 
 
@@ -51,6 +85,9 @@ class SessionCard:
     git_branch: str | None
     native_available: bool
     warning: str | None = None
+    custom_title: bool = False
+    agent_role: str | None = None
+    compacted: bool | None = None
 
 
 def relative_age(then: datetime, *, now: datetime | None = None) -> str:
@@ -82,8 +119,6 @@ def relative_age(then: datetime, *, now: datetime | None = None) -> str:
 def current_git_branch(cwd: Path | None = None) -> str | None:
     """Return the current HEAD branch name for the grid header, or None."""
 
-    from tang.adapters.base import _header_value
-
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
@@ -97,17 +132,54 @@ def current_git_branch(cwd: Path | None = None) -> str | None:
         return None
     if result.returncode != 0:
         return None
-    branch = result.stdout.strip()
+    branch = _safe_display_metadata(result.stdout.strip())
     if not branch or branch == "HEAD":
         return None
-    return _header_value(branch)
+    return branch
+
+
+def current_git_status(cwd: Path | None = None) -> str | None:
+    """Return a bounded current-worktree summary without exposing paths."""
+
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain=v1", "--untracked-files=normal"],
+            cwd=cwd or Path.cwd(),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    changes = sum(1 for line in result.stdout.splitlines() if line.strip())
+    return "clean" if changes == 0 else f"dirty ({changes})"
 
 
 def project_basename(cwd: Path | None = None) -> str:
     """Basename used once in the cards grid header."""
 
     path = (cwd or Path.cwd()).resolve()
-    return path.name or str(path)
+    return _safe_display_metadata(path.name or str(path)) or "project"
+
+
+def _safe_display_metadata(value: object) -> str | None:
+    """Validate and redact live metadata before placing it on a card surface."""
+
+    from tang.adapters.base import _header_value
+
+    candidate = _header_value(value)
+    if candidate is None:
+        return None
+    redacted = required_redaction(
+        DEFAULT_REDACTOR,
+        RedactionSeam.SNIPPET_DISPLAY,
+        ContentKind.DISPLAY_METADATA,
+        candidate,
+    ).text
+    return _header_value(redacted)
 
 
 def session_card_from_item(
@@ -121,7 +193,12 @@ def session_card_from_item(
     return SessionCard(
         handle=item.handle,
         harness=item.harness,
-        title=item.display_name or item.title or f"{item.harness} session",
+        title=(
+            item.custom_title
+            or item.display_name
+            or item.title
+            or f"{item.harness} session"
+        ),
         snippet=item.snippet,
         updated_at=item.updated_at,
         updated_relative=relative_age(item.updated_at, now=now),
@@ -134,6 +211,9 @@ def session_card_from_item(
         git_branch=item.git_branch,
         native_available=item.native_available,
         warning=warning,
+        custom_title=bool(item.custom_title),
+        agent_role=item.agent_role,
+        compacted=item.compacted,
     )
 
 
@@ -158,8 +238,9 @@ def render_cards_grid(
     ascii_only: bool = False,
     project_name: str | None = None,
     current_branch: str | None = None,
+    git_status: str | None = None,
 ) -> str:
-    """Render Option B cards with herdr-style row-aligned footers."""
+    """Render readable Option A cards with row-aligned footers."""
 
     if not cards:
         return "No indexed sessions.\n"
@@ -169,7 +250,7 @@ def render_cards_grid(
     card_w = card_width(width, columns)
     chunks: list[str] = []
 
-    header = _grid_header(project_name, current_branch, theme)
+    header = _grid_header(project_name, current_branch, git_status, theme)
     if header:
         chunks.append(header)
         chunks.append("")
@@ -214,12 +295,13 @@ def render_cards_brief(
     ascii_only: bool = False,
     project_name: str | None = None,
     current_branch: str | None = None,
+    git_status: str | None = None,
 ) -> str:
-    """Render a fixed-column scan table (Option B brief mode)."""
+    """Render a fixed-column scan table for fast comparison."""
 
     theme = _CardTheme(color=color and not ascii_only, ascii_only=ascii_only)
     lines: list[str] = []
-    header = _grid_header(project_name, current_branch, theme)
+    header = _grid_header(project_name, current_branch, git_status, theme)
     if header:
         lines.append(header)
         lines.append("")
@@ -229,8 +311,20 @@ def render_cards_brief(
     col_branch = 12
     col_updated = 8
     col_health = 12
-    col_turns = 6
-    fixed = col_handle + col_harness + col_branch + col_updated + col_health + col_turns + 6
+    col_turns = 10
+    col_role = 11
+    col_compact = 10
+    fixed = (
+        col_handle
+        + col_harness
+        + col_branch
+        + col_updated
+        + col_health
+        + col_turns
+        + col_role
+        + col_compact
+        + 7
+    )
     col_summary = max(12, width - fixed)
 
     lines.append(
@@ -242,6 +336,8 @@ def render_cards_brief(
                 pad_visible(theme.style_label("UPDATED"), col_updated),
                 pad_visible(theme.style_label("HEALTH"), col_health),
                 pad_visible(theme.style_label("TURNS"), col_turns),
+                pad_visible(theme.style_label("ROLE"), col_role),
+                pad_visible(theme.style_label("COMPACT"), col_compact),
                 pad_visible(theme.style_label("SUMMARY"), col_summary),
             )
         )
@@ -254,23 +350,33 @@ def render_cards_brief(
         return "\n".join(lines) + "\n"
 
     for card in cards:
+        handle = theme.style_handle(
+            truncate_end(card.handle, col_handle, ellipsis=ellipsis)
+        )
         branch = (
-            truncate_end(card.git_branch, col_branch, ellipsis=ellipsis)
+            theme.style_muted(
+                truncate_end(card.git_branch, col_branch, ellipsis=ellipsis)
+            )
             if card.git_branch
             else dash
         )
         turns = (
-            str(card.visible_turn_count)
+            f"{card.visible_turn_count} turns"
             if card.visible_turn_count is not None
             else dash
         )
+        role = card.agent_role or dash
+        compact = "compacted" if card.compacted is True else dash
         summary = middle_elide(card.title, col_summary, ellipsis=ellipsis)
         lines.append(
             " ".join(
                 (
-                    pad_visible(truncate_end(card.handle, col_handle, ellipsis=ellipsis), col_handle),
+                    pad_visible(handle, col_handle),
                     pad_visible(
-                        truncate_end(card.harness, col_harness, ellipsis=ellipsis),
+                        theme.style_harness(
+                            card.harness,
+                            truncate_end(card.harness, col_harness, ellipsis=ellipsis),
+                        ),
                         col_harness,
                     ),
                     pad_visible(branch, col_branch),
@@ -285,7 +391,19 @@ def render_cards_brief(
                         ),
                         col_health,
                     ),
-                    pad_visible(turns, col_turns),
+                    pad_visible(
+                        theme.style_turn_count(turns)
+                        if card.visible_turn_count is not None
+                        else turns,
+                        col_turns,
+                    ),
+                    pad_visible(theme.style_muted(role), col_role),
+                    pad_visible(
+                        theme.style_compacted(compact)
+                        if card.compacted is True
+                        else compact,
+                        col_compact,
+                    ),
                     pad_visible(summary, col_summary),
                 )
             )
@@ -296,17 +414,20 @@ def render_cards_brief(
 def _grid_header(
     project_name: str | None,
     current_branch: str | None,
+    git_status: str | None,
     theme: _CardTheme,
 ) -> str:
-    if not project_name and not current_branch:
+    if not project_name and not current_branch and not git_status:
         return ""
     name = project_name or "project"
+    parts = [theme.style_label(name)]
     if current_branch:
-        return (
-            f"{theme.style_label(name)} · "
-            f"{theme.style_muted('branch')} {theme.style_teal(current_branch)}"
+        parts.append(
+            f"{theme.style_muted('branch')} {theme.style_muted(current_branch)}"
         )
-    return theme.style_label(name)
+    if git_status:
+        parts.append(f"{theme.style_muted('Git')} {theme.style_git(git_status)}")
+    return " · ".join(parts)
 
 
 @dataclass(frozen=True, slots=True)
@@ -315,25 +436,44 @@ class _CardTheme:
     ascii_only: bool
 
     def style_border(self, text: str) -> str:
-        return self._sgr(text, "90") if self.color else text
+        return self._rgb(text, _OUTLINE_COLOR) if self.color else text
 
     def style_label(self, text: str) -> str:
-        return self._rgb(text, STEEL, bold=True) if self.color else text
+        return self._rgb(text, _STRUCTURE_COLOR, bold=True) if self.color else text
 
-    def style_teal(self, text: str) -> str:
-        return self._rgb(text, TEAL, bold=True) if self.color else text
+    def style_handle(self, text: str) -> str:
+        return self._rgb(text, _CARD_TEXT_COLOR, bold=True) if self.color else text
+
+    def style_harness(self, harness: str, text: str) -> str:
+        color = _HARNESS_COLORS.get(harness.lower(), _STRUCTURE_COLOR)
+        return self._rgb(text, color, bold=True) if self.color else text
 
     def style_muted(self, text: str) -> str:
-        return self._sgr(text, "90") if self.color else text
+        return self._rgb(text, _STRUCTURE_COLOR) if self.color else text
 
     def style_good(self, text: str) -> str:
-        return self._rgb(text, TEAL, bold=True) if self.color else text
+        return self._rgb(text, _STATUS_COLORS["complete"], bold=True) if self.color else text
+
+    def style_action(self, text: str) -> str:
+        return self._rgb(text, _ACTION_COLOR) if self.color else text
+
+    def style_turn_count(self, text: str) -> str:
+        return self._rgb(text, _TURN_COUNT_COLOR) if self.color else text
 
     def style_warn(self, text: str) -> str:
-        return self._rgb(text, STEEL, bold=True) if self.color else text
+        return self._rgb(text, _RISK_COLORS["medium"], bold=True) if self.color else text
 
     def style_fail(self, text: str) -> str:
-        return self._sgr(text, "1;31") if self.color else text
+        return self._rgb(text, _STATUS_COLORS["error"], bold=True) if self.color else text
+
+    def style_risk(self, text: str) -> str:
+        color = _RISK_COLORS.get(text.lower())
+        if color is None:
+            return self.style_muted(text)
+        return self._rgb(text, color, bold=True) if self.color else text
+
+    def style_compacted(self, text: str) -> str:
+        return self._rgb(text, _STATUS_COLORS["compacted"], bold=True) if self.color else text
 
     def style_health(self, label: str, health: SessionHealth) -> str:
         if not self.color:
@@ -342,7 +482,15 @@ class _CardTheme:
             return self.style_good(label)
         if health is SessionHealth.POSSIBLY_INTERRUPTED:
             return self.style_fail(label)
-        return self.style_warn(label)
+        return self._rgb(label, _STATUS_COLORS["unverified"], bold=True) if self.color else label
+
+    def style_git(self, status: str) -> str:
+        if status.startswith("dirty"):
+            return self.style_fail(status)
+        return self.style_good(status)
+
+    def style_title(self, text: str) -> str:
+        return self._rgb(text, _CARD_TEXT_COLOR) if self.color else text
 
     def style_readable(self, text: str) -> str:
         return text
@@ -376,11 +524,13 @@ def _render_session_card(card: SessionCard, width: int, theme: _CardTheme) -> li
         _box_line_top(inner, theme),
         _header_line(card, inner, theme),
         _separator_line(inner, theme),
+        _title_line(card, inner, theme),
         _status_line(card, inner, theme),
-        _capability_line(card, inner, theme),
-        _focus_line(card, inner, theme),
-        _section_label("Context", inner, theme),
     ]
+    metadata = _metadata_line(card, inner, theme)
+    if metadata is not None:
+        lines.append(metadata)
+    lines.extend((_capability_line(card, inner, theme), _section_label("Context", inner, theme)))
     snippet = " ".join((card.snippet or "").split())
     if snippet:
         for piece in _wrap_plain(snippet, inner, max_lines=2, ellipsis=ellipsis):
@@ -398,11 +548,15 @@ def _render_session_card(card: SessionCard, width: int, theme: _CardTheme) -> li
 def _header_line(card: SessionCard, inner: int, theme: _CardTheme) -> str:
     ellipsis = _ellipsis(theme)
     left = (
-        f"{theme.style_teal(card.handle)}{_dot(theme)}"
-        f"{theme.style_label(card.harness.title())}"
+        f"{theme.style_handle(card.handle)}{_dot(theme)}"
+        f"{theme.style_harness(card.harness, card.harness.title())}"
     )
-    model_bits = [value for value in (card.model_id, card.effort) if value]
-    right = theme.style_muted(" ".join(model_bits)) if model_bits else ""
+    model_bits: list[str] = []
+    if card.model_id:
+        model_bits.append(theme.style_muted(card.model_id))
+    if card.effort:
+        model_bits.append(theme.style_risk(card.effort))
+    right = " ".join(model_bits)
     content = (
         compose_visible_row(left, right, inner, ellipsis=ellipsis)
         if right
@@ -416,15 +570,36 @@ def _status_line(card: SessionCard, inner: int, theme: _CardTheme) -> str:
     parts: list[str] = [
         theme.style_health(health_label(card.health), card.health),
     ]
-    if card.git_branch:
-        parts.append(
-            theme.style_teal(truncate_end(card.git_branch, 14, ellipsis=ellipsis))
-        )
-    parts.append(theme.style_muted(card.updated_relative))
     if card.visible_turn_count is not None:
-        parts.append(theme.style_muted(f"{card.visible_turn_count}t"))
+        parts.append(theme.style_turn_count(f"{card.visible_turn_count} turns"))
+    parts.append(theme.style_muted(card.updated_relative))
     content = fit_visible(_dot(theme).join(parts), inner, ellipsis=ellipsis)
     return _content_line(content, inner, theme, ellipsis=ellipsis)
+
+
+def _metadata_line(
+    card: SessionCard, inner: int, theme: _CardTheme
+) -> str | None:
+    ellipsis = _ellipsis(theme)
+    parts: list[str] = []
+    if card.git_branch:
+        parts.append(
+            f"{theme.style_muted('branch:')} "
+            f"{theme.style_muted(truncate_end(card.git_branch, 14, ellipsis=ellipsis))}"
+        )
+    if card.agent_role:
+        role = "main agent" if card.agent_role == "main" else "subagent"
+        parts.append(theme.style_muted(role))
+    if card.compacted is True:
+        parts.append(theme.style_compacted("compacted"))
+    if not parts:
+        return None
+    return _content_line(
+        fit_visible(_dot(theme).join(parts), inner, ellipsis=ellipsis),
+        inner,
+        theme,
+        ellipsis=ellipsis,
+    )
 
 
 def _capability_line(card: SessionCard, inner: int, theme: _CardTheme) -> str:
@@ -434,7 +609,7 @@ def _capability_line(card: SessionCard, inner: int, theme: _CardTheme) -> str:
         for value in card.capabilities
     ]
     if card.native_available:
-        labels.append("resume ok")
+        labels.append("resume")
     elif card.warning:
         labels.append(card.warning)
     if not labels:
@@ -443,18 +618,18 @@ def _capability_line(card: SessionCard, inner: int, theme: _CardTheme) -> str:
         styled = theme.style_fail(card.warning or "source unavailable")
     else:
         styled = _dot(theme).join(
-            theme.style_good(label)
-            if "resume" in label or "reread" in label
+            theme.style_action(label)
+            if label in {"reread", "turns", "resume"}
             else theme.style_muted(label)
             for label in labels
         )
     return _content_line(fit_visible(styled, inner, ellipsis=ellipsis), inner, theme, ellipsis=ellipsis)
 
 
-def _focus_line(card: SessionCard, inner: int, theme: _CardTheme) -> str:
+def _title_line(card: SessionCard, inner: int, theme: _CardTheme) -> str:
     ellipsis = _ellipsis(theme)
-    label = theme.style_muted("Focus:")
-    title = theme.style_teal(
+    label = theme.style_muted("Title:" if card.custom_title else "Focus:")
+    title = theme.style_title(
         truncate_end(card.title, max(1, inner - visible_width(label) - 1), ellipsis=ellipsis)
     )
     return _content_line(

@@ -16,6 +16,7 @@ include docs/video-runbook.md
 include docs/assets/README.md
 include docs/assets/tang-multiverse-demo.svg
 include docs/assets/tang-mascot-concept.png
+include docs/assets/tang-session-cards.png
 include skills/tang/SKILL.md
 include skills/tang/agents/openai.yaml
 recursive-include scripts *.py

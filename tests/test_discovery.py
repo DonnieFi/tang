@@ -311,6 +311,7 @@ def test_cli_json_lines_and_malformed_query_keep_diagnostics_on_stderr(
     assert header["model_provider"] == "openai"
     assert header["model_id"] == "gpt-5.6-sol"
     assert header["effort"] == "high"
+    assert header["compacted"] is False
     assert header["title_origin"] == "native"
     assert header["visible_turn_count"] == 1
     assert header["visible_text_bytes"] > 0
