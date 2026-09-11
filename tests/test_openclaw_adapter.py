@@ -202,6 +202,60 @@ def test_openclaw_scan_is_incremental(tmp_path: Path) -> None:
     assert len(third.records) == 1
 
 
+def test_openclaw_updated_at_is_not_before_started_at(tmp_path: Path) -> None:
+    project = (tmp_path / "work").resolve()
+    project.mkdir()
+    openclaw_home = tmp_path / "openclaw"
+    destination = (
+        openclaw_home / "agents" / "main" / "agent" / "openclaw-agent.sqlite"
+    )
+    _build_fixture_db(destination)
+    connection = sqlite3.connect(destination)
+    connection.execute(
+        """
+        UPDATE session_nodes
+        SET updated_at = 1000, last_activity_at = 1000
+        WHERE session_key = 'agent:main:main'
+        """
+    )
+    connection.execute(
+        """
+        UPDATE session_windows
+        SET started_at = 5000, ended_at = 6000
+        WHERE session_id = 'main-window'
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    adapter = OpenClawAdapter(project, openclaw_home=openclaw_home)
+    record = next(
+        item for item in adapter.scan(None).records if item.title == "Main thread"
+    )
+    assert record.updated_at >= record.started_at
+
+
+def test_openclaw_ignores_leftover_jsonl_when_sqlite_present(tmp_path: Path) -> None:
+    project = (tmp_path / "work").resolve()
+    project.mkdir()
+    openclaw_home = tmp_path / "openclaw"
+    _layout_openclaw(openclaw_home)
+    stale = (
+        openclaw_home / "agents" / "main" / "sessions" / "phantom-session.jsonl"
+    )
+    stale.write_text(
+        '{"type":"message","message":{"role":"user","content":"phantom"}}\n',
+        encoding="utf-8",
+    )
+
+    adapter = OpenClawAdapter(project, openclaw_home=openclaw_home)
+    batch = adapter.scan(None)
+    titles = {record.title for record in batch.records}
+
+    assert titles == {"Main thread", "Tang naming review"}
+    assert "phantom" not in titles
+
+
 def test_openclaw_indexes_into_project_database(tmp_path: Path) -> None:
     project = (tmp_path / "work").resolve()
     project.mkdir()

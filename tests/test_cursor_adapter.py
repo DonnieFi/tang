@@ -211,9 +211,9 @@ def test_cursor_indexing_surfaces_session_header_in_capsule(tmp_path: Path) -> N
 
 
 def test_workspace_chat_hash_matches_cursor_layout() -> None:
-    project = Path("/opt/tang")
+    project = Path(__file__).resolve().parents[1]
     assert CursorAdapter.workspace_chat_hash(project) == hashlib.md5(
-        b"/opt/tang"
+        str(project.resolve()).encode()
     ).hexdigest()
 
 

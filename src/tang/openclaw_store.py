@@ -61,12 +61,16 @@ def load_sessions(agent_db: Path) -> tuple[OpenClawSession, ...]:
         started_at = _epoch_millis(window["started_at"]) or _epoch_millis(
             row["created_at"]
         ) or datetime.fromtimestamp(0, tz=timezone.utc)
-        updated_at = (
-            _epoch_millis(row["last_activity_at"])
-            or _epoch_millis(row["updated_at"])
-            or _epoch_millis(window["ended_at"])
-            or started_at
-        )
+        updated_candidates = [started_at]
+        for candidate in (
+            _epoch_millis(row["last_activity_at"]),
+            _epoch_millis(row["updated_at"]),
+            _epoch_millis(window["ended_at"]),
+            _epoch_millis(window["started_at"]),
+        ):
+            if candidate is not None:
+                updated_candidates.append(candidate)
+        updated_at = max(updated_candidates)
         sessions.append(
             OpenClawSession(
                 session_key=session_key,
