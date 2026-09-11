@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 
 from tang.adapter_registry import configured_adapters
@@ -103,6 +104,40 @@ def test_registry_adds_opencode_explicitly_or_from_environment(
         "opencode",
     ]
     assert explicit[-1].source_namespace == environment[-1].source_namespace
+
+
+def test_registry_adds_openclaw_when_agent_database_is_present(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    openclaw_home = tmp_path / "openclaw"
+    helper = Path(__file__).with_name("test_openclaw_adapter.py")
+    spec = importlib.util.spec_from_file_location("openclaw_adapter_test", helper)
+    assert spec and spec.loader
+    openclaw_tests = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(openclaw_tests)
+    openclaw_tests._layout_openclaw(openclaw_home)
+    monkeypatch.delenv("TANG_OPENCODE_EXECUTABLE", raising=False)
+    monkeypatch.setattr("tang.adapter_registry.shutil.which", lambda _name: None)
+    monkeypatch.setattr(
+        "tang.adapter_registry._default_opencode_executable", lambda: None
+    )
+    monkeypatch.setattr(
+        "tang.adapter_registry._openclaw_home", lambda: openclaw_home
+    )
+
+    adapters = configured_adapters(
+        project,
+        codex_home=tmp_path / "codex",
+        grok_home=tmp_path / "grok",
+    )
+
+    assert [adapter.adapter_key for adapter in adapters] == [
+        "codex",
+        "grok",
+        "openclaw",
+    ]
 
 
 def test_doctor_registry_requires_an_opencode_readiness_adapter(

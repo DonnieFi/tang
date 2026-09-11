@@ -610,6 +610,12 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Decision: Keep a 1152×178 cropped PNG at `docs/assets/tang-session-cards.png`, embed it beside the cards documentation, and list it in `MANIFEST.in`. The source HTML remains outside the repository. Serves: Design, Quality of Idea, Technological Implementation.
 - By: human visual approval and agent implementation
 
+## 2026-09-11T01:34:00Z · tang-sis.21 · OpenClaw and Grok Bot session scope
+- Context: Adapter design needed a rule for which native sessions to index when stores are not git-repo-scoped like Antigravity.
+- Options: Filter OpenClaw to `~/.openclaw/workspace` only; filter Grok Bot agents by project name/path; or index every session in each store when present.
+- Decision: Index **all** OpenClaw `session_key` rows and **all** Grok Bot agent `store.db` sessions when the store is readable — no workspace/project filter. OpenClaw adapter already scans every `session_node`; Grok Bot adapter will enumerate the full roster from persistence. Serves: Technological Implementation, Quality of Idea.
+- By: human direction (2026-09-11), recorded by agent
+
 ## 2026-08-04T22:34:59Z · tang-6wm.9 · Epic 12 promotion
 - Context: Human approved the session-card visual and directed that the reviewed Epic 12 branch be merged into `main` before pushing to GitHub.
 - Decision: Preserve milestone `epic/12-session-cards` at `41e18e44a4cc3cd80a97dcf70310880073ca34c1`; update local `main` from `origin/main` and merge the milestone with merge commit `2817a5575dafee8282aa5bcee9ee421cfe7ba421`. The merge remains subject to the remote push and final human-gated epic closure.
