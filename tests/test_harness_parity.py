@@ -5,7 +5,15 @@ from tang.harness_capabilities import all_capabilities, capability_for
 
 def test_registry_covers_indexed_adapters() -> None:
     keys = {entry.adapter_key for entry in all_capabilities()}
-    assert keys >= {"codex", "grok", "opencode", "cursor", "claude", "antigravity"}
+    assert keys >= {
+        "codex",
+        "grok",
+        "opencode",
+        "cursor",
+        "claude",
+        "antigravity",
+        "openclaw",
+    }
 
 
 def test_destination_adapters_are_cited_in_matrix_docs() -> None:

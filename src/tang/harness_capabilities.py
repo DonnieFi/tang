@@ -35,6 +35,9 @@ _CAPABILITIES: tuple[HarnessCapabilities, ...] = (
     HarnessCapabilities(
         "antigravity", "Antigravity CLI", True, True, True, False, False
     ),
+    HarnessCapabilities(
+        "openclaw", "OpenClaw", True, True, False, False, False
+    ),
 )
 
 _BY_KEY = {entry.adapter_key: entry for entry in _CAPABILITIES}

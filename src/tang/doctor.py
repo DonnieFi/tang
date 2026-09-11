@@ -12,6 +12,7 @@ from tang.adapter_registry import configured_adapters
 from tang.adapters.base import BatchStatus, ScanBatch
 from tang.adapters.antigravity import AntigravityAdapter
 from tang.adapters.claude import ClaudeAdapter
+from tang.adapters.openclaw import OpenClawAdapter
 from tang.adapters.cursor import CursorAdapter
 from tang.storage import SCHEMA_VERSION
 
@@ -34,6 +35,10 @@ def _default_claude_home() -> Path:
     return Path(
         os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude")
     ).expanduser()
+
+
+def _default_openclaw_home() -> Path:
+    return Path(os.environ.get("OPENCLAW_HOME", Path.home() / ".openclaw")).expanduser()
 
 
 def _default_grok_home() -> Path:
@@ -241,6 +246,16 @@ def _quick_adapter_checks(
                 "antigravity",
                 "present",
                 "Antigravity history is present; omit --quick to count recoverable sessions.",
+            )
+        )
+    if OpenClawAdapter(
+        project_dir, openclaw_home=_default_openclaw_home()
+    ).has_project_sessions():
+        checks.append(
+            DoctorCheck(
+                "openclaw",
+                "present",
+                "OpenClaw session store is present; omit --quick to count recoverable sessions.",
             )
         )
     configured = opencode_executable or os.environ.get("TANG_OPENCODE_EXECUTABLE")

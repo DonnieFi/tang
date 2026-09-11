@@ -256,7 +256,15 @@ def test_supported_destination_policy_is_explicit_and_idempotent_for_opencode(
         second = service.link((ids["a"],), target_id, "project", "explicit", NOW)
 
         assert SUPPORTED_DESTINATION_ADAPTERS == frozenset(
-            ("codex", "grok", "opencode", "cursor", "claude", "antigravity")
+            (
+                "codex",
+                "grok",
+                "opencode",
+                "cursor",
+                "claude",
+                "antigravity",
+                "openclaw",
+            )
         )
         assert (first.inserted, first.existing) == (1, 0)
         assert (second.inserted, second.existing) == (0, 1)

@@ -13,8 +13,13 @@ from tang.adapters import (
     CursorAdapter,
     GrokAdapter,
     OpenCodeAdapter,
+    OpenClawAdapter,
     SessionAdapter,
 )
+
+
+def _openclaw_home() -> Path:
+    return Path(os.environ.get("OPENCLAW_HOME", Path.home() / ".openclaw"))
 
 
 def _default_opencode_executable() -> Path | None:
@@ -62,6 +67,9 @@ def configured_adapters(
     )
     if antigravity.has_project_sessions():
         adapters.append(antigravity)
+    openclaw = OpenClawAdapter(project_dir, openclaw_home=_openclaw_home())
+    if openclaw.has_project_sessions():
+        adapters.append(openclaw)
     if discovered_opencode is not None or require_opencode:
         adapters.append(
             OpenCodeAdapter(

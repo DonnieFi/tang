@@ -220,6 +220,8 @@ class TangRepository:
             "cursor": "R",
             "claude": "L",
             "antigravity": "A",
+            "openclaw": "W",
+            "grokbot": "B",
         }.get(adapter, "S")
 
     def _existing_or_next_handle(

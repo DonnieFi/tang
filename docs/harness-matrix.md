@@ -126,3 +126,35 @@ live smoke uses `/opt/family-bot` Antigravity history and Claude Code JSONL.
 | Claude adapter + resume | `tang-wxa.3`, `tang-wxa.4` |
 | Antigravity adapter + resume | `tang-wxa.6`, `tang-wxa.7` |
 | Registry + matrix | `tang-wxa.9` |
+
+## Production host extensions (in progress — not a release claim)
+
+OpenClaw and Grok Bot adapters are being added for the operator production
+host. They are fixture- or inventory-verified only until live indexing is
+recorded here.
+
+| Capability | OpenClaw | Grok Bot |
+| --- | --- | --- |
+| Linux release claim | no | no |
+| Read-only session adapter | yes | research |
+| Incremental index + checkpoint | yes | research |
+| Link as **source** | yes | research |
+| Link as **destination** | yes | research |
+| `tang resume` native session | no | no |
+| Handle prefix | `W` | `B` (planned) |
+
+**Notes:**
+
+- **OpenClaw:** indexes `~/.openclaw/agents/<agent>/agent/openclaw-agent.sqlite`
+  `session_nodes` (one record per `session_key`; latest `session_window` for
+  transcript read). Colon session keys are encoded into `native_id`; the real
+  key is stored in `OpaqueSourceLocator`. Leftover JSONL under `agents/*/sessions`
+  is ignored when SQLite is present.
+- **Grok Bot:** separate from Grok CLI (`grok` / `G` handles). Canonical store
+  discovery is tracked in bead `tang-sis.21`.
+
+| Track | Bead |
+| --- | --- |
+| OpenClaw adapter | `tang-sis.20` |
+| Grok Bot store discovery | `tang-sis.21` |
+| Grok Bot adapter | `tang-sis.22` |

@@ -8,7 +8,7 @@ from tang.harness_capabilities import (
 
 def test_registry_matches_continuation_destinations() -> None:
     assert supported_destination_adapters() == frozenset(
-        ("codex", "grok", "opencode", "cursor", "claude", "antigravity")
+        ("codex", "grok", "opencode", "cursor", "claude", "antigravity", "openclaw")
     )
     assert supported_resume_adapters() == frozenset(
         ("codex", "grok", "opencode", "cursor", "claude", "antigravity")
