@@ -127,31 +127,34 @@ live smoke uses `/opt/family-bot` Antigravity history and Claude Code JSONL.
 | Antigravity adapter + resume | `tang-wxa.6`, `tang-wxa.7` |
 | Registry + matrix | `tang-wxa.9` |
 
-## Production host extensions (in progress — not a release claim)
+## Production host extensions (not a v0.3.0 release claim)
 
-OpenClaw and Grok Bot adapters are being added for the operator production
-host. They are fixture- or inventory-verified only until live indexing is
-recorded here.
+Post-v0.3.0 adapters for the operator production host. They ship in `main` when
+implemented; `release_claim_linux` stays false until a tagged release pins them.
 
 | Capability | OpenClaw | Grok Bot |
 | --- | --- | --- |
 | Linux release claim | no | no |
-| Read-only session adapter | yes | research |
-| Incremental index + checkpoint | yes | research |
-| Link as **source** | yes | research |
-| Link as **destination** | yes | research |
+| Read-only session adapter | yes (live) | blocked |
+| Incremental index + checkpoint | yes (live) | blocked |
+| Link as **source** | yes | blocked |
+| Link as **destination** | yes | blocked |
 | `tang resume` native session | no | no |
 | Handle prefix | `W` | `B` (planned) |
 
 **Notes:**
 
-- **OpenClaw:** indexes `~/.openclaw/agents/<agent>/agent/openclaw-agent.sqlite`
-  `session_nodes` (one record per `session_key`; latest `session_window` for
-  transcript read). Colon session keys are encoded into `native_id`; the real
-  key is stored in `OpaqueSourceLocator`. Leftover JSONL under `agents/*/sessions`
-  is ignored when SQLite is present.
-- **Grok Bot:** separate from Grok CLI (`grok` / `G` handles). Canonical store
-  discovery is tracked in bead `tang-sis.21`.
+- **OpenClaw:** live-verified on the production host (`tang index` indexed 55
+  sessions as `W1`–`W55`). Reads
+  `~/.openclaw/agents/<agent>/agent/openclaw-agent.sqlite` `session_nodes` (one
+  record per `session_key`; latest `session_window` for transcript read). Colon
+  session keys are encoded into `native_id`; the real key is stored in
+  `OpaqueSourceLocator`. Leftover JSONL under `agents/*/sessions` is ignored when
+  SQLite is present. Today only `agents/main` is scanned.
+- **Grok Bot:** separate from Grok CLI (`grok` / `G` handles). Agent
+  `store.db` paths live under a sealed sandbox (`/home/box/sand-data/...`) and
+  are not readable from the host filesystem; adapter work (`tang-sis.22`) remains
+  blocked on discovery bead `tang-sis.21`.
 
 | Track | Bead |
 | --- | --- |

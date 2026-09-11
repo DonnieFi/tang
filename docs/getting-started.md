@@ -1,15 +1,22 @@
 # Tang: download, install, test, and use
 
-Tang is a Linux tool for finding earlier Codex, Grok, OpenCode, or Cursor work from the
-project you are currently in and continuing that work inside any of those harnesses
-with citations. Tang does not copy whole transcripts into a new tool. It builds
-a small, redacted, source-cited Context Pack and records a continuation only
-after you confirm it.
+Tang is a Linux tool for finding earlier coding-agent work from the project you
+are currently in and continuing that work inside another harness with citations.
+The v0.3.0 tagged release covers Codex, Grok, OpenCode, and Cursor; newer
+adapters on `main` (Claude Code, Antigravity, OpenClaw, and future Grok Bot)
+extend the same read-only index and explicit-link model without changing the
+v0.3.0 release claim until a new tag ships.
+
+Tang does not copy whole transcripts into a new tool. It builds a small,
+redacted, source-cited Context Pack and records a continuation only after you
+confirm it.
 
 Tang v0.3.0 is the **minimum reviewed build** and the current tagged Linux
 release. Install its exact wheel rather than an unversioned development build.
+For a development checkout of `main`, build and install a local wheel instead
+(see [README](../README.md#install-on-linux)).
 
-Harness capabilities for Codex, Grok, OpenCode, and Cursor are
+Per-harness capabilities—including post-v0.3.0 production host extensions—are
 listed in [harness-matrix.md](harness-matrix.md).
 
 ## What you need

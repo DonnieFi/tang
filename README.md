@@ -55,6 +55,12 @@ checkout, regenerate it with `python scripts/capture_demo_hero.py --tang
 > Antigravity uses CLI handoff docs. Linux **release claims** stay false until
 > live smoke pins; see [Claude handoff](docs/claude-handoff.md) and
 > [Antigravity handoff](docs/antigravity-handoff.md).
+>
+> **Production host extensions (`main`, not a release claim):** OpenClaw sessions
+> index as read-only sources with `W*` handles when
+> `~/.openclaw/agents/main/agent/openclaw-agent.sqlite` is present. Grok Bot
+> (desktop app, distinct from Grok CLI) remains blocked until sandbox stores are
+> readable. See [harness-matrix.md](docs/harness-matrix.md#production-host-extensions-not-a-v030-release-claim).
 
 The source repository is public, and the immutable version-pinned artifact is
 available below.
@@ -159,6 +165,9 @@ and writes the cited Continuation Brief in one turn. It never creates a link.
 - **Antigravity:** full harness parity on Epic 11—index, browse, search, context,
   link, and `tang resume A1`. Run Tang beside the Antigravity CLI; see
   [handoff docs](docs/antigravity-handoff.md) for the CLI workflow.
+- **OpenClaw:** run Tang beside OpenClaw in the project terminal. SQLite session
+  catalogs are read-only sources; explicit `W*` handles can be link sources and
+  destinations. There is no `tang resume` bridge for OpenClaw yet.
 - **CLI:** `tang index`, `browse`, `search`, `context`, `link`, `graph`, and
   `resume` are the same scriptable commands from either host or a normal
   project terminal. `tang resume HANDLE` reopens an indexed session through
@@ -197,6 +206,8 @@ already know a handle or need a scriptable path.
 | Cursor Agent 2026.07.17 | Supported on Linux | Live-verified read-only agent transcripts, explicit destination, handoff, and native resume |
 | Claude Code 2.1.x | Epic 11 (fixture + live smoke) | Full harness parity: index through resume, link source/destination, `tang skill install claude`; no v0.3.0 release claim yet |
 | Antigravity CLI (`agy`) 1.1.x | Epic 11 (fixture + live smoke) | Full harness parity: index through resume, link source/destination, CLI handoff; no v0.3.0 release claim yet |
+| OpenClaw (SQLite agent store) | `main` (production host) | Live-verified read-only index and link; `W*` handles; no native resume or v0.3.0 release claim |
+| Grok Bot (desktop) | Blocked | Sandbox `store.db` not readable from host; distinct from Grok CLI (`G*` handles) |
 | Linux x86-64 | Supported | Clean-wheel acceptance on Python 3.11.11 and 3.12.8; synthetic fixture coverage in CI |
 | macOS | Unsupported | No compatibility or CI claim |
 | Windows | Unsupported | No native compatibility claim |
@@ -252,9 +263,9 @@ Redaction reduces accidental disclosure; it is not encryption and does not promi
 ## How it fits together
 
 ```text
- native Codex logs    native Grok data    OpenCode export    Cursor transcripts    Claude JSONL    Antigravity brain
-          │                   │                   │                   │                  │                │
-          └──────────────────────────── read-only adapters ────────────────────────────────────────────┘
+ native Codex logs    native Grok data    OpenCode export    Cursor transcripts    Claude JSONL    Antigravity brain    OpenClaw SQLite
+          │                   │                   │                   │                  │                │                      │
+          └──────────────────────────────── read-only adapters ────────────────────────────────────────────────────────────────┘
                               │
                               ▼
                      redaction boundary
@@ -297,7 +308,7 @@ OpenCode. The CLI stays scriptable and does not introduce a competing selector.
 | `tang link --from SESSION... --current` | Record selected sources into an explicitly confirmed current Codex session |
 | `tang link --from SESSION... --to SESSION` | Record selected sources into an explicitly confirmed target, including the OpenCode skill's current target |
 | `tang graph [SESSION]` | Render the containing Multiverse Map |
-| `tang resume SESSION` | Reopen one indexed Codex, Grok, OpenCode, Cursor, Claude, or Antigravity session by its Tang handle |
+| `tang resume SESSION` | Reopen one indexed Codex, Grok, OpenCode, Cursor, Claude, or Antigravity session by its Tang handle (not OpenClaw) |
 | `tang purge --all` | Remove Tang-derived data after confirmation |
 | `tang doctor` | Check installation, database, FTS5, and adapter readiness without creating absent derived storage |
 | `tang skill install codex` | Install or update the bundled Codex skill without silently overwriting changes |
@@ -314,7 +325,8 @@ the active project's successful index.
 
 Human `browse` and `search` show at most five numbered choices per page with a
 short project-local handle (`C1` for Codex, `G1` for Grok, `O1` for
-OpenCode, `R1` for Cursor, `L1` for Claude Code, or `A1` for Antigravity), redacted display
+OpenCode, `R1` for Cursor, `L1` for Claude Code, `A1` for Antigravity, or `W1` for
+OpenClaw), redacted display
 name, harness, time, health, capability, and snippet. Use `--page 2` for the
 next page. Pass those case-insensitive handles directly to `context`, `link`,
 or `graph`. Handles remain stable in the project's `.tang/tang.db`; `purge
