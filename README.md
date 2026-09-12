@@ -5,11 +5,11 @@
 <td width="68%" valign="top">
 <strong>Keep the blade, switch the handle.</strong><br><br>
 <strong>Continue one coding agent's work inside another, with the original sources cited.</strong><br><br>
-Bring one session or many from Grok, Codex, OpenCode, Cursor, Claude Code, or
-Antigravity into your current handle. Tang preserves every explicitly confirmed
-continuation in a terminal-native Multiverse Map—whether you start from Codex,
-OpenCode, or the same CLI in a normal terminal.<br><br>
-<strong>Across Codex, Grok, OpenCode, Cursor, Claude Code, and Antigravity—with every continuation explicitly confirmed.</strong>
+Bring one session or many from Grok, Codex, OpenCode, Cursor, Claude Code,
+Antigravity, or OpenClaw into your current handle. Tang preserves every
+explicitly confirmed continuation in a terminal-native Multiverse Map—whether
+you start from Codex, OpenCode, or the same CLI in a normal terminal.<br><br>
+<strong>Across Codex, Grok, OpenCode, Cursor, Claude Code, Antigravity, and OpenClaw—with every continuation explicitly confirmed.</strong>
 </td>
 <td width="32%" align="right" valign="top">
 <img src="docs/assets/tang-mascot-concept.png" width="280" alt="Tang samurai holding the blade as the work changes handles">
@@ -74,7 +74,7 @@ Coding harnesses can usually reopen their own sessions, but the continuity stops
 Tang is the fitted continuity layer:
 
 - **The blade** is the work itself.
-- **The handles** are Codex, Grok, OpenCode, Cursor, Claude Code, and Antigravity.
+- **The handles** are Codex, Grok, OpenCode, Cursor, Claude Code, Antigravity, and OpenClaw.
 - **The tang** is the part that lets the same work seat securely in a new handle.
 
 Tang finds the prior session, rereads the native source, redacts it, builds a
@@ -84,7 +84,7 @@ confirm.
 
 One source into one target is recovery. Many sources feeding many later
 sessions become continuity. A later session in any supported harness can merge more
-Grok, Codex, OpenCode, Cursor, Claude Code, or Antigravity sources, branch into several future sessions, and
+Grok, Codex, OpenCode, Cursor, Claude Code, Antigravity, or OpenClaw sources, branch into several future sessions, and
 extend the same Multiverse without flattening its history.
 
 ## Start where you already work
