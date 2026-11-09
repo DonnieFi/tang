@@ -28,10 +28,16 @@ fn fixture_copy(destination: &std::path::Path, cwd: &std::path::Path) {
     let mut meta: serde_json::Value = serde_json::from_str(&lines[0]).unwrap();
     meta["payload"]["cwd"] = serde_json::Value::String(cwd.display().to_string());
     lines[0] = serde_json::to_string(&meta).unwrap();
+    lines.insert(
+        1,
+        r##"{"timestamp":"2026-07-14T20:00:00Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"# AGENTS.md instructions for /work/tang-demo"}]}}"##
+            .to_string(),
+    );
     lines.push(
         r#"{"timestamp":"2026-07-14T20:02:00Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"API_KEY=supersecretvalue"}]}}"#
             .to_string(),
     );
+    lines.push("{not valid json".to_string());
     let parent = destination.parent().unwrap();
     fs::create_dir_all(parent).unwrap();
     fs::write(destination, lines.join("\n") + "\n").unwrap();
@@ -90,7 +96,12 @@ fn index_reads_codex_fixture_then_recall_redacts_it() {
     assert_eq!(document["schema_version"], 1);
     assert_eq!(document["indexed"], 1);
     assert_eq!(document["skipped"], 1);
-    assert_eq!(fs::read(&original_path()).unwrap(), original);
+    assert!(document["warnings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|warning| warning.as_str().unwrap().contains("malformed")));
+    assert_eq!(fs::read(original_path()).unwrap(), original);
 
     let project = resolve_project(&project_dir).unwrap();
     let database = Connection::open(&project.database_path).unwrap();
@@ -98,10 +109,18 @@ fn index_reads_codex_fixture_then_recall_redacts_it() {
         .query_row("SELECT health FROM sessions", [], |row| row.get(0))
         .unwrap();
     assert_eq!(health, "unknown");
+    let title: String = database
+        .query_row("SELECT title FROM sessions", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(
+        title,
+        "Implement deterministic checkpoint recovery for the synthetic adapter."
+    );
     let search: String = database
         .query_row("SELECT search_text FROM capsules", [], |row| row.get(0))
         .unwrap();
     assert!(search.contains("deterministic checkpoint recovery"));
+    assert!(!search.contains("AGENTS.md"));
     assert!(!search.contains("supersecretvalue"));
     assert!(search.contains("[REDACTED:credential]"));
 
@@ -160,4 +179,96 @@ fn original_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
         "../tests/fixtures/codex/sessions/2026/07/14/rollout-2026-07-14T20-00-00-019f6000-5678-7000-8000-000000000002.jsonl",
     )
+}
+
+fn write_minimal_log(home: &std::path::Path, cwd: &std::path::Path, native_id: &str) -> PathBuf {
+    let log = home
+        .join("sessions")
+        .join("2026/11/09")
+        .join(format!("rollout-2026-11-09T00-00-00-{native_id}.jsonl"));
+    fs::create_dir_all(log.parent().unwrap()).unwrap();
+    fs::write(
+        &log,
+        format!(
+            r#"{{"timestamp":"2026-11-09T00:00:00Z","type":"session_meta","payload":{{"id":"{native_id}","timestamp":"2026-11-09T00:00:00Z","cwd":"{}"}}}}
+{{"timestamp":"2026-11-09T00:00:01Z","type":"response_item","payload":{{"type":"message","role":"user","content":[{{"type":"input_text","text":"trace the tombstone"}}]}}}}
+"#,
+            cwd.display()
+        ),
+    )
+    .unwrap();
+    log
+}
+
+#[test]
+fn index_keeps_a_graph_referenced_session_as_a_tombstone() {
+    let root = scratch();
+    let project_dir = root.join("work");
+    fs::create_dir_all(&project_dir).unwrap();
+    let home = root.join("codex");
+    let native_id = "019f6000-5678-7000-8000-000000000123";
+    let log = write_minimal_log(&home, &project_dir, native_id);
+    let mut stdout = Vec::new();
+    let arguments = [
+        "index".to_string(),
+        "--cwd".to_string(),
+        project_dir.display().to_string(),
+        "--codex-home".to_string(),
+        home.display().to_string(),
+        "--json".to_string(),
+    ];
+    run_with(&arguments, &mut stdout).unwrap();
+
+    let project = resolve_project(&project_dir).unwrap();
+    let database = Connection::open(&project.database_path).unwrap();
+    let source_id: String = database
+        .query_row("SELECT source_id FROM sessions", [], |row| row.get(0))
+        .unwrap();
+    database
+        .execute(
+            "INSERT INTO continuation_edges(
+                source_id, target_id, project_key, confirmation_mode, confirmed_at, schema_version
+             ) VALUES (?1, 'codex:test:target', ?2, 'explicit', '2026-11-09T00:00:02Z', 1)",
+            rusqlite::params![source_id, project.key],
+        )
+        .unwrap();
+    drop(database);
+
+    fs::remove_file(&log).unwrap();
+    stdout.clear();
+    run_with(&arguments, &mut stdout).unwrap();
+    let document: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
+    assert_eq!(document["deleted"], 1);
+
+    let database = Connection::open(&project.database_path).unwrap();
+    let available: i64 = database
+        .query_row(
+            "SELECT native_available FROM sessions WHERE source_id = ?1",
+            [&source_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(available, 0);
+    let edges: i64 = database
+        .query_row("SELECT COUNT(*) FROM continuation_edges", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(edges, 1);
+    let capsules: i64 = database
+        .query_row("SELECT COUNT(*) FROM capsules", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(capsules, 0);
+
+    database
+        .execute("DELETE FROM continuation_edges", [])
+        .unwrap();
+    drop(database);
+    stdout.clear();
+    run_with(&arguments, &mut stdout).unwrap();
+    let database = Connection::open(&project.database_path).unwrap();
+    let sessions: i64 = database
+        .query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(sessions, 0);
 }

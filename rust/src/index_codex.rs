@@ -8,6 +8,7 @@ use regex::Regex;
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -16,6 +17,25 @@ use std::time::Duration;
 const EXCERPT_CHARS: usize = 500;
 const MAX_EXCERPTS: usize = 4;
 const SEARCH_CHARS: usize = 6_000;
+
+// Host-provided wrappers that Codex records as visible user messages. They are
+// not a session title or recoverable user intent, so they never enter a capsule.
+const HOST_ENVELOPE_PREFIXES: &[&str] = &[
+    "# agents.md instructions for ",
+    "<environment_context>",
+    "<permissions instructions>",
+    "<skills_instructions>",
+    "<apps_instructions>",
+    "<plugins_instructions>",
+    "<recommended_plugins>",
+];
+
+fn is_host_envelope(text: &str) -> bool {
+    let normalized = text.trim_start().to_lowercase();
+    HOST_ENVELOPE_PREFIXES
+        .iter()
+        .any(|prefix| normalized.starts_with(prefix))
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodexIndexResult {
@@ -52,6 +72,7 @@ pub fn index_codex(
     logs.sort();
     let mut records = Vec::new();
     let mut warnings = Vec::new();
+    let mut protected = HashSet::new();
     let mut skipped = 0;
     for log in logs {
         if log
@@ -59,19 +80,30 @@ pub fn index_codex(
             .map(|meta| meta.file_type().is_symlink())
             .unwrap_or(true)
         {
+            if let Some(source_id) = source_id_for_log(&log, &namespace) {
+                protected.insert(source_id);
+            }
             warnings.push(format!("skipped symlinked Codex log {}", log.display()));
             continue;
         }
-        match read_log(&log, &namespace) {
+        match read_log(&log, &namespace, &mut warnings) {
             Ok(Some(record)) => {
                 if !belongs_to_project(&record.project_hint, project) {
+                    // A foreign project is not proof that this project's row is
+                    // gone; keep the last known row instead of deleting it.
+                    protected.insert(record.source_id.clone());
                     skipped += 1;
                     continue;
                 }
                 records.push(record);
             }
             Ok(None) => skipped += 1,
-            Err(message) => warnings.push(message),
+            Err(message) => {
+                if let Some(source_id) = source_id_for_log(&log, &namespace) {
+                    protected.insert(source_id);
+                }
+                warnings.push(message);
+            }
         }
     }
     let mut database = open_project_database(database_path)?;
@@ -86,7 +118,7 @@ pub fn index_codex(
         seen.push(record.source_id.clone());
         indexed += 1;
     }
-    let deleted = delete_missing(&tx, &project.key, &namespace, &seen)?;
+    let deleted = delete_missing(&tx, &project.key, &namespace, &seen, &protected)?;
     tx.commit().map_err(storage)?;
     Ok(CodexIndexResult {
         indexed,
@@ -112,7 +144,11 @@ struct CodexRecord {
     byte_count: i64,
 }
 
-fn read_log(path: &Path, namespace: &str) -> std::result::Result<Option<CodexRecord>, String> {
+fn read_log(
+    path: &Path,
+    namespace: &str,
+    warnings: &mut Vec<String>,
+) -> std::result::Result<Option<CodexRecord>, String> {
     let native_id = filename_id(path).ok_or_else(|| {
         format!(
             "skipped Codex log without a terminal UUID: {}",
@@ -132,16 +168,17 @@ fn read_log(path: &Path, namespace: &str) -> std::result::Result<Option<CodexRec
         let row: Value = match serde_json::from_str(line) {
             Ok(value) => value,
             Err(_) => {
-                return Err(format!(
-                    "malformed JSON at {}:{}",
+                warnings.push(format!(
+                    "skipped malformed Codex JSON at {}:{}",
                     path.display(),
                     number + 1
                 ));
+                continue;
             }
         };
         if let Some(timestamp) = row.get("timestamp").and_then(Value::as_str) {
             latest = Some(match latest {
-                Some(current) if current > timestamp.to_string() => current,
+                Some(current) if current.as_str() > timestamp => current,
                 _ => timestamp.to_string(),
             });
         }
@@ -161,8 +198,10 @@ fn read_log(path: &Path, namespace: &str) -> std::result::Result<Option<CodexRec
                 };
             }
         }
-        if let Some(turn) = visible_turn(&row) {
-            turns.push(turn);
+        if let Some((role, text)) = visible_turn(&row) {
+            if !is_host_envelope(&text) {
+                turns.push((role, text));
+            }
         }
     }
     let Some(metadata) = metadata else {
@@ -284,7 +323,7 @@ fn visible_turn(row: &Value) -> Option<(String, String)> {
             }
         })
         .collect::<Vec<_>>()
-        .join("");
+        .join("\n");
     if text.trim().is_empty() {
         None
     } else {
@@ -343,6 +382,10 @@ fn filename_id(path: &Path) -> Option<String> {
     id.captures(name)
         .and_then(|caps| caps.get(1))
         .map(|item| item.as_str().to_ascii_lowercase())
+}
+
+fn source_id_for_log(path: &Path, namespace: &str) -> Option<String> {
+    filename_id(path).map(|native_id| format!("codex:{namespace}:{native_id}"))
 }
 
 fn bound_chars(text: &str, limit: usize) -> String {
@@ -538,6 +581,7 @@ fn delete_missing(
     project_key: &str,
     namespace: &str,
     seen: &[String],
+    protected: &HashSet<String>,
 ) -> Result<i64> {
     let mut statement = connection
         .prepare(
@@ -555,21 +599,34 @@ fn delete_missing(
     drop(statement);
     let mut deleted = 0;
     for source_id in ids {
-        if seen.iter().any(|id| id == &source_id) {
+        if seen.iter().any(|id| id == &source_id) || protected.contains(&source_id) {
             continue;
         }
         connection
             .execute("DELETE FROM capsules WHERE source_id = ?1", [&source_id])
             .map_err(storage)?;
-        connection
-            .execute(
-                "DELETE FROM continuation_edges WHERE source_id = ?1 OR target_id = ?1",
+        // Match the Python repository: a session referenced by the graph is a
+        // tombstone, not a row that may silently take its continuation edges.
+        let referenced: Option<i64> = connection
+            .query_row(
+                "SELECT 1 FROM continuation_edges WHERE source_id = ?1 OR target_id = ?1 LIMIT 1",
                 [&source_id],
+                |row| row.get(0),
             )
+            .optional()
             .map_err(storage)?;
-        connection
-            .execute("DELETE FROM sessions WHERE source_id = ?1", [&source_id])
-            .map_err(storage)?;
+        if referenced.is_some() {
+            connection
+                .execute(
+                    "UPDATE sessions SET native_available = 0 WHERE source_id = ?1",
+                    [&source_id],
+                )
+                .map_err(storage)?;
+        } else {
+            connection
+                .execute("DELETE FROM sessions WHERE source_id = ?1", [&source_id])
+                .map_err(storage)?;
+        }
         deleted += 1;
     }
     Ok(deleted)
