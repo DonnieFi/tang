@@ -4,6 +4,7 @@ use crate::error::{storage, Result, TangError};
 use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 const DESTINATIONS: &[&str] = &[
     "antigravity",
@@ -102,8 +103,6 @@ pub fn link_plan(
     let tx = project_db
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(storage)?;
-    tx.pragma_update(None, "foreign_keys", "ON")
-        .map_err(storage)?;
     let target = load_session(&tx, &plan.target_id)?
         .ok_or_else(|| TangError::new("unknown-target", "The target session is not indexed."))?;
     if target.project_key != plan.project_key {
@@ -189,7 +188,20 @@ pub fn link_plan(
 }
 
 pub fn open_project_readwrite(path: &Path) -> Result<Connection> {
-    Connection::open(path).map_err(storage)
+    let connection =
+        Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_WRITE).map_err(storage)?;
+    // Foreign-key and lock settings are per connection and must be set before
+    // a transaction starts; SQLite ignores PRAGMA foreign_keys inside one.
+    connection
+        .busy_timeout(Duration::from_millis(5_000))
+        .map_err(storage)?;
+    connection
+        .pragma_update(None, "foreign_keys", "ON")
+        .map_err(storage)?;
+    connection
+        .pragma_update(None, "journal_mode", "WAL")
+        .map_err(storage)?;
+    Ok(connection)
 }
 
 fn assert_project_database(path: &Path) -> Result<()> {

@@ -829,3 +829,67 @@ fn join_links_one_project_and_refuses_a_cycle_or_another_project() {
         .unwrap();
     assert_eq!(kept, 1);
 }
+#[test]
+fn join_accepts_multiple_sources_in_one_command() {
+    let root = scratch();
+    let (project, database) = project_db(&root.join("work"));
+    continuation_table(&database);
+    for (source_id, handle) in [
+        ("codex:fixture:aaa", "C1"),
+        ("codex:fixture:bbb", "C2"),
+        ("codex:fixture:ccc", "C3"),
+    ] {
+        insert(
+            &database,
+            &project.key,
+            source_id,
+            "codex",
+            handle,
+            handle,
+            "session body",
+            1,
+        );
+    }
+    drop(database);
+    let catalog = root.join("catalog.db");
+    let mut stdout = Vec::new();
+    run_with(
+        &[
+            "catalog".into(),
+            "sync".into(),
+            "--cwd".into(),
+            root.join("work").display().to_string(),
+            "--catalog".into(),
+            catalog.display().to_string(),
+        ],
+        &mut stdout,
+    )
+    .unwrap();
+    stdout.clear();
+    run_with(
+        &[
+            "join".into(),
+            "--from".into(),
+            "C1".into(),
+            "--from".into(),
+            "C2".into(),
+            "--into".into(),
+            "C3".into(),
+            "--catalog".into(),
+            catalog.display().to_string(),
+            "--json".into(),
+        ],
+        &mut stdout,
+    )
+    .unwrap();
+    let document: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
+    assert_eq!(document["inserted"], 2);
+    assert_eq!(document["source_handles"].as_array().unwrap().len(), 2);
+    let saved = Connection::open(project.database_path).unwrap();
+    let count: i64 = saved
+        .query_row("SELECT COUNT(*) FROM continuation_edges", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(count, 2);
+}
