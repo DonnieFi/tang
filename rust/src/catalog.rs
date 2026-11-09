@@ -72,7 +72,12 @@ pub fn open_project_readonly(path: &Path) -> Result<Connection> {
             ),
         ));
     }
-    Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(storage)
+    let connection =
+        Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(storage)?;
+    connection
+        .busy_timeout(Duration::from_millis(5_000))
+        .map_err(storage)?;
+    Ok(connection)
 }
 
 pub fn sync_project(
