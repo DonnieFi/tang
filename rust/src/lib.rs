@@ -7,6 +7,7 @@ pub mod cli;
 pub mod error;
 pub mod project;
 pub mod redact;
+pub mod summary;
 pub mod timeutil;
 
 pub use cli::run_with;

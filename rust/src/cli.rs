@@ -1,8 +1,8 @@
 //! Scriptable commands for the global catalog.
 
 use crate::catalog::{
-    default_catalog_path, open_catalog, open_project_readonly, recall, sync_project, RecallHit,
-    SyncResult,
+    add_label, default_catalog_path, open_catalog, open_project_readonly, recall, remove_label,
+    sync_project, RecallHit, RecallQuery, SyncResult,
 };
 use crate::error::{Result, TangError};
 use crate::project::resolve_project;
@@ -23,6 +23,7 @@ pub fn run_with(args: &[String], stdout: &mut dyn Write) -> Result<()> {
     match args[0].as_str() {
         "catalog" => catalog_command(&args[1..], stdout),
         "recall" => recall_command(&args[1..], stdout),
+        "label" => label_command(&args[1..], stdout),
         "help" => {
             writeln!(stdout, "{HELP}").map_err(io_error)?;
             Ok(())
@@ -39,10 +40,13 @@ Tang 2.0 catalog
 
 Usage:
   tang catalog sync [--cwd DIR] [--database PATH] [--catalog PATH] [--json]
-  tang recall QUERY [--harness NAME] [--limit N] [--include-unavailable] [--json] [--catalog PATH]
+  tang recall [QUERY] [--label NAME] [--category NAME] [--harness NAME] [--limit N]
+               [--include-unavailable] [--json] [--catalog PATH]
+  tang label add|remove HANDLE LABEL [--catalog PATH]
 
-Sync copies redacted capsules from the current project's .tang/tang.db into
-~/.tang/catalog.db. Recall searches that catalog and does not open native logs.
+Sync copies redacted capsules into ~/.tang/catalog.db and stores a category
+plus an extractive summary. Recall searches that catalog and does not open
+native logs.
 ";
 
 fn catalog_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
@@ -84,9 +88,17 @@ fn catalog_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
 
 fn recall_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
     let flags = parse_flags(args)?;
-    let Some(query) = flags.query else {
-        return Err(TangError::new("empty-query", "A recall query is required."));
-    };
+    if flags.query.as_deref().unwrap_or("").trim().is_empty()
+        && flags.label.is_none()
+        && flags.category.is_none()
+        && flags.harness.is_none()
+    {
+        return Err(TangError::new(
+            "empty-query",
+            "Provide a query or a label, category, or harness filter.",
+        ));
+    }
+    let query = flags.query.clone().unwrap_or_default();
     let limit = flags.limit.unwrap_or(20);
     let catalog_path = flags.catalog.unwrap_or_else(default_catalog_path);
     if !catalog_path.is_file() {
@@ -98,22 +110,28 @@ fn recall_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
     let catalog = open_catalog(&catalog_path)?;
     let hits = recall(
         &catalog,
-        &query,
-        flags.harness.as_deref(),
-        limit,
-        flags.include_unavailable,
+        &RecallQuery {
+            text: Some(query.as_str()).filter(|value| !value.is_empty()),
+            label: flags.label.as_deref(),
+            category: flags.category.as_deref(),
+            harness: flags.harness.as_deref(),
+            limit,
+            include_unavailable: flags.include_unavailable,
+        },
     )?;
     if flags.json {
-        writeln!(stdout, "{}", recall_json(&query, &hits)).map_err(io_error)?;
+        writeln!(stdout, "{}", recall_json(flags.query.as_deref(), &hits)).map_err(io_error)?;
     } else if hits.is_empty() {
         writeln!(stdout, "No matching sessions.").map_err(io_error)?;
     } else {
         for hit in &hits {
             writeln!(
                 stdout,
-                "{}\t{}\t{}\t{}",
+                "{}\t{}\t{}\t{}\t{}\t{}",
                 hit.catalog_handle,
                 hit.harness,
+                hit.category,
+                hit.labels.join(","),
                 hit.project_display,
                 hit.title.as_deref().unwrap_or("")
             )
@@ -132,6 +150,8 @@ struct Flags {
     harness: Option<String>,
     limit: Option<i64>,
     include_unavailable: bool,
+    label: Option<String>,
+    category: Option<String>,
 }
 
 fn parse_flags(args: &[String]) -> Result<Flags> {
@@ -144,6 +164,8 @@ fn parse_flags(args: &[String]) -> Result<Flags> {
         harness: None,
         limit: None,
         include_unavailable: false,
+        label: None,
+        category: None,
     };
     let mut index = 0;
     while index < args.len() {
@@ -160,6 +182,10 @@ fn parse_flags(args: &[String]) -> Result<Flags> {
             flags.cwd = Some(PathBuf::from(value));
         } else if let Some(value) = flag_value(args, &mut index, "--harness")? {
             flags.harness = Some(value);
+        } else if let Some(value) = flag_value(args, &mut index, "--label")? {
+            flags.label = Some(value);
+        } else if let Some(value) = flag_value(args, &mut index, "--category")? {
+            flags.category = Some(value);
         } else if let Some(value) = flag_value(args, &mut index, "--limit")? {
             let parsed: i64 = value.parse().map_err(|_| {
                 TangError::new("invalid-limit", "Recall limit must be between 1 and 100.")
@@ -205,19 +231,62 @@ fn sync_json(result: &SyncResult) -> String {
     }))
 }
 
-fn recall_json(query: &str, hits: &[RecallHit]) -> String {
+fn label_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
+    let action = args.first().map(String::as_str).unwrap_or("");
+    if action != "add" && action != "remove" {
+        return Err(TangError::new(
+            "unknown-command",
+            "Use tang label add or tang label remove.",
+        ));
+    }
+    let session = args
+        .get(1)
+        .cloned()
+        .ok_or_else(|| TangError::new("invalid-session", "A catalog handle is required."))?;
+    let label = args
+        .get(2)
+        .cloned()
+        .ok_or_else(|| TangError::new("invalid-label", "A label is required."))?;
+    let flags = parse_flags(&args[3..])?;
+    let catalog_path = flags.catalog.unwrap_or_else(default_catalog_path);
+    if !catalog_path.is_file() {
+        return Err(TangError::new(
+            "catalog-missing",
+            "Tang has no global catalog; run tang catalog sync.",
+        ));
+    }
+    let mut catalog = open_catalog(&catalog_path)?;
+    let stamp = rfc3339_now();
+    let handle = if action == "add" {
+        add_label(&mut catalog, &session, &label, &stamp)?
+    } else {
+        remove_label(&mut catalog, &session, &label)?
+    };
+    let verb = if action == "add" {
+        "Attached"
+    } else {
+        "Removed"
+    };
+    writeln!(stdout, "{verb} {label} on {handle}.").map_err(io_error)?;
+    Ok(())
+}
+
+fn recall_json(query: Option<&str>, hits: &[RecallHit]) -> String {
     let results: Vec<Value> = hits
         .iter()
         .map(|hit| {
             json!({
                 "catalog_handle": hit.catalog_handle,
+                "category": hit.category,
                 "harness": hit.harness,
                 "health": hit.health,
+                "labels": hit.labels,
                 "native_available": hit.native_available,
                 "project_display": hit.project_display,
                 "project_handle": hit.project_handle,
                 "snippet": hit.snippet,
                 "source_id": hit.source_id,
+                "summary": hit.summary,
                 "title": hit.title,
                 "updated_at": hit.updated_at,
             })

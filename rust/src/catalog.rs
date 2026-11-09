@@ -2,13 +2,14 @@
 
 use crate::error::{storage, Result, TangError};
 use crate::redact::{redact, ContentKind};
+use crate::summary::{build_summary, categories, categorize};
 use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncResult {
@@ -29,7 +30,19 @@ pub struct RecallHit {
     pub updated_at: String,
     pub health: String,
     pub native_available: bool,
+    pub category: String,
+    pub summary: String,
+    pub labels: Vec<String>,
     pub snippet: Option<String>,
+}
+
+pub struct RecallQuery<'a> {
+    pub text: Option<&'a str>,
+    pub label: Option<&'a str>,
+    pub category: Option<&'a str>,
+    pub harness: Option<&'a str>,
+    pub limit: i64,
+    pub include_unavailable: bool,
 }
 
 pub fn default_catalog_path() -> PathBuf {
@@ -138,8 +151,22 @@ pub fn sync_project(
             skipped += 1;
             continue;
         };
-        let search_text = redact(&row.search_text, ContentKind::VisibleText);
-        let title = title_from(row.title, &row.content_json);
+        let body_text = redact(&row.search_text, ContentKind::VisibleText);
+        let title = title_from(row.title.clone(), &row.content_json);
+        let excerpts = excerpts_from(&row.content_json);
+        let mut evidence = Vec::new();
+        if let Some(title) = &title {
+            evidence.push(title.clone());
+        }
+        if !body_text.is_empty() {
+            evidence.push(body_text.clone());
+        }
+        evidence.extend(excerpts.iter().map(|(_, text)| text.clone()));
+        let category = categorize(
+            &evidence.join("\n"),
+            excerpts.iter().any(|(role, _)| role == "user"),
+        );
+        let summary = build_summary(category, title.as_deref(), &excerpts);
         upsert_session(
             &tx,
             &SessionRecord {
@@ -155,7 +182,9 @@ pub fn sync_project(
                 started_at: &row.started_at,
                 updated_at: &row.updated_at,
                 synced_at,
-                search_text: &search_text,
+                body_text: &body_text,
+                category,
+                summary: &summary,
             },
         )?;
         kept.push(row.source_id);
@@ -184,68 +213,116 @@ struct SessionRecord<'a> {
     started_at: &'a str,
     updated_at: &'a str,
     synced_at: &'a str,
-    search_text: &'a str,
+    body_text: &'a str,
+    category: &'a str,
+    summary: &'a str,
 }
 
-pub fn recall(
-    catalog: &Connection,
-    query: &str,
-    harness: Option<&str>,
-    limit: i64,
-    include_unavailable: bool,
-) -> Result<Vec<RecallHit>> {
-    if query.trim().is_empty() {
-        return Err(TangError::new("empty-query", "A recall query is required."));
-    }
-    if !(1..=100).contains(&limit) {
+pub fn recall(catalog: &Connection, query: &RecallQuery<'_>) -> Result<Vec<RecallHit>> {
+    if !(1..=100).contains(&query.limit) {
         return Err(TangError::new(
             "invalid-limit",
             "Recall limit must be between 1 and 100.",
         ));
     }
-    let available = if include_unavailable {
-        ""
-    } else {
-        "AND s.native_available = 1"
+    let text = query.text.map(str::trim).filter(|value| !value.is_empty());
+    let label = match query.label {
+        Some(value) => Some(normalize_label(value)?),
+        None => None,
     };
-    let sql = if harness.is_some() {
-        format!(
-            "SELECT s.source_id, s.catalog_handle, s.project_handle, s.project_display,
-                    s.adapter, s.title, s.updated_at, s.health, s.native_available,
-                    snippet(catalog_fts, 2, '[', ']', ' … ', 18) AS snippet
-             FROM catalog_fts
-             JOIN catalog_sessions AS s ON s.source_id = catalog_fts.source_id
-             WHERE catalog_fts MATCH ?1 AND s.adapter = ?2 {available}
-             ORDER BY rank, s.updated_at DESC, s.source_id
-             LIMIT ?3"
-        )
-    } else {
-        format!(
-            "SELECT s.source_id, s.catalog_handle, s.project_handle, s.project_display,
-                    s.adapter, s.title, s.updated_at, s.health, s.native_available,
-                    snippet(catalog_fts, 2, '[', ']', ' … ', 18) AS snippet
-             FROM catalog_fts
-             JOIN catalog_sessions AS s ON s.source_id = catalog_fts.source_id
-             WHERE catalog_fts MATCH ?1 {available}
-             ORDER BY rank, s.updated_at DESC, s.source_id
-             LIMIT ?2"
-        )
-    };
-    let mut statement = catalog.prepare(&sql).map_err(map_recall)?;
-    let mut rows = if let Some(harness) = harness {
-        statement
-            .query(rusqlite::params![query, harness, limit])
-            .map_err(map_recall)?
-    } else {
-        statement
-            .query(rusqlite::params![query, limit])
-            .map_err(map_recall)?
-    };
-    let mut hits = Vec::new();
-    while let Some(row) = rows.next().map_err(map_recall)? {
-        hits.push(hit_from_row(row)?);
+    if let Some(category) = query.category {
+        if !categories().contains(&category) {
+            return Err(TangError::new(
+                "invalid-category",
+                format!("Category must be one of: {}.", categories().join(", ")),
+            ));
+        }
     }
-    Ok(hits)
+    if text.is_none() && label.is_none() && query.category.is_none() && query.harness.is_none() {
+        return Err(TangError::new(
+            "empty-query",
+            "Provide a query or a label, category, or harness filter.",
+        ));
+    }
+    let columns = "s.source_id, s.catalog_handle, s.project_handle, s.project_display,
+        s.adapter, s.title, s.updated_at, s.health, s.native_available,
+        s.category, s.summary";
+    let mut filters = Vec::new();
+    let mut params: Vec<Bound> = Vec::new();
+    if !query.include_unavailable {
+        filters.push("s.native_available = 1".to_string());
+    }
+    if let Some(harness) = query.harness {
+        filters.push("s.adapter = ?".to_string());
+        params.push(Bound::Text(harness.to_string()));
+    }
+    if let Some(category) = query.category {
+        filters.push("s.category = ?".to_string());
+        params.push(Bound::Text(category.to_string()));
+    }
+    if let Some(label) = &label {
+        filters.push(
+            "s.source_id IN (SELECT source_id FROM catalog_labels WHERE label = ?)".to_string(),
+        );
+        params.push(Bound::Text(label.clone()));
+    }
+    let where_sql = if filters.is_empty() {
+        "1 = 1".to_string()
+    } else {
+        filters.join(" AND ")
+    };
+    let sql = if let Some(text) = text {
+        params.insert(0, Bound::Text(text.to_string()));
+        format!(
+            "SELECT {columns}, snippet(catalog_fts, 2, '[', ']', ' … ', 18) AS snippet
+             FROM catalog_fts
+             JOIN catalog_sessions AS s ON s.source_id = catalog_fts.source_id
+             WHERE catalog_fts MATCH ? AND {where_sql}
+             ORDER BY rank, s.updated_at DESC, s.source_id
+             LIMIT ?"
+        )
+    } else {
+        format!(
+            "SELECT {columns}, NULL AS snippet
+             FROM catalog_sessions AS s
+             WHERE {where_sql}
+             ORDER BY s.updated_at DESC, s.source_id
+             LIMIT ?"
+        )
+    };
+    params.push(Bound::Int(query.limit));
+    let mut statement = catalog.prepare(&sql).map_err(map_recall)?;
+    let mut rows = statement
+        .query(rusqlite::params_from_iter(params.iter()))
+        .map_err(map_recall)?;
+    let mut pending = Vec::new();
+    while let Some(row) = rows.next().map_err(map_recall)? {
+        pending.push(hit_from_row(row)?);
+    }
+    drop(rows);
+    drop(statement);
+    let ids: Vec<String> = pending.iter().map(|hit| hit.source_id.clone()).collect();
+    let grouped = labels_for(catalog, &ids)?;
+    for hit in &mut pending {
+        if let Some(labels) = grouped.get(&hit.source_id) {
+            hit.labels.clone_from(labels);
+        }
+    }
+    Ok(pending)
+}
+
+enum Bound {
+    Text(String),
+    Int(i64),
+}
+
+impl rusqlite::ToSql for Bound {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        match self {
+            Bound::Text(value) => value.to_sql(),
+            Bound::Int(value) => value.to_sql(),
+        }
+    }
 }
 
 struct CapsuleRow {
@@ -319,8 +396,9 @@ fn upsert_session(catalog: &Connection, record: &SessionRecord<'_>) -> Result<()
             "INSERT INTO catalog_sessions(
                 source_id, project_key, project_display, database_path, adapter,
                 catalog_handle, project_handle, title, health, native_available,
-                started_at, updated_at, synced_at, search_text
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+                started_at, updated_at, synced_at, search_text, body_text,
+                category, summary
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, '', ?14, ?15, ?16)
              ON CONFLICT(source_id) DO UPDATE SET
                 project_key=excluded.project_key,
                 project_display=excluded.project_display,
@@ -334,7 +412,9 @@ fn upsert_session(catalog: &Connection, record: &SessionRecord<'_>) -> Result<()
                 started_at=excluded.started_at,
                 updated_at=excluded.updated_at,
                 synced_at=excluded.synced_at,
-                search_text=excluded.search_text",
+                body_text=excluded.body_text,
+                category=excluded.category,
+                summary=excluded.summary",
             rusqlite::params![
                 record.source_id,
                 record.project_key,
@@ -349,23 +429,13 @@ fn upsert_session(catalog: &Connection, record: &SessionRecord<'_>) -> Result<()
                 record.started_at,
                 record.updated_at,
                 record.synced_at,
-                record.search_text,
+                record.body_text,
+                record.category,
+                record.summary,
             ],
         )
         .map_err(storage)?;
-    catalog
-        .execute(
-            "DELETE FROM catalog_fts WHERE source_id = ?1",
-            [record.source_id],
-        )
-        .map_err(storage)?;
-    catalog
-        .execute(
-            "INSERT INTO catalog_fts(source_id, project_key, search_text) VALUES (?1, ?2, ?3)",
-            rusqlite::params![record.source_id, record.project_key, record.search_text],
-        )
-        .map_err(storage)?;
-    Ok(())
+    reindex(catalog, record.source_id)
 }
 
 fn allocate_handle(catalog: &Connection, adapter: &str) -> Result<String> {
@@ -398,6 +468,250 @@ fn allocate_handle(catalog: &Connection, adapter: &str) -> Result<String> {
     Ok(format!("{prefix}{number}"))
 }
 
+pub fn add_label(
+    catalog: &mut Connection,
+    token: &str,
+    label: &str,
+    created_at: &str,
+) -> Result<String> {
+    let normalized = normalize_label(label)?;
+    let tx = catalog
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(storage)?;
+    let (source_id, handle) = resolve_token(&tx, token)?;
+    let existing: Option<i64> = tx
+        .query_row(
+            "SELECT 1 FROM catalog_labels WHERE source_id = ?1 AND label = ?2",
+            rusqlite::params![source_id, normalized],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(storage)?;
+    if existing.is_none() {
+        let count: i64 = tx
+            .query_row(
+                "SELECT COUNT(*) FROM catalog_labels WHERE source_id = ?1",
+                [&source_id],
+                |row| row.get(0),
+            )
+            .map_err(storage)?;
+        if count >= 8 {
+            return Err(TangError::new(
+                "label-limit",
+                "A session can have at most 8 labels.",
+            ));
+        }
+        tx.execute(
+            "INSERT INTO catalog_labels(source_id, label, created_at) VALUES (?1, ?2, ?3)",
+            rusqlite::params![source_id, normalized, created_at],
+        )
+        .map_err(storage)?;
+        reindex(&tx, &source_id)?;
+    }
+    tx.commit().map_err(storage)?;
+    Ok(handle)
+}
+
+pub fn remove_label(catalog: &mut Connection, token: &str, label: &str) -> Result<String> {
+    let normalized = normalize_label(label)?;
+    let tx = catalog
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(storage)?;
+    let (source_id, handle) = resolve_token(&tx, token)?;
+    let deleted = tx
+        .execute(
+            "DELETE FROM catalog_labels WHERE source_id = ?1 AND label = ?2",
+            rusqlite::params![source_id, normalized],
+        )
+        .map_err(storage)?;
+    if deleted == 0 {
+        return Err(TangError::new(
+            "missing-label",
+            format!("{normalized} is not attached to {handle}."),
+        ));
+    }
+    reindex(&tx, &source_id)?;
+    tx.commit().map_err(storage)?;
+    Ok(handle)
+}
+
+pub fn normalize_label(value: &str) -> Result<String> {
+    let label = value.trim().to_ascii_lowercase();
+    let mut chars = label.chars();
+    let Some(first) = chars.next() else {
+        return Err(TangError::new(
+            "invalid-label",
+            "A label is a lowercase word of at most 32 characters.",
+        ));
+    };
+    if !first.is_ascii_lowercase()
+        || label.len() > 32
+        || !chars.all(|character| {
+            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
+        })
+    {
+        return Err(TangError::new(
+            "invalid-label",
+            "A label is a lowercase word of at most 32 characters.",
+        ));
+    }
+    Ok(label)
+}
+
+fn resolve_token(catalog: &Connection, token: &str) -> Result<(String, String)> {
+    if token.is_empty() || token.trim() != token {
+        return Err(TangError::new(
+            "invalid-session",
+            "The session token must be non-empty and trimmed.",
+        ));
+    }
+    let row = if token.contains(':') {
+        catalog
+            .query_row(
+                "SELECT source_id, catalog_handle FROM catalog_sessions WHERE source_id = ?1",
+                [token],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .optional()
+            .map_err(storage)?
+    } else {
+        let handle = token.to_ascii_uppercase();
+        if !valid_handle(&handle) {
+            return Err(TangError::new(
+                "invalid-session",
+                "A catalog handle is a letter followed by a number.",
+            ));
+        }
+        catalog
+            .query_row(
+                "SELECT source_id, catalog_handle FROM catalog_sessions WHERE catalog_handle = ?1",
+                [&handle],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .optional()
+            .map_err(storage)?
+    };
+    row.ok_or_else(|| {
+        TangError::new(
+            "not-in-catalog",
+            "That session is not in the global catalog. Run tang catalog sync.",
+        )
+    })
+}
+
+fn valid_handle(handle: &str) -> bool {
+    let mut chars = handle.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if !first.is_ascii_alphabetic() {
+        return false;
+    }
+    let rest: String = chars.collect();
+    !rest.is_empty()
+        && !rest.starts_with('0')
+        && rest.chars().all(|character| character.is_ascii_digit())
+}
+
+fn reindex(catalog: &Connection, source_id: &str) -> Result<()> {
+    let (project_key, body, summary): (String, String, String) = catalog
+        .query_row(
+            "SELECT project_key, body_text, summary FROM catalog_sessions WHERE source_id = ?1",
+            [source_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .map_err(storage)?;
+    let mut statement = catalog
+        .prepare("SELECT label FROM catalog_labels WHERE source_id = ?1 ORDER BY label")
+        .map_err(storage)?;
+    let labels = statement
+        .query_map([source_id], |row| row.get::<_, String>(0))
+        .map_err(storage)?
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(storage)?;
+    drop(statement);
+    let document = indexed_document(&body, &summary, &labels);
+    catalog
+        .execute(
+            "UPDATE catalog_sessions SET search_text = ?1 WHERE source_id = ?2",
+            rusqlite::params![document, source_id],
+        )
+        .map_err(storage)?;
+    catalog
+        .execute("DELETE FROM catalog_fts WHERE source_id = ?1", [source_id])
+        .map_err(storage)?;
+    catalog
+        .execute(
+            "INSERT INTO catalog_fts(source_id, project_key, search_text) VALUES (?1, ?2, ?3)",
+            rusqlite::params![source_id, project_key, document],
+        )
+        .map_err(storage)?;
+    Ok(())
+}
+
+fn indexed_document(body: &str, summary: &str, labels: &[String]) -> String {
+    let mut parts = Vec::new();
+    if !summary.is_empty() {
+        parts.push(summary.to_string());
+    }
+    if !body.is_empty() && !summary.contains(body) {
+        parts.push(body.to_string());
+    }
+    parts.extend(labels.iter().cloned());
+    parts.join("\n")
+}
+
+fn excerpts_from(content_json: &str) -> Vec<(String, String)> {
+    let Ok(content) = serde_json::from_str::<serde_json::Value>(content_json) else {
+        return Vec::new();
+    };
+    let Some(items) = content
+        .get("excerpts")
+        .and_then(serde_json::Value::as_array)
+    else {
+        return Vec::new();
+    };
+    let mut found = Vec::new();
+    for item in items {
+        let Some(role) = item.get("role").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        let Some(text) = item.get("text").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        let redacted = redact(text, ContentKind::VisibleText).trim().to_string();
+        if !redacted.is_empty() {
+            found.push((role.to_string(), redacted));
+        }
+    }
+    found
+}
+
+fn labels_for(catalog: &Connection, ids: &[String]) -> Result<HashMap<String, Vec<String>>> {
+    let mut grouped = HashMap::new();
+    if ids.is_empty() {
+        return Ok(grouped);
+    }
+    let placeholders = vec!["?"; ids.len()].join(", ");
+    let sql = format!(
+        "SELECT source_id, label FROM catalog_labels WHERE source_id IN ({placeholders}) ORDER BY source_id, label"
+    );
+    let mut statement = catalog.prepare(&sql).map_err(storage)?;
+    let rows = statement
+        .query_map(rusqlite::params_from_iter(ids.iter()), |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(storage)?;
+    for row in rows {
+        let (source_id, label) = row.map_err(storage)?;
+        grouped
+            .entry(source_id)
+            .or_insert_with(Vec::new)
+            .push(label);
+    }
+    Ok(grouped)
+}
+
 fn handle_prefix(adapter: &str) -> &'static str {
     match adapter {
         "codex" => "C",
@@ -428,6 +742,12 @@ fn remove_missing(catalog: &Connection, project_key: &str, kept: &[String]) -> R
         if keep.contains(source_id.as_str()) {
             continue;
         }
+        catalog
+            .execute(
+                "DELETE FROM catalog_labels WHERE source_id = ?1",
+                [&source_id],
+            )
+            .map_err(storage)?;
         catalog
             .execute("DELETE FROM catalog_fts WHERE source_id = ?1", [&source_id])
             .map_err(storage)?;
@@ -477,7 +797,10 @@ fn hit_from_row(row: &rusqlite::Row<'_>) -> Result<RecallHit> {
         updated_at: row.get(6).map_err(storage)?,
         health: row.get(7).map_err(storage)?,
         native_available: row.get::<_, i64>(8).map_err(storage)? != 0,
-        snippet: row.get(9).map_err(storage)?,
+        category: row.get(9).map_err(storage)?,
+        summary: row.get(10).map_err(storage)?,
+        labels: Vec::new(),
+        snippet: row.get(11).map_err(storage)?,
     })
 }
 
@@ -524,17 +847,7 @@ fn migrate(connection: &mut Connection) -> Result<()> {
             "The global catalog schema is newer than this binary.",
         ));
     }
-    if current == SCHEMA_VERSION {
-        tx.commit().map_err(storage)?;
-        return Ok(());
-    }
-    if current != 0 {
-        return Err(TangError::new(
-            "catalog-schema",
-            format!("Missing catalog migration between {current} and {SCHEMA_VERSION}."),
-        ));
-    }
-    tx.execute_batch(
+    let migrations: [&str; 2] = [
         "CREATE TABLE catalog_sessions (
             source_id TEXT PRIMARY KEY,
             project_key TEXT NOT NULL,
@@ -562,10 +875,27 @@ fn migrate(connection: &mut Connection) -> Result<()> {
             project_key UNINDEXED,
             search_text,
             tokenize = 'porter unicode61'
+        );",
+        "ALTER TABLE catalog_sessions ADD COLUMN category TEXT NOT NULL DEFAULT 'other';
+        ALTER TABLE catalog_sessions ADD COLUMN summary TEXT NOT NULL DEFAULT '';
+        ALTER TABLE catalog_sessions ADD COLUMN body_text TEXT NOT NULL DEFAULT '';
+        UPDATE catalog_sessions SET body_text = search_text;
+        CREATE TABLE catalog_labels (
+            source_id TEXT NOT NULL REFERENCES catalog_sessions(source_id) ON DELETE CASCADE,
+            label TEXT NOT NULL CHECK(length(label) > 0),
+            created_at TEXT NOT NULL,
+            PRIMARY KEY(source_id, label)
         );
-        PRAGMA user_version = 1;",
-    )
-    .map_err(storage)?;
+        CREATE INDEX catalog_labels_label ON catalog_labels(label, source_id);",
+    ];
+    let mut current = current;
+    while (current as usize) < migrations.len() {
+        tx.execute_batch(migrations[current as usize])
+            .map_err(storage)?;
+        current += 1;
+        tx.pragma_update(None, "user_version", current)
+            .map_err(storage)?;
+    }
     tx.commit().map_err(storage)?;
     Ok(())
 }

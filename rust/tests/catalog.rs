@@ -2,7 +2,7 @@ use rusqlite::Connection;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tang::catalog::{open_catalog, recall, sync_project};
+use tang::catalog::{add_label, open_catalog, recall, sync_project, RecallQuery};
 use tang::cli::run_with;
 use tang::project::resolve_project;
 
@@ -122,26 +122,42 @@ fn sync_and_recall_span_projects_and_redact_secrets() {
         "2026-11-09T21:00:00Z",
     )
     .unwrap();
-    let stored: String = catalog
+    let stored: (String, String, String) = catalog
         .query_row(
-            "SELECT search_text FROM catalog_sessions WHERE source_id = 'codex:fixture:books'",
+            "SELECT body_text, category, summary FROM catalog_sessions WHERE source_id = 'codex:fixture:books'",
             [],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
         .unwrap();
-    assert_eq!(stored, "five books to bring API_KEY=[REDACTED:credential]");
+    assert_eq!(
+        stored.0,
+        "five books to bring API_KEY=[REDACTED:credential]"
+    );
+    assert_eq!(stored.1, "other");
+    assert!(stored.2.starts_with("[other] Reading list"));
     assert!(tang::cli::catalog_file_is_private(&catalog_path));
-    let hits = recall(&catalog, "book", None, 20, false).unwrap();
+    let hits = recall(&catalog, &ask("book")).unwrap();
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].catalog_handle, "C1");
     assert_eq!(hits[0].project_display, "alpha");
     assert!(hits[0].snippet.as_deref().unwrap_or("").contains("book"));
-    let zebra = recall(&catalog, "zebra", None, 20, false).unwrap();
+    let zebra = recall(&catalog, &ask("zebra")).unwrap();
     assert_eq!(zebra[0].harness, "grok");
     assert_eq!(zebra[0].project_display, "beta");
-    assert!(recall(&catalog, "supersecretvalue", None, 20, false)
+    assert!(recall(&catalog, &ask("supersecretvalue"))
         .unwrap()
         .is_empty());
+}
+
+fn ask(text: &str) -> RecallQuery<'_> {
+    RecallQuery {
+        text: Some(text),
+        label: None,
+        category: None,
+        harness: None,
+        limit: 20,
+        include_unavailable: false,
+    }
 }
 
 #[test]
@@ -178,13 +194,10 @@ fn handles_are_not_reused_and_unavailable_sessions_stay_hidden() {
         "2026-11-09T21:00:00Z",
     )
     .unwrap();
-    assert!(recall(&catalog, "transcript", None, 20, false)
-        .unwrap()
-        .is_empty());
-    assert_eq!(
-        recall(&catalog, "transcript", None, 20, true).unwrap()[0].catalog_handle,
-        "R1"
-    );
+    assert!(recall(&catalog, &ask("transcript")).unwrap().is_empty());
+    let mut hidden = ask("transcript");
+    hidden.include_unavailable = true;
+    assert_eq!(recall(&catalog, &hidden).unwrap()[0].catalog_handle, "R1");
     database
         .execute(
             "DELETE FROM capsules WHERE source_id = 'codex:fixture:secret'",
@@ -351,6 +364,100 @@ fn cli_recall_is_global_and_does_not_create_a_missing_catalog() {
     assert_eq!(document["results"][0]["catalog_handle"], "G1");
     assert_eq!(document["results"][0]["project_display"], "beta");
     assert!(document["results"][0].get("database_path").is_none());
+    assert!(document["results"][0]["summary"]
+        .as_str()
+        .unwrap()
+        .starts_with("[other] Beta"));
+}
+
+#[test]
+fn labels_filter_recall_and_survive_sync() {
+    let root = scratch();
+    let (project, database) = project_db(&root.join("work"));
+    let content = r#"{"display_name":"Auth crash","excerpts":[{"role":"user","text":"the login crash leaves no answer"},{"role":"agent","text":"check the token before the request"}],"schema_version":1}"#;
+    database
+        .execute(
+            "INSERT INTO sessions(
+                source_id, project_key, adapter, session_handle, title, health,
+                native_available, started_at, updated_at
+             ) VALUES ('codex:fixture:auth', ?1, 'codex', 'C1', 'Auth crash', 'complete', 1,
+                       '2026-11-01T00:00:00Z', '2026-11-01T00:00:00Z')",
+            [&project.key],
+        )
+        .unwrap();
+    database
+        .execute(
+            "INSERT INTO capsules(source_id, project_key, content_json, search_text)
+             VALUES ('codex:fixture:auth', ?1, ?2, 'the login crash leaves no answer')",
+            rusqlite::params![project.key, content],
+        )
+        .unwrap();
+    let catalog_path = root.join("catalog.db");
+    let mut catalog = open_catalog(&catalog_path).unwrap();
+    sync_project(
+        &mut catalog,
+        &database,
+        &project.key,
+        &project.display_name,
+        &project.database_path,
+        "2026-11-09T21:00:00Z",
+    )
+    .unwrap();
+    assert_eq!(
+        add_label(&mut catalog, "c1", "Auth", "2026-11-09T21:00:00Z").unwrap(),
+        "C1"
+    );
+    let hits = recall(
+        &catalog,
+        &RecallQuery {
+            text: None,
+            label: Some("auth"),
+            category: None,
+            harness: None,
+            limit: 20,
+            include_unavailable: false,
+        },
+    )
+    .unwrap();
+    assert_eq!(hits[0].category, "bug");
+    assert_eq!(hits[0].labels, vec!["auth".to_string()]);
+    assert!(hits[0].summary.starts_with("[bug] Auth crash"));
+    assert!(hits[0].summary.contains("login crash"));
+    sync_project(
+        &mut catalog,
+        &database,
+        &project.key,
+        &project.display_name,
+        &project.database_path,
+        "2026-11-09T21:00:00Z",
+    )
+    .unwrap();
+    let again = recall(
+        &catalog,
+        &RecallQuery {
+            text: None,
+            label: Some("auth"),
+            category: None,
+            harness: None,
+            limit: 20,
+            include_unavailable: false,
+        },
+    )
+    .unwrap();
+    assert_eq!(again[0].labels, vec!["auth".to_string()]);
+    let error = add_label(&mut catalog, "C1", "bad label", "2026-11-09T21:00:00Z").unwrap_err();
+    assert_eq!(error.code, "invalid-label");
+    for index in 0..7 {
+        add_label(
+            &mut catalog,
+            "C1",
+            &format!("extra{index}"),
+            "2026-11-09T21:00:00Z",
+        )
+        .unwrap();
+    }
+    let error = add_label(&mut catalog, "C1", "overflow", "2026-11-09T21:00:00Z").unwrap_err();
+    assert_eq!(error.code, "label-limit");
 }
 
 #[test]
@@ -385,13 +492,13 @@ fn capsule_source_title_wins_over_the_derived_display_name() {
         "2026-11-09T21:00:00Z",
     )
     .unwrap();
-    let hits = recall(&catalog, "Native", None, 20, false).unwrap();
+    let hits = recall(&catalog, &ask("Native")).unwrap();
     assert_eq!(hits.len(), 1);
     assert_eq!(
         hits[0].title.as_deref(),
         Some("Native title API_KEY=[REDACTED:credential]")
     );
-    assert!(recall(&catalog, "Derived", None, 20, false)
+    assert!(recall(&catalog, &ask("Derived"))
         .unwrap()
         .is_empty());
 }
@@ -440,6 +547,6 @@ fn empty_project_database_does_not_wipe_catalog_rows() {
     .unwrap();
     assert_eq!(result.removed, 0);
     assert_eq!(result.warnings.len(), 1);
-    let hits = recall(&catalog, "keep", None, 20, false).unwrap();
+    let hits = recall(&catalog, &ask("keep")).unwrap();
     assert_eq!(hits.len(), 1);
 }
