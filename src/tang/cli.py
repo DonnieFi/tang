@@ -22,9 +22,11 @@ from tang.catalog import (
     CatalogError,
     add_label,
     default_catalog_path,
+    forget_project,
     open_catalog,
     recall as recall_catalog,
     remove_label,
+    resolve_join,
     sync_project,
 )
 from tang.adapters import OpenCodeAdapter, SessionHealth, SessionIdentity
@@ -217,6 +219,7 @@ def build_parser() -> argparse.ArgumentParser:
     purge.add_argument("--yes", action="store_true", help="confirm without a prompt")
     purge.add_argument("--database", type=Path)
     purge.add_argument("--cwd", type=Path, default=Path.cwd())
+    purge.add_argument("--catalog", type=Path)
     link = subparsers.add_parser(
         "link",
         help="record explicitly confirmed continuation edges",
@@ -404,6 +407,25 @@ def build_parser() -> argparse.ArgumentParser:
         label_command.add_argument("session", help="catalog handle or canonical source id")
         label_command.add_argument("label", help="short lowercase word")
         label_command.add_argument("--catalog", type=Path)
+    join = subparsers.add_parser(
+        "join",
+        help="link catalog sessions that belong to one project",
+    )
+    join.add_argument(
+        "--from",
+        dest="source_ids",
+        nargs="+",
+        required=True,
+        help="catalog handles or canonical source ids",
+    )
+    join.add_argument(
+        "--into",
+        dest="target_id",
+        required=True,
+        help="catalog handle or canonical source id that receives the continuation",
+    )
+    join.add_argument("--json", action="store_true", dest="as_json")
+    join.add_argument("--catalog", type=Path)
     return parser
 
 
@@ -1221,12 +1243,16 @@ def _run_purge(args: argparse.Namespace) -> int:
             result = repository.purge_all()
     finally:
         connection.close()
-    print(
+    removed = forget_project(_catalog_path(args), project.key)
+    message = (
         f"Purged {result.sessions} sessions, {result.capsules} capsules, "
         f"{result.search_rows} search rows, {result.checkpoints} checkpoints, "
         f"and {result.continuations} continuation edges. "
         "Native harness logs were not modified."
     )
+    if removed:
+        message += f" Removed {removed} global catalog rows for this project."
+    print(message)
     return 0
 
 
@@ -1664,6 +1690,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_recall(args)
         if args.command == "label":
             return _run_label(args)
+        if args.command == "join":
+            return _run_join(args)
         if args.command == "demo":
             from tang.demo import run_demo
 
@@ -1794,6 +1822,51 @@ def _run_recall(args: argparse.Namespace) -> int:
                 f"{hit.catalog_handle}\t{hit.harness}\t{hit.category}\t"
                 f"{labels}\t{hit.project_display}\t{title}"
             )
+    return 0
+
+
+def _run_join(args: argparse.Namespace) -> int:
+    path = _catalog_path(args)
+    if not path.expanduser().is_file():
+        print(
+            "error[catalog-missing]: Tang has no global catalog; run tang catalog sync.",
+            file=sys.stderr,
+        )
+        return 2
+    catalog = open_catalog(path)
+    try:
+        request = resolve_join(catalog, args.source_ids, args.target_id)
+    finally:
+        catalog.close()
+    project_db = open_database(request.database_path)
+    try:
+        service = ContinuationService(TangRepository(project_db))
+        try:
+            result = service.link(
+                request.source_ids,
+                request.target_id,
+                request.project_key,
+                "explicit",
+                datetime.now(timezone.utc),
+            )
+        except ContinuationError as error:
+            print(f"error[{error.code}]: {error}", file=sys.stderr)
+            return 2
+    finally:
+        project_db.close()
+    if args.as_json:
+        print(
+            json.dumps(
+                _link_document(result, request.source_handles, request.target_handle),
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
+    else:
+        print(
+            f"Linked {', '.join(request.source_handles)} to {request.target_handle}; "
+            f"inserted {result.inserted}, existing {result.existing}."
+        )
     return 0
 
 

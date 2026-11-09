@@ -15,6 +15,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import quote
 
 from tang.redaction import (
     DEFAULT_REDACTOR,
@@ -470,6 +471,91 @@ def build_summary(
         return text
     keep = SUMMARY_LIMIT - len(_SUMMARY_MARKER)
     return text[:keep].rstrip() + _SUMMARY_MARKER
+
+
+@dataclass(frozen=True, slots=True)
+class JoinRequest:
+    source_ids: tuple[str, ...]
+    source_handles: tuple[str, ...]
+    target_id: str
+    target_handle: str
+    project_key: str
+    database_path: Path
+
+
+def resolve_join(
+    catalog: sqlite3.Connection,
+    sources: Sequence[str],
+    target: str,
+) -> JoinRequest:
+    """Resolve catalog handles to one same-project continuation."""
+
+    if not sources:
+        raise CatalogError("no-sources", "Select at least one source session.")
+    source_rows = tuple(_catalog_row(catalog, token) for token in sources)
+    target_row = _catalog_row(catalog, target)
+    project_key = str(target_row["project_key"])
+    if any(str(row["project_key"]) != project_key for row in source_rows):
+        raise CatalogError(
+            "cross-project",
+            "Tang joins sessions only when they belong to the same project.",
+        )
+    database_path = Path(str(target_row["database_path"]))
+    assert_project_database(database_path)
+    return JoinRequest(
+        source_ids=tuple(str(row["source_id"]) for row in source_rows),
+        source_handles=tuple(str(row["catalog_handle"]) for row in source_rows),
+        target_id=str(target_row["source_id"]),
+        target_handle=str(target_row["catalog_handle"]),
+        project_key=project_key,
+        database_path=database_path,
+    )
+
+
+def assert_project_database(path: Path) -> None:
+    """Refuse to open anything that is not already a Tang project database."""
+
+    if not path.is_file():
+        raise CatalogError(
+            "storage-unavailable",
+            "The project database recorded for this session is missing.",
+        )
+    uri = "file:" + quote(str(path.resolve())) + "?mode=ro"
+    try:
+        connection = sqlite3.connect(uri, uri=True)
+    except sqlite3.Error as error:
+        raise CatalogError(
+            "storage-unavailable",
+            "The project database recorded for this session cannot be read.",
+        ) from error
+    try:
+        names = {
+            str(row[0])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+    finally:
+        connection.close()
+    if not {"sessions", "capsules", "continuation_edges"} <= names:
+        raise CatalogError(
+            "not-tang-database",
+            "The catalog does not point at a Tang project database.",
+        )
+
+
+def _catalog_row(catalog: sqlite3.Connection, token: str) -> sqlite3.Row:
+    source_id, _handle = _resolve(catalog, token)
+    row = catalog.execute(
+        "SELECT * FROM catalog_sessions WHERE source_id = ?",
+        (source_id,),
+    ).fetchone()
+    if row is None:
+        raise CatalogError(
+            "not-in-catalog",
+            "That session is not in the global catalog. Run tang catalog sync.",
+        )
+    return row
 
 
 def forget_project(path: Path, project_key: str) -> int:

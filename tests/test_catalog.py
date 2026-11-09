@@ -503,6 +503,150 @@ def test_cli_recall_filters_by_label(tmp_path: Path, capsys) -> None:
     assert document["results"][0]["summary"].startswith("[decision] Decision note")
 
 
+def test_join_links_catalog_handles_for_one_project(tmp_path: Path, capsys) -> None:
+    project, _database, connection = _project_db(tmp_path / "work")
+    try:
+        _insert_session(
+            connection,
+            project_key=project.key,
+            source_id="codex:fixture:aaa",
+            adapter="codex",
+            native_id="aaa",
+            handle="C1",
+            title="Source",
+            search_text="source session",
+        )
+        _insert_session(
+            connection,
+            project_key=project.key,
+            source_id="codex:fixture:bbb",
+            adapter="codex",
+            native_id="bbb",
+            handle="C2",
+            title="Target",
+            search_text="target session",
+        )
+    finally:
+        connection.close()
+    catalog = tmp_path / "catalog.db"
+    assert main(["catalog", "sync", "--cwd", str(tmp_path / "work"), "--catalog", str(catalog)]) == 0
+    capsys.readouterr()
+    assert (
+        main(
+            [
+                "join",
+                "--from",
+                "C1",
+                "--into",
+                "C2",
+                "--catalog",
+                str(catalog),
+                "--json",
+            ]
+        )
+        == 0
+    )
+    document = json.loads(capsys.readouterr().out)
+    assert document["schema_version"] == 1
+    assert document["inserted"] == 1
+    assert document["source_handles"] == ["C1"]
+    assert document["target_handle"] == "C2"
+    assert (
+        main(
+            ["join", "--from", "C1", "--into", "C2", "--catalog", str(catalog), "--json"]
+        )
+        == 0
+    )
+    assert json.loads(capsys.readouterr().out)["existing"] == 1
+    assert main(["join", "--from", "C2", "--into", "C1", "--catalog", str(catalog)]) == 2
+    assert "error[cycle]" in capsys.readouterr().err
+    assert main(["join", "--from", "C1", "--into", "C1", "--catalog", str(catalog)]) == 2
+    assert "error[self-link]" in capsys.readouterr().err
+
+
+def test_join_refuses_cross_project_sessions(tmp_path: Path, capsys) -> None:
+    alpha, _alpha_db, alpha_conn = _project_db(tmp_path / "alpha")
+    beta, _beta_db, beta_conn = _project_db(tmp_path / "beta")
+    try:
+        _insert_session(
+            alpha_conn,
+            project_key=alpha.key,
+            source_id="codex:fixture:alpha",
+            adapter="codex",
+            native_id="alpha",
+            handle="C1",
+            title="Alpha",
+            search_text="alpha session",
+        )
+        _insert_session(
+            beta_conn,
+            project_key=beta.key,
+            source_id="grok:fixture:beta",
+            adapter="grok",
+            native_id="beta",
+            handle="G1",
+            title="Beta",
+            search_text="beta session",
+        )
+    finally:
+        alpha_conn.close()
+        beta_conn.close()
+    catalog = tmp_path / "catalog.db"
+    assert main(["catalog", "sync", "--cwd", str(tmp_path / "alpha"), "--catalog", str(catalog)]) == 0
+    assert main(["catalog", "sync", "--cwd", str(tmp_path / "beta"), "--catalog", str(catalog)]) == 0
+    capsys.readouterr()
+    assert (
+        main(["join", "--from", "C1", "--into", "G1", "--catalog", str(catalog)]) == 2
+    )
+    assert "error[cross-project]" in capsys.readouterr().err
+    saved = open_database(project_data_path(beta))
+    try:
+        count = saved.execute("SELECT COUNT(*) FROM continuation_edges").fetchone()[0]
+    finally:
+        saved.close()
+    assert count == 0
+
+
+def test_purge_removes_catalog_rows_for_the_project(tmp_path: Path, capsys) -> None:
+    project, _database, connection = _project_db(tmp_path / "work")
+    try:
+        _insert_session(
+            connection,
+            project_key=project.key,
+            source_id="codex:fixture:purge",
+            adapter="codex",
+            native_id="purge",
+            handle="C1",
+            title="Purge me",
+            search_text="temporary catalog row",
+        )
+    finally:
+        connection.close()
+    catalog = tmp_path / "catalog.db"
+    assert main(["catalog", "sync", "--cwd", str(tmp_path / "work"), "--catalog", str(catalog)]) == 0
+    assert (
+        main(
+            [
+                "purge",
+                "--all",
+                "--yes",
+                "--cwd",
+                str(tmp_path / "work"),
+                "--catalog",
+                str(catalog),
+            ]
+        )
+        == 0
+    )
+    assert "Removed 1 global catalog rows" in capsys.readouterr().out
+    saved = open_catalog(catalog)
+    try:
+        remaining = saved.execute("SELECT COUNT(*) FROM catalog_sessions").fetchone()[0]
+    finally:
+        saved.close()
+    assert remaining == 0
+
+
 def test_cli_recall_is_global_and_does_not_create_a_missing_catalog(
     tmp_path: Path, capsys
 ) -> None:

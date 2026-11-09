@@ -626,3 +626,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) add Postgres, Elasticsearch, or a vector index; (b) replace the per-project database with one global file; (c) keep Python 3.11, stdlib SQLite, and FTS5, and add an explicit global catalog of redacted capsules beside the per-project graph.
 - Decision: (c) — `tang catalog sync` writes `~/.tang/catalog.db`. Existing project commands keep their own database. Summaries are deterministic extracts of redacted capsule text, not model calls. User labels are operator tokens. `tang join` writes a continuation only when both sessions belong to the same project. Serves: Technological Implementation, Design, Potential Impact.
 - By: agent, under Donnie Fiander's lightweight-rewrite direction
+
+## 2026-11-09T21:40:00Z · project · Join catalog sessions inside one project
+- Context: Donnie asked for a faster way to join sessions. The global catalog can see every project, but continuation edges, cycle checks, and tombstones live in the per-project database. A cross-project edge would need a new graph authority.
+- Options: (a) store cross-project edges in the catalog; (b) refuse cross-project joins and write the edge with the existing continuation rules; (c) copy both sessions into the current project's database.
+- Decision: (b) — `tang join --from HANDLE --into HANDLE` resolves global catalog handles and records an explicit edge only when both sessions belong to the same project. The command does not read or write native logs. Serves: Technological Implementation, Design, Potential Impact.
+- By: agent, under Donnie Fiander's 2.0 direction
