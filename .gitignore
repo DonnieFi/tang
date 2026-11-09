@@ -35,6 +35,7 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+/rust/target/
 
 # Local runtime and demo output
 /demo-output/
