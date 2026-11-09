@@ -230,15 +230,23 @@ pub fn recall(catalog: &Connection, query: &RecallQuery<'_>) -> Result<Vec<Recal
         Some(value) => Some(normalize_label(value)?),
         None => None,
     };
-    if let Some(category) = query.category {
-        if !categories().contains(&category) {
+    let category = query
+        .category
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty());
+    if let Some(category) = &category {
+        if !categories().contains(&category.as_str()) {
             return Err(TangError::new(
                 "invalid-category",
                 format!("Category must be one of: {}.", categories().join(", ")),
             ));
         }
     }
-    if text.is_none() && label.is_none() && query.category.is_none() && query.harness.is_none() {
+    let harness = query
+        .harness
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty());
+    if text.is_none() && label.is_none() && category.is_none() && harness.is_none() {
         return Err(TangError::new(
             "empty-query",
             "Provide a query or a label, category, or harness filter.",
@@ -252,13 +260,13 @@ pub fn recall(catalog: &Connection, query: &RecallQuery<'_>) -> Result<Vec<Recal
     if !query.include_unavailable {
         filters.push("s.native_available = 1".to_string());
     }
-    if let Some(harness) = query.harness {
+    if let Some(harness) = &harness {
         filters.push("s.adapter = ?".to_string());
-        params.push(Bound::Text(harness.to_string()));
+        params.push(Bound::Text(harness.clone()));
     }
-    if let Some(category) = query.category {
+    if let Some(category) = &category {
         filters.push("s.category = ?".to_string());
-        params.push(Bound::Text(category.to_string()));
+        params.push(Bound::Text(category.clone()));
     }
     if let Some(label) = &label {
         filters.push(

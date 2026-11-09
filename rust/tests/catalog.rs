@@ -498,9 +498,7 @@ fn capsule_source_title_wins_over_the_derived_display_name() {
         hits[0].title.as_deref(),
         Some("Native title API_KEY=[REDACTED:credential]")
     );
-    assert!(recall(&catalog, &ask("Derived"))
-        .unwrap()
-        .is_empty());
+    assert!(recall(&catalog, &ask("Derived")).unwrap().is_empty());
 }
 
 #[test]
@@ -549,4 +547,81 @@ fn empty_project_database_does_not_wipe_catalog_rows() {
     assert_eq!(result.warnings.len(), 1);
     let hits = recall(&catalog, &ask("keep")).unwrap();
     assert_eq!(hits.len(), 1);
+}
+
+#[test]
+fn category_and_harness_filters_are_normalized() {
+    let root = scratch();
+    let (project, database) = project_db(&root.join("work"));
+    insert(
+        &database,
+        &project.key,
+        "codex:fixture:crash",
+        "codex",
+        "C1",
+        "Crash report",
+        "the indexer crash",
+        1,
+    );
+    insert(
+        &database,
+        &project.key,
+        "grok:fixture:choice",
+        "grok",
+        "G1",
+        "Choice",
+        "we decided to keep sqlite",
+        1,
+    );
+    let mut catalog = open_catalog(&root.join("catalog.db")).unwrap();
+    sync_project(
+        &mut catalog,
+        &database,
+        &project.key,
+        &project.display_name,
+        &project.database_path,
+        "2026-11-09T21:00:00Z",
+    )
+    .unwrap();
+    let bugs = recall(
+        &catalog,
+        &RecallQuery {
+            text: None,
+            label: None,
+            category: Some("BUG"),
+            harness: None,
+            limit: 20,
+            include_unavailable: false,
+        },
+    )
+    .unwrap();
+    assert_eq!(bugs.len(), 1);
+    assert_eq!(bugs[0].category, "bug");
+    let codex = recall(
+        &catalog,
+        &RecallQuery {
+            text: None,
+            label: None,
+            category: None,
+            harness: Some("Codex"),
+            limit: 20,
+            include_unavailable: false,
+        },
+    )
+    .unwrap();
+    assert_eq!(codex.len(), 1);
+    assert_eq!(codex[0].harness, "codex");
+    let error = recall(
+        &catalog,
+        &RecallQuery {
+            text: None,
+            label: None,
+            category: Some("nonsense"),
+            harness: None,
+            limit: 20,
+            include_unavailable: false,
+        },
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "invalid-category");
 }
