@@ -614,3 +614,15 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Context: Human approved the session-card visual and directed that the reviewed Epic 12 branch be merged into `main` before pushing to GitHub.
 - Decision: Preserve milestone `epic/12-session-cards` at `41e18e44a4cc3cd80a97dcf70310880073ca34c1`; update local `main` from `origin/main` and merge the milestone with merge commit `2817a5575dafee8282aa5bcee9ee421cfe7ba421`. The merge remains subject to the remote push and final human-gated epic closure.
 - By: human direction and agent implementation
+
+## 2026-11-09T21:17:13Z · project · Follow the Tang 2.0 brief over the historical epic order
+- Context: Donnie directed a post-hackathon rewrite of the existing repository. The priority is searching, labeling, summarizing, categorizing, and recalling sessions, with a global database and a faster join. `AGENTS.md` still orders the July 2026 hackathon epics and forbids editing the spec to fit code.
+- Options: (a) resume the old epic sequence; (b) rewrite the spec so the new work matches it; (c) implement the requested 2.0 slice, record the conflict, and leave the spec and epic state unchanged.
+- Decision: (c) — `docs/tang-2.0.md` is the rewrite plan. `docs/tangspec.md` stays the approved v1 spec. No epic is closed and `main` is not merged. Privacy and redaction rules in the spec still apply. Serves: Technological Implementation, Potential Impact, Quality of Idea.
+- By: human (Donnie Fiander, 2.0 direction) and agent (recorded boundary)
+
+## 2026-11-09T21:17:13Z · project · Keep Python and SQLite for the 2.0 catalog
+- Context: Recall has to be fast across projects, and labels have to give a model something stable to filter on. The current CLI is already a local Python process with one SQLite file per project and FTS5 search. A heavier search platform would add a service and a new copy of private session text.
+- Options: (a) add Postgres, Elasticsearch, or a vector index; (b) replace the per-project database with one global file; (c) keep Python 3.11, stdlib SQLite, and FTS5, and add an explicit global catalog of redacted capsules beside the per-project graph.
+- Decision: (c) — `tang catalog sync` writes `~/.tang/catalog.db`. Existing project commands keep their own database. Summaries are deterministic extracts of redacted capsule text, not model calls. User labels are operator tokens. `tang join` writes a continuation only when both sessions belong to the same project. Serves: Technological Implementation, Design, Potential Impact.
+- By: agent, under Donnie Fiander's lightweight-rewrite direction
