@@ -18,6 +18,13 @@ from rich.text import Text
 
 from tang import __version__
 from tang.adapter_registry import configured_adapters
+from tang.catalog import (
+    CatalogError,
+    default_catalog_path,
+    open_catalog,
+    recall as recall_catalog,
+    sync_project,
+)
 from tang.adapters import OpenCodeAdapter, SessionHealth, SessionIdentity
 from tang.continuity_brief import build_continuity_brief
 from tang.context_service import ContextGenerationError, ContextPackService
@@ -343,6 +350,38 @@ def build_parser() -> argparse.ArgumentParser:
         help="native host context supplied only by the installed OpenCode tool",
     )
     opencode_target.add_argument("--opencode-executable", type=Path)
+    catalog = subparsers.add_parser(
+        "catalog",
+        help="maintain the global redacted session catalog",
+    )
+    catalog_commands = catalog.add_subparsers(dest="catalog_command", required=True)
+    catalog_sync = catalog_commands.add_parser(
+        "sync",
+        help="copy this project's redacted capsules into the global catalog",
+    )
+    catalog_sync.add_argument("--json", action="store_true", dest="as_json")
+    catalog_sync.add_argument("--database", type=Path)
+    catalog_sync.add_argument("--cwd", type=Path, default=Path.cwd())
+    catalog_sync.add_argument("--catalog", type=Path)
+    recall = subparsers.add_parser(
+        "recall",
+        help="search the global catalog across projects",
+    )
+    recall.add_argument("query", help="FTS5 query against redacted catalog text")
+    recall.add_argument("--json", action="store_true", dest="as_json")
+    recall.add_argument("--catalog", type=Path)
+    recall.add_argument("--harness", choices=_DISCOVERY_HARNESS_CHOICES)
+    recall.add_argument(
+        "--limit",
+        type=_search_limit,
+        default=20,
+        help="maximum recall results to return (1-100; default: 20)",
+    )
+    recall.add_argument(
+        "--include-unavailable",
+        action="store_true",
+        help="include sessions whose native source is gone",
+    )
     return parser
 
 
@@ -1597,6 +1636,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_link(args)
         if args.command == "graph":
             return _run_graph(args)
+        if args.command == "catalog":
+            return _run_catalog(args)
+        if args.command == "recall":
+            return _run_recall(args)
         if args.command == "demo":
             from tang.demo import run_demo
 
@@ -1612,5 +1655,110 @@ def main(argv: Sequence[str] | None = None) -> int:
     except DatabaseOpenError as error:
         print(f"error[storage-unavailable]: {error}", file=sys.stderr)
         return 2
+    except CatalogError as error:
+        print(f"error[{error.code}]: {error}", file=sys.stderr)
+        return 2
     parser.print_help()
+    return 0
+
+
+def _catalog_path(args: argparse.Namespace) -> Path:
+    explicit = getattr(args, "catalog", None)
+    return explicit if explicit is not None else default_catalog_path()
+
+
+def _run_catalog(args: argparse.Namespace) -> int:
+    project = resolve_project(args.cwd)
+    database = _required_database_for(args, project)
+    if database is None:
+        return 2
+    project_db = open_database(database)
+    try:
+        catalog = open_catalog(_catalog_path(args))
+        try:
+            result = sync_project(
+                catalog,
+                project_db,
+                project_key=project.key,
+                project_display=project.display_name,
+                database_path=database,
+                synced_at=datetime.now(timezone.utc),
+            )
+        finally:
+            catalog.close()
+    finally:
+        project_db.close()
+    if args.as_json:
+        print(
+            json.dumps(
+                {
+                    "removed": result.removed,
+                    "schema_version": 1,
+                    "skipped": result.skipped,
+                    "upserted": result.upserted,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
+    else:
+        print(
+            f"Catalog sync upserted {result.upserted}, "
+            f"removed {result.removed}, skipped {result.skipped}."
+        )
+    return 0
+
+
+def _run_recall(args: argparse.Namespace) -> int:
+    path = _catalog_path(args)
+    if not path.expanduser().is_file():
+        print(
+            "error[catalog-missing]: Tang has no global catalog; run tang catalog sync.",
+            file=sys.stderr,
+        )
+        return 2
+    catalog = open_catalog(path)
+    try:
+        hits = recall_catalog(
+            catalog,
+            args.query,
+            harness=args.harness,
+            limit=args.limit,
+            include_unavailable=args.include_unavailable,
+        )
+    finally:
+        catalog.close()
+    if args.as_json:
+        print(
+            json.dumps(
+                {
+                    "query": args.query,
+                    "result_count": len(hits),
+                    "results": [
+                        {
+                            "catalog_handle": hit.catalog_handle,
+                            "harness": hit.harness,
+                            "health": hit.health,
+                            "native_available": hit.native_available,
+                            "project_display": hit.project_display,
+                            "project_handle": hit.project_handle,
+                            "snippet": hit.snippet,
+                            "source_id": hit.source_id,
+                            "title": hit.title,
+                            "updated_at": hit.updated_at,
+                        }
+                        for hit in hits
+                    ],
+                    "schema_version": 1,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
+    elif not hits:
+        print("No matching sessions.")
+    else:
+        for hit in hits:
+            title = hit.title or ""
+            print(f"{hit.catalog_handle}\t{hit.harness}\t{hit.project_display}\t{title}")
     return 0
