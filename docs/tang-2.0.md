@@ -16,12 +16,22 @@ That stack is already light. The gap is not missing infrastructure. A model look
 
 ## Stack choice
 
-Stay on Python 3.11, stdlib `sqlite3`, and FTS5. Add one explicit global catalog at `~/.tang/catalog.db`, created only by `tang catalog sync`. Do not add Postgres, Elasticsearch, a vector index, an embedding service, or a second UI.
+The 2.0 CLI is one native Rust binary. Storage stays SQLite with FTS5. The crate is `rust/` so it does not share a source root with the Python package in `src/tang/`. Donnie chose Rust after an earlier note in this plan said to stay on Python 3.11. That Python catalog is not the 2.0 path.
 
-The catalog is a redacted copy of capsules that are already in a project database, written through the same redactor. It is not a silent fallback for `tang search`, and it does not replace the per-project database. Continuation edges stay in the project database that already enforces cycles, tombstones, and same-project membership.
+Crates, and nothing larger:
+
+- `rusqlite` with the bundled SQLite build, so FTS5 is in the binary and the machine does not need a system SQLite.
+- `regex`, for the same ordered redaction rules the spec already requires.
+- `serde_json`, to read capsule excerpts and emit recall JSON.
+- `sha2`, so a project key is the same SHA-256 digest the existing CLI uses.
+
+No Postgres, Elasticsearch, vector index, embedding pipeline, daemon, web framework, or second UI. This slice does not reimplement harness adapters. `tang catalog sync` reads capsules that are already in `PROJECT/.tang/tang.db`. Recall does not open native logs.
+
+The catalog is a redacted copy of those capsules. It is not a silent fallback for the Python `tang search`, and it does not replace the per-project database. Continuation edges stay in the project database that already enforces cycles, tombstones, and same-project membership.
 
 Rejected alternatives:
 
+- Continuing the 2.0 catalog in Python. Donnie decided the rewrite is Rust.
 - A hosted or multi-process search platform. It would add a service to install, a network or daemon to trust, and a new place private session text could land.
 - Replacing `.tang/tang.db` with only the global file. That would rewrite the reviewed graph and privacy boundary in the same change as recall.
 - Calling a model to summarize during sync. Output would depend on a key, a network, and a model build, and it could not be pinned by a unit test.
@@ -30,7 +40,7 @@ Summaries in this slice are deterministic extracts of the redacted title and vis
 
 ## First slice
 
-The slice lands as a stack. Each layer is usable on its own.
+The slice lands as a stack of Rust changes on this plan. Each layer is usable on its own. Build and test with `cargo test --manifest-path rust/Cargo.toml`.
 
 1. This plan and the matching `decision.md` entries.
 2. Global catalog. `tang catalog sync` copies the current project's redacted capsules into `~/.tang/catalog.db`. `tang recall QUERY` searches that file with FTS5, including sessions from other projects. Recall does not open native logs.
@@ -47,7 +57,7 @@ Catalog handles are global and are not reused after a session leaves the catalog
 - Model-written summaries and persisted Continuation Briefs.
 - Semantic or vector search.
 - Continuation edges that cross projects.
-- New harness adapters.
+- New harness adapters. Sync reads the existing project database.
 - A second interactive UI. The Codex skill remains the only interactive workflow; these commands are scriptable.
 
 ## Privacy

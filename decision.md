@@ -626,3 +626,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) add Postgres, Elasticsearch, or a vector index; (b) replace the per-project database with one global file; (c) keep Python 3.11, stdlib SQLite, and FTS5, and add an explicit global catalog of redacted capsules beside the per-project graph.
 - Decision: (c) — `tang catalog sync` writes `~/.tang/catalog.db`. Existing project commands keep their own database. Summaries are deterministic extracts of redacted capsule text, not model calls. User labels are operator tokens. `tang join` writes a continuation only when both sessions belong to the same project. Serves: Technological Implementation, Design, Potential Impact.
 - By: agent, under Donnie Fiander's lightweight-rewrite direction
+
+## 2026-11-09T21:49:37Z · project · Build the Tang 2.0 CLI in Rust
+- Context: Donnie decided Tang 2.0 is Rust, not Python. The product shape in `docs/tang-2.0.md` still stands: one global FTS catalog, deterministic extracts, operator labels, closed categories, and same-project joins. The Python catalog, label, and join changes are not the path to continue.
+- Options: (a) keep the 2.0 catalog in Python; (b) add a service or a vector index because the language changed; (c) replace the 2.0 CLI with one Rust binary that uses `rusqlite` and bundled FTS5, and leave the per-project graph in the existing SQLite file.
+- Decision: (c) — the binary lives in `rust/`. Crates are `rusqlite` (bundled SQLite), `regex`, `serde_json`, and `sha2`. Sync reads redacted capsules from `PROJECT/.tang/tang.db` and does not open native logs. `docs/tangspec.md` is unchanged. No epic is closed and `main` is not merged. Serves: Technological Implementation, Design, Potential Impact.
+- By: human (Donnie Fiander, Rust direction) and agent (crate boundary)
