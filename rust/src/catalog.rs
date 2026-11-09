@@ -76,6 +76,19 @@ pub fn open_catalog(path: &Path) -> Result<Connection> {
     Ok(connection)
 }
 
+pub fn forget_project(path: &Path, project_key: &str) -> Result<i64> {
+    if !path.is_file() {
+        return Ok(0);
+    }
+    let mut catalog = open_catalog(path)?;
+    let tx = catalog
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(storage)?;
+    let removed = remove_missing(&tx, project_key, &[])?;
+    tx.commit().map_err(storage)?;
+    Ok(removed)
+}
+
 pub fn open_project_readonly(path: &Path) -> Result<Connection> {
     if !path.is_file() {
         return Err(TangError::new(

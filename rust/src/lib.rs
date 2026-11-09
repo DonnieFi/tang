@@ -5,6 +5,7 @@
 pub mod catalog;
 pub mod cli;
 pub mod error;
+pub mod join;
 pub mod project;
 pub mod redact;
 pub mod summary;

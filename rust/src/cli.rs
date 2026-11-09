@@ -1,10 +1,11 @@
 //! Scriptable commands for the global catalog.
 
 use crate::catalog::{
-    add_label, default_catalog_path, open_catalog, open_project_readonly, recall, remove_label,
-    sync_project, RecallHit, RecallQuery, SyncResult,
+    add_label, default_catalog_path, forget_project, open_catalog, open_project_readonly, recall,
+    remove_label, sync_project, RecallHit, RecallQuery, SyncResult,
 };
 use crate::error::{Result, TangError};
+use crate::join::{link_plan, open_project_readwrite, resolve_join};
 use crate::project::resolve_project;
 use crate::timeutil::rfc3339_now;
 use serde_json::{json, Value};
@@ -24,6 +25,8 @@ pub fn run_with(args: &[String], stdout: &mut dyn Write) -> Result<()> {
         "catalog" => catalog_command(&args[1..], stdout),
         "recall" => recall_command(&args[1..], stdout),
         "label" => label_command(&args[1..], stdout),
+        "join" => join_command(&args[1..], stdout),
+        "purge" => purge_command(&args[1..], stdout),
         "help" => {
             writeln!(stdout, "{HELP}").map_err(io_error)?;
             Ok(())
@@ -43,10 +46,13 @@ Usage:
   tang recall [QUERY] [--label NAME] [--category NAME] [--harness NAME] [--limit N]
                [--include-unavailable] [--json] [--catalog PATH]
   tang label add|remove HANDLE LABEL [--catalog PATH]
+  tang join --from HANDLE [--from HANDLE] --into HANDLE [--json] [--catalog PATH]
+  tang purge --all --yes [--cwd DIR] [--catalog PATH]
 
 Sync copies redacted capsules into ~/.tang/catalog.db and stores a category
 plus an extractive summary. Recall searches that catalog and does not open
-native logs.
+native logs. Join writes a continuation only when both sessions belong to
+the same project.
 ";
 
 fn catalog_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
@@ -152,6 +158,10 @@ struct Flags {
     include_unavailable: bool,
     label: Option<String>,
     category: Option<String>,
+    sources: Vec<String>,
+    into: Option<String>,
+    yes: bool,
+    all: bool,
 }
 
 fn parse_flags(args: &[String]) -> Result<Flags> {
@@ -166,6 +176,10 @@ fn parse_flags(args: &[String]) -> Result<Flags> {
         include_unavailable: false,
         label: None,
         category: None,
+        sources: Vec::new(),
+        into: None,
+        yes: false,
+        all: false,
     };
     let mut index = 0;
     while index < args.len() {
@@ -174,6 +188,10 @@ fn parse_flags(args: &[String]) -> Result<Flags> {
             flags.json = true;
         } else if arg == "--include-unavailable" {
             flags.include_unavailable = true;
+        } else if arg == "--yes" {
+            flags.yes = true;
+        } else if arg == "--all" {
+            flags.all = true;
         } else if let Some(value) = flag_value(args, &mut index, "--catalog")? {
             flags.catalog = Some(PathBuf::from(value));
         } else if let Some(value) = flag_value(args, &mut index, "--database")? {
@@ -182,6 +200,10 @@ fn parse_flags(args: &[String]) -> Result<Flags> {
             flags.cwd = Some(PathBuf::from(value));
         } else if let Some(value) = flag_value(args, &mut index, "--harness")? {
             flags.harness = Some(value);
+        } else if let Some(value) = flag_value(args, &mut index, "--from")? {
+            flags.sources.push(value);
+        } else if let Some(value) = flag_value(args, &mut index, "--into")? {
+            flags.into = Some(value);
         } else if let Some(value) = flag_value(args, &mut index, "--label")? {
             flags.label = Some(value);
         } else if let Some(value) = flag_value(args, &mut index, "--category")? {
@@ -229,6 +251,89 @@ fn sync_json(result: &SyncResult) -> String {
         "upserted": result.upserted,
         "warnings": result.warnings,
     }))
+}
+
+fn join_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
+    let flags = parse_flags(args)?;
+    let Some(target) = flags.into else {
+        return Err(TangError::new(
+            "invalid-session",
+            "tang join needs --into HANDLE.",
+        ));
+    };
+    let catalog_path = flags.catalog.unwrap_or_else(default_catalog_path);
+    if !catalog_path.is_file() {
+        return Err(TangError::new(
+            "catalog-missing",
+            "Tang has no global catalog; run tang catalog sync.",
+        ));
+    }
+    let catalog = open_catalog(&catalog_path)?;
+    let plan = resolve_join(&catalog, &flags.sources, &target)?;
+    drop(catalog);
+    let mut project_db = open_project_readwrite(&plan.database_path)?;
+    let result = link_plan(&mut project_db, &plan, &rfc3339_now())?;
+    if flags.json {
+        writeln!(
+            stdout,
+            "{}",
+            compact(&json!({
+                "existing": result.existing,
+                "inserted": result.inserted,
+                "schema_version": 1,
+                "source_handles": plan.source_handles,
+                "source_ids": result.source_ids,
+                "target_handle": plan.target_handle,
+                "target_id": result.target_id,
+            }))
+        )
+        .map_err(io_error)?;
+    } else {
+        writeln!(
+            stdout,
+            "Linked {} to {}; inserted {}, existing {}.",
+            plan.source_handles.join(", "),
+            plan.target_handle,
+            result.inserted,
+            result.existing
+        )
+        .map_err(io_error)?;
+    }
+    Ok(())
+}
+
+fn purge_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
+    let flags = parse_flags(args)?;
+    if !flags.all {
+        return Err(TangError::new(
+            "invalid-argument",
+            "purge currently requires --all.",
+        ));
+    }
+    if !flags.yes {
+        return Err(TangError::new(
+            "invalid-argument",
+            "non-interactive purge requires --yes.",
+        ));
+    }
+    let cwd = flags
+        .cwd
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let project = resolve_project(&cwd)?;
+    let catalog_path = flags.catalog.unwrap_or_else(default_catalog_path);
+    let removed = forget_project(&catalog_path, &project.key)?;
+    let mut message = format!(
+        "Removed {removed} global catalog rows for {}. Native harness logs were not modified.",
+        project.display_name
+    );
+    if removed == 0 {
+        message = format!(
+            "Removed 0 global catalog rows for {}. Native harness logs were not modified.",
+            project.display_name
+        );
+    }
+    writeln!(stdout, "{message}").map_err(io_error)?;
+    Ok(())
 }
 
 fn label_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {

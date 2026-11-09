@@ -625,3 +625,207 @@ fn category_and_harness_filters_are_normalized() {
     .unwrap_err();
     assert_eq!(error.code, "invalid-category");
 }
+fn continuation_table(connection: &Connection) {
+    connection
+        .execute_batch(
+            "CREATE TABLE continuation_edges (
+                source_id TEXT NOT NULL,
+                target_id TEXT NOT NULL,
+                project_key TEXT NOT NULL,
+                confirmation_mode TEXT NOT NULL,
+                confirmed_at TEXT NOT NULL,
+                schema_version INTEGER NOT NULL DEFAULT 1,
+                PRIMARY KEY(source_id, target_id)
+            );",
+        )
+        .unwrap();
+}
+
+#[test]
+fn join_links_one_project_and_refuses_a_cycle_or_another_project() {
+    let root = scratch();
+    let (project, database) = project_db(&root.join("work"));
+    continuation_table(&database);
+    insert(
+        &database,
+        &project.key,
+        "codex:fixture:aaa",
+        "codex",
+        "C1",
+        "Source",
+        "source session",
+        1,
+    );
+    insert(
+        &database,
+        &project.key,
+        "codex:fixture:bbb",
+        "codex",
+        "C2",
+        "Target",
+        "target session",
+        1,
+    );
+    let catalog = root.join("catalog.db");
+    let mut stdout = Vec::new();
+    run_with(
+        &[
+            "catalog".into(),
+            "sync".into(),
+            "--cwd".into(),
+            root.join("work").display().to_string(),
+            "--catalog".into(),
+            catalog.display().to_string(),
+        ],
+        &mut stdout,
+    )
+    .unwrap();
+    stdout.clear();
+    run_with(
+        &[
+            "join".into(),
+            "--from".into(),
+            "C1".into(),
+            "--into".into(),
+            "C2".into(),
+            "--catalog".into(),
+            catalog.display().to_string(),
+            "--json".into(),
+        ],
+        &mut stdout,
+    )
+    .unwrap();
+    let document: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
+    assert_eq!(document["schema_version"], 1);
+    assert_eq!(document["inserted"], 1);
+    assert_eq!(document["source_handles"][0], "C1");
+    assert_eq!(document["target_handle"], "C2");
+    stdout.clear();
+    run_with(
+        &[
+            "join".into(),
+            "--from".into(),
+            "C1".into(),
+            "--into".into(),
+            "C2".into(),
+            "--catalog".into(),
+            catalog.display().to_string(),
+            "--json".into(),
+        ],
+        &mut stdout,
+    )
+    .unwrap();
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&stdout).unwrap()["existing"],
+        1
+    );
+    let error = run_with(
+        &[
+            "join".into(),
+            "--from".into(),
+            "C2".into(),
+            "--into".into(),
+            "C1".into(),
+            "--catalog".into(),
+            catalog.display().to_string(),
+        ],
+        &mut stdout,
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "cycle");
+    let error = run_with(
+        &[
+            "join".into(),
+            "--from".into(),
+            "C1".into(),
+            "--into".into(),
+            "C1".into(),
+            "--catalog".into(),
+            catalog.display().to_string(),
+        ],
+        &mut stdout,
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "self-link");
+
+    let (other, other_db) = project_db(&root.join("other"));
+    continuation_table(&other_db);
+    insert(
+        &other_db,
+        &other.key,
+        "grok:fixture:beta",
+        "grok",
+        "G1",
+        "Beta",
+        "beta session",
+        1,
+    );
+    drop(other_db);
+    run_with(
+        &[
+            "catalog".into(),
+            "sync".into(),
+            "--cwd".into(),
+            root.join("other").display().to_string(),
+            "--catalog".into(),
+            catalog.display().to_string(),
+        ],
+        &mut stdout,
+    )
+    .unwrap();
+    let error = run_with(
+        &[
+            "join".into(),
+            "--from".into(),
+            "C1".into(),
+            "--into".into(),
+            "G1".into(),
+            "--catalog".into(),
+            catalog.display().to_string(),
+        ],
+        &mut stdout,
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "cross-project");
+    let saved = Connection::open(other.database_path).unwrap();
+    let count: i64 = saved
+        .query_row("SELECT COUNT(*) FROM continuation_edges", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(count, 0);
+
+    stdout.clear();
+    run_with(
+        &[
+            "purge".into(),
+            "--all".into(),
+            "--yes".into(),
+            "--cwd".into(),
+            root.join("work").display().to_string(),
+            "--catalog".into(),
+            catalog.display().to_string(),
+        ],
+        &mut stdout,
+    )
+    .unwrap();
+    let text = String::from_utf8(stdout).unwrap();
+    assert!(text.contains("Removed 2 global catalog rows"));
+    let saved = Connection::open(&catalog).unwrap();
+    let remaining: i64 = saved
+        .query_row(
+            "SELECT COUNT(*) FROM catalog_sessions WHERE project_key = ?1",
+            [project.key],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(remaining, 0);
+    let kept: i64 = saved
+        .query_row(
+            "SELECT COUNT(*) FROM catalog_sessions WHERE project_key = ?1",
+            [other.key],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(kept, 1);
+}
