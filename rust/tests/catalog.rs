@@ -351,3 +351,46 @@ fn cli_recall_is_global_and_does_not_create_a_missing_catalog() {
     assert_eq!(document["results"][0]["project_display"], "beta");
     assert!(document["results"][0].get("database_path").is_none());
 }
+
+#[test]
+fn capsule_source_title_wins_over_the_derived_display_name() {
+    let root = scratch();
+    let (project, database) = project_db(&root.join("work"));
+    database
+        .execute(
+            "INSERT INTO sessions(
+                source_id, project_key, adapter, session_handle, title, health,
+                native_available, started_at, updated_at
+             ) VALUES ('codex:fixture:title', ?1, 'codex', 'C1', NULL, 'complete', 1,
+                       '2026-11-01T00:00:00Z', '2026-11-01T00:00:00Z')",
+            [&project.key],
+        )
+        .unwrap();
+    let content = r#"{"source_title":"Native title API_KEY=supersecretvalue","display_name":"Derived label","schema_version":1}"#;
+    database
+        .execute(
+            "INSERT INTO capsules(source_id, project_key, content_json, search_text)
+             VALUES ('codex:fixture:title', ?1, ?2, 'native title body')",
+            rusqlite::params![project.key, content],
+        )
+        .unwrap();
+    let mut catalog = open_catalog(&root.join("catalog.db")).unwrap();
+    sync_project(
+        &mut catalog,
+        &database,
+        &project.key,
+        &project.display_name,
+        &project.database_path,
+        "2026-11-09T21:00:00Z",
+    )
+    .unwrap();
+    let hits = recall(&catalog, "Native", None, 20, false).unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(
+        hits[0].title.as_deref(),
+        Some("Native title API_KEY=[REDACTED:credential]")
+    );
+    assert!(recall(&catalog, "Derived", None, 20, false)
+        .unwrap()
+        .is_empty());
+}

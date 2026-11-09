@@ -419,19 +419,27 @@ fn remove_missing(catalog: &Connection, project_key: &str, kept: &[String]) -> R
 }
 
 fn title_from(title: Option<String>, content_json: &str) -> Option<String> {
-    let raw = title.filter(|value| !value.trim().is_empty()).or_else(|| {
-        let content: serde_json::Value = serde_json::from_str(content_json).ok()?;
-        content
-            .get("display_name")
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_string)
-    })?;
+    let raw = title
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| capsule_title(content_json))?;
     let redacted = redact(&raw, ContentKind::Title).trim().to_string();
     if redacted.is_empty() {
         None
     } else {
         Some(redacted.chars().take(256).collect())
     }
+}
+
+/// Read the title the Python indexer prefers, without trusting either field.
+fn capsule_title(content_json: &str) -> Option<String> {
+    let content: serde_json::Value = serde_json::from_str(content_json).ok()?;
+    ["source_title", "display_name"].iter().find_map(|field| {
+        content
+            .get(*field)
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .map(str::to_string)
+    })
 }
 
 fn hit_from_row(row: &rusqlite::Row<'_>) -> Result<RecallHit> {
