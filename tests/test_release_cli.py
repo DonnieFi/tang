@@ -18,6 +18,7 @@ RELEASE_COMMANDS = {
     "doctor",
     "graph",
     "index",
+    "label",
     "link",
     "purge",
     "recall",
