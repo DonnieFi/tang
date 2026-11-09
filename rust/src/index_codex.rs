@@ -512,7 +512,7 @@ fn upsert_record(
                 health=excluded.health,
                 indexed_at=excluded.indexed_at,
                 native_available=1,
-                title=excluded.title",
+                title=COALESCE(excluded.title, sessions.title)",
             rusqlite::params![
                 record.source_id,
                 project_key,
