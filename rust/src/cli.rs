@@ -5,6 +5,7 @@ use crate::catalog::{
     remove_label, sync_project, RecallHit, RecallQuery, SyncResult,
 };
 use crate::error::{Result, TangError};
+use crate::index_codex::{index_codex, CodexIndexResult};
 use crate::join::{link_plan, open_project_readwrite, resolve_join};
 use crate::project::resolve_project;
 use crate::timeutil::rfc3339_now;
@@ -22,6 +23,7 @@ pub fn run_with(args: &[String], stdout: &mut dyn Write) -> Result<()> {
         return Ok(());
     }
     match args[0].as_str() {
+        "index" => index_command(&args[1..], stdout),
         "catalog" => catalog_command(&args[1..], stdout),
         "recall" => recall_command(&args[1..], stdout),
         "label" => label_command(&args[1..], stdout),
@@ -42,6 +44,7 @@ const HELP: &str = "\
 Tang 2.0 catalog
 
 Usage:
+  tang index [--cwd DIR] [--database PATH] [--codex-home PATH] [--json]
   tang catalog sync [--cwd DIR] [--database PATH] [--catalog PATH] [--json]
   tang recall [QUERY] [--label NAME] [--category NAME] [--harness NAME] [--limit N]
                [--include-unavailable] [--json] [--catalog PATH]
@@ -54,6 +57,56 @@ plus an extractive summary. Recall searches that catalog and does not open
 native logs. Join writes a continuation only when both sessions belong to
 the same project.
 ";
+
+fn index_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
+    let flags = parse_flags(args)?;
+    let cwd = flags
+        .cwd
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let project = resolve_project(&cwd)?;
+    let database = flags
+        .database
+        .clone()
+        .unwrap_or_else(|| project.database_path.clone());
+    let codex_home = flags.codex_home.unwrap_or_else(default_codex_home);
+    let result = index_codex(&codex_home, &project, &database)?;
+    if flags.json {
+        writeln!(stdout, "{}", index_json(&result)).map_err(io_error)?;
+    } else {
+        writeln!(
+            stdout,
+            "Indexed {} Codex sessions, deleted {}, skipped {}.",
+            result.indexed, result.deleted, result.skipped
+        )
+        .map_err(io_error)?;
+    }
+    for warning in &result.warnings {
+        let _ = writeln!(std::io::stderr(), "warning: {warning}");
+    }
+    Ok(())
+}
+
+fn default_codex_home() -> PathBuf {
+    std::env::var_os("CODEX_HOME")
+        .map(PathBuf::from)
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| {
+            std::env::var_os("HOME")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(".codex")
+        })
+}
+
+fn index_json(result: &CodexIndexResult) -> String {
+    compact(&json!({
+        "deleted": result.deleted,
+        "indexed": result.indexed,
+        "schema_version": 1,
+        "skipped": result.skipped,
+        "warnings": result.warnings,
+    }))
+}
 
 fn catalog_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
     if args.first().map(String::as_str) != Some("sync") {
@@ -162,6 +215,7 @@ struct Flags {
     into: Option<String>,
     yes: bool,
     all: bool,
+    codex_home: Option<PathBuf>,
 }
 
 fn parse_flags(args: &[String]) -> Result<Flags> {
@@ -184,6 +238,7 @@ fn parse_flags_with(args: &[String], allow_positional: bool) -> Result<Flags> {
         into: None,
         yes: false,
         all: false,
+        codex_home: None,
     };
     let mut index = 0;
     while index < args.len() {
@@ -196,6 +251,8 @@ fn parse_flags_with(args: &[String], allow_positional: bool) -> Result<Flags> {
             flags.yes = true;
         } else if arg == "--all" {
             flags.all = true;
+        } else if let Some(value) = flag_value(args, &mut index, "--codex-home")? {
+            flags.codex_home = Some(PathBuf::from(value));
         } else if let Some(value) = flag_value(args, &mut index, "--catalog")? {
             flags.catalog = Some(PathBuf::from(value));
         } else if let Some(value) = flag_value(args, &mut index, "--database")? {
