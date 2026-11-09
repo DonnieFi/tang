@@ -8,9 +8,13 @@ from pathlib import Path
 
 from tang.catalog import (
     CatalogError,
+    add_label,
+    build_summary,
+    categorize,
     forget_project,
     open_catalog,
     recall,
+    remove_label,
     sync_project,
 )
 from tang.cli import main
@@ -173,9 +177,15 @@ def test_catalog_redacts_secrets_and_keeps_handles_stable(tmp_path: Path) -> Non
                 synced_at=SYNCED_AT,
             )
             stored = catalog.execute(
-                "SELECT search_text, catalog_handle FROM catalog_sessions"
+                """
+                SELECT body_text, search_text, category, summary, catalog_handle
+                FROM catalog_sessions
+                """
             ).fetchone()
-            assert stored["search_text"] == "API_KEY=[REDACTED:credential] in the note"
+            assert stored["body_text"] == "API_KEY=[REDACTED:credential] in the note"
+            assert "API_KEY=[REDACTED:credential]" in stored["search_text"]
+            assert stored["category"] == "other"
+            assert stored["summary"].startswith("[other] Token note")
             assert stored["catalog_handle"] == "C1"
             connection.execute("DELETE FROM capsules WHERE source_id = 'codex:fixture:secret'")
             connection.execute("DELETE FROM sessions WHERE source_id = 'codex:fixture:secret'")
@@ -344,6 +354,153 @@ def test_forget_project_removes_only_that_project(tmp_path: Path) -> None:
         alpha_conn.close()
         beta_conn.close()
     assert [hit.project_display for hit in hits] == ["beta"]
+
+
+def test_category_and_summary_are_deterministic() -> None:
+    assert categorize("the indexer crash on startup", has_user_excerpt=False) == "bug"
+    assert categorize("crashpad storage", has_user_excerpt=False) == "other"
+    assert categorize("we decided to keep sqlite", has_user_excerpt=False) == "decision"
+    assert categorize("please review the patch", has_user_excerpt=False) == "review"
+    assert categorize("implement the parser", has_user_excerpt=False) == "implementation"
+    assert categorize("ship the catalog", has_user_excerpt=True) == "goal"
+    summary = build_summary(
+        "bug",
+        "Indexer crash",
+        (
+            ("user", "the indexer crash on empty books"),
+            ("agent", "guard the empty list before ranking"),
+        ),
+    )
+    assert summary == (
+        "[bug] Indexer crash\n"
+        "the indexer crash on empty books\n"
+        "guard the empty list before ranking"
+    )
+    long_summary = build_summary("other", "T", (("user", "x" * 600),))
+    assert len(long_summary) == 480
+    assert long_summary.endswith("…[Truncated]")
+
+
+def test_labels_filter_recall_and_survive_sync(tmp_path: Path) -> None:
+    project, database, connection = _project_db(tmp_path / "work")
+    content = json.dumps(
+        {
+            "display_name": "Auth crash",
+            "excerpts": [
+                {"role": "user", "text": "the login crash leaves no answer"},
+                {"role": "agent", "text": "check the token before the request"},
+            ],
+            "schema_version": 1,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        connection.execute(
+            """
+            INSERT INTO sessions(
+                source_id, project_key, adapter, source_namespace, native_id,
+                locator, fingerprint_algorithm, fingerprint_value, project_hint,
+                started_at, updated_at, health, indexed_at, native_available,
+                session_handle, title
+            ) VALUES (
+                'codex:fixture:auth', ?, 'codex', 'fixture', 'auth',
+                'fixture:auth', 'sha256', 'fixture', '/project',
+                '2026-11-01T00:00:00Z', '2026-11-01T00:00:00Z', 'complete',
+                '2026-11-01T00:00:00Z', 1, 'C1', 'Auth crash'
+            )
+            """,
+            (project.key,),
+        )
+        connection.execute(
+            """
+            INSERT INTO capsules(
+                source_id, project_key, schema_version, content_json, search_text,
+                byte_count, updated_at
+            ) VALUES ('codex:fixture:auth', ?, 1, ?, 'the login crash leaves no answer', ?,
+                      '2026-11-01T00:00:00Z')
+            """,
+            (project.key, content, len(content.encode("utf-8"))),
+        )
+        connection.execute("COMMIT")
+        catalog = open_catalog(tmp_path / "catalog.db")
+        try:
+            sync_project(
+                catalog,
+                connection,
+                project_key=project.key,
+                project_display=project.display_name,
+                database_path=database,
+                synced_at=SYNCED_AT,
+            )
+            assert add_label(catalog, "c1", "Auth", SYNCED_AT) == "C1"
+            hits = recall(catalog, label="auth")
+            assert [hit.catalog_handle for hit in hits] == ["C1"]
+            assert hits[0].category == "bug"
+            assert hits[0].labels == ("auth",)
+            assert hits[0].summary.startswith("[bug] Auth crash")
+            assert "login crash" in hits[0].summary
+            sync_project(
+                catalog,
+                connection,
+                project_key=project.key,
+                project_display=project.display_name,
+                database_path=database,
+                synced_at=SYNCED_AT,
+            )
+            assert recall(catalog, category="bug")[0].labels == ("auth",)
+            try:
+                add_label(catalog, "C1", "bad label", SYNCED_AT)
+            except CatalogError as error:
+                assert error.code == "invalid-label"
+            else:
+                raise AssertionError("expected invalid-label")
+            for index in range(7):
+                add_label(catalog, "C1", f"extra{index}", SYNCED_AT)
+            try:
+                add_label(catalog, "C1", "overflow", SYNCED_AT)
+            except CatalogError as error:
+                assert error.code == "label-limit"
+            else:
+                raise AssertionError("expected label-limit")
+            assert remove_label(catalog, "C1", "auth") == "C1"
+            assert recall(catalog, label="auth") == ()
+        finally:
+            catalog.close()
+    finally:
+        connection.close()
+
+
+def test_cli_recall_filters_by_label(tmp_path: Path, capsys) -> None:
+    root = tmp_path / "work"
+    root.mkdir()
+    project = resolve_project(root)
+    connection = open_database(project_data_path(project))
+    try:
+        _insert_session(
+            connection,
+            project_key=project.key,
+            source_id="grok:fixture:note",
+            adapter="grok",
+            native_id="note",
+            handle="G1",
+            title="Decision note",
+            search_text="we decided to keep the global catalog",
+        )
+    finally:
+        connection.close()
+    catalog = tmp_path / "catalog.db"
+    assert main(["catalog", "sync", "--cwd", str(root), "--catalog", str(catalog)]) == 0
+    assert main(["label", "add", "G1", "recall", "--catalog", str(catalog)]) == 0
+    capsys.readouterr()
+    assert main(["recall", "--label", "recall", "--catalog", str(catalog), "--json"]) == 0
+    document = json.loads(capsys.readouterr().out)
+    assert document["schema_version"] == 1
+    assert document["query"] is None
+    assert document["results"][0]["category"] == "decision"
+    assert document["results"][0]["labels"] == ["recall"]
+    assert document["results"][0]["summary"].startswith("[decision] Decision note")
 
 
 def test_cli_recall_is_global_and_does_not_create_a_missing_catalog(

@@ -20,9 +20,11 @@ from tang import __version__
 from tang.adapter_registry import configured_adapters
 from tang.catalog import (
     CatalogError,
+    add_label,
     default_catalog_path,
     open_catalog,
     recall as recall_catalog,
+    remove_label,
     sync_project,
 )
 from tang.adapters import OpenCodeAdapter, SessionHealth, SessionIdentity
@@ -367,9 +369,18 @@ def build_parser() -> argparse.ArgumentParser:
         "recall",
         help="search the global catalog across projects",
     )
-    recall.add_argument("query", help="FTS5 query against redacted catalog text")
+    recall.add_argument(
+        "query",
+        nargs="?",
+        help="FTS5 query; optional when a label, category, or harness filter is set",
+    )
     recall.add_argument("--json", action="store_true", dest="as_json")
     recall.add_argument("--catalog", type=Path)
+    recall.add_argument("--label", help="exact operator label")
+    recall.add_argument(
+        "--category",
+        choices=("bug", "decision", "review", "implementation", "goal", "other"),
+    )
     recall.add_argument("--harness", choices=_DISCOVERY_HARNESS_CHOICES)
     recall.add_argument(
         "--limit",
@@ -382,6 +393,17 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="include sessions whose native source is gone",
     )
+    label = subparsers.add_parser(
+        "label",
+        help="attach or remove an operator label on a catalog session",
+    )
+    label_commands = label.add_subparsers(dest="label_command", required=True)
+    label_add = label_commands.add_parser("add", help="attach a label")
+    label_remove = label_commands.add_parser("remove", help="remove a label")
+    for label_command in (label_add, label_remove):
+        label_command.add_argument("session", help="catalog handle or canonical source id")
+        label_command.add_argument("label", help="short lowercase word")
+        label_command.add_argument("--catalog", type=Path)
     return parser
 
 
@@ -1640,6 +1662,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_catalog(args)
         if args.command == "recall":
             return _run_recall(args)
+        if args.command == "label":
+            return _run_label(args)
         if args.command == "demo":
             from tang.demo import run_demo
 
@@ -1722,6 +1746,8 @@ def _run_recall(args: argparse.Namespace) -> int:
         hits = recall_catalog(
             catalog,
             args.query,
+            label=args.label,
+            category=args.category,
             harness=args.harness,
             limit=args.limit,
             include_unavailable=args.include_unavailable,
@@ -1737,13 +1763,16 @@ def _run_recall(args: argparse.Namespace) -> int:
                     "results": [
                         {
                             "catalog_handle": hit.catalog_handle,
+                            "category": hit.category,
                             "harness": hit.harness,
                             "health": hit.health,
+                            "labels": list(hit.labels),
                             "native_available": hit.native_available,
                             "project_display": hit.project_display,
                             "project_handle": hit.project_handle,
                             "snippet": hit.snippet,
                             "source_id": hit.source_id,
+                            "summary": hit.summary,
                             "title": hit.title,
                             "updated_at": hit.updated_at,
                         }
@@ -1760,5 +1789,35 @@ def _run_recall(args: argparse.Namespace) -> int:
     else:
         for hit in hits:
             title = hit.title or ""
-            print(f"{hit.catalog_handle}\t{hit.harness}\t{hit.project_display}\t{title}")
+            labels = ",".join(hit.labels)
+            print(
+                f"{hit.catalog_handle}\t{hit.harness}\t{hit.category}\t"
+                f"{labels}\t{hit.project_display}\t{title}"
+            )
+    return 0
+
+
+def _run_label(args: argparse.Namespace) -> int:
+    path = _catalog_path(args)
+    if not path.expanduser().is_file():
+        print(
+            "error[catalog-missing]: Tang has no global catalog; run tang catalog sync.",
+            file=sys.stderr,
+        )
+        return 2
+    catalog = open_catalog(path)
+    try:
+        if args.label_command == "add":
+            handle = add_label(
+                catalog,
+                args.session,
+                args.label,
+                datetime.now(timezone.utc),
+            )
+            print(f"Attached {args.label.strip().lower()} to {handle}.")
+            return 0
+        handle = remove_label(catalog, args.session, args.label)
+    finally:
+        catalog.close()
+    print(f"Removed {args.label.strip().lower()} from {handle}.")
     return 0
