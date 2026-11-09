@@ -4,7 +4,7 @@ from pathlib import Path
 def test_ci_is_linux_only_and_covers_the_release_path() -> None:
     workflow = (Path(__file__).parents[1] / ".github/workflows/ci.yml").read_text()
     assert 'python-version: ["3.11", "3.12"]' in workflow
-    assert workflow.count("runs-on: ubuntu-24.04") == 2
+    assert workflow.count("runs-on: ubuntu-24.04") == 3
     assert "macos" not in workflow.lower()
     assert "windows" not in workflow.lower()
     assert 'branches: [main, "epic/**", "bugs/**"]' in workflow
@@ -20,5 +20,6 @@ def test_ci_is_linux_only_and_covers_the_release_path() -> None:
         'test ! -e "$HOME/.tang/tang.db"',
         'test ! -e "$GITHUB_WORKSPACE/.tang/tang.db"',
         "actions/upload-artifact@v4",
+        "cargo test --manifest-path rust/Cargo.toml",
     ):
         assert required in workflow
