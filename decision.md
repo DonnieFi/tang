@@ -627,7 +627,7 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Decision: (c) — `tang catalog sync` writes `~/.tang/catalog.db`. Existing project commands keep their own database. Summaries are deterministic extracts of redacted capsule text, not model calls. User labels are operator tokens. `tang join` writes a continuation only when both sessions belong to the same project. Serves: Technological Implementation, Design, Potential Impact.
 - By: agent, under Donnie Fiander's lightweight-rewrite direction
 
-## 2026-11-09T21:40:00Z · project · Join catalog sessions inside one project
+## 2026-11-09T21:25:29Z · project · Join catalog sessions inside one project
 - Context: Donnie asked for a faster way to join sessions. The global catalog can see every project, but continuation edges, cycle checks, and tombstones live in the per-project database. A cross-project edge would need a new graph authority.
 - Options: (a) store cross-project edges in the catalog; (b) refuse cross-project joins and write the edge with the existing continuation rules; (c) copy both sessions into the current project's database.
 - Decision: (b) — `tang join --from HANDLE --into HANDLE` resolves global catalog handles and records an explicit edge only when both sessions belong to the same project. The command does not read or write native logs. Serves: Technological Implementation, Design, Potential Impact.
