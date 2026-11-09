@@ -11,6 +11,7 @@ from tang.cli import build_parser
 RELEASE_COMMANDS = {
     "browse",
     "cards",
+    "catalog",
     "context",
     "continuity",
     "demo",
@@ -19,6 +20,7 @@ RELEASE_COMMANDS = {
     "index",
     "link",
     "purge",
+    "recall",
     "resume",
     "search",
     "skill",
