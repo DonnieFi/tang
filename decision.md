@@ -632,3 +632,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) keep the 2.0 catalog in Python; (b) add a service or a vector index because the language changed; (c) replace the 2.0 CLI with one Rust binary that uses `rusqlite` and bundled FTS5, and leave the per-project graph in the existing SQLite file.
 - Decision: (c) — the binary lives in `rust/`. Crates are `rusqlite` (bundled SQLite), `regex`, `serde_json`, and `sha2`. Sync reads redacted capsules from `PROJECT/.tang/tang.db` and does not open native logs. `docs/tangspec.md` is unchanged. No epic is closed and `main` is not merged. Serves: Technological Implementation, Design, Potential Impact.
 - By: human (Donnie Fiander, Rust direction) and agent (crate boundary)
+
+## 2026-11-09T22:22:10Z · project · Index Codex sessions from the Rust CLI
+- Context: The Rust catalog can only recall capsules that the Python indexer has already written. The rest of the rewrite has to read native sessions itself, starting with the harness the fixture and the original demo path use.
+- Options: (a) keep calling the Python indexer; (b) port every harness adapter in one change; (c) add a Codex JSONL indexer that writes the existing per-project tables and leaves the other harnesses for a later slice.
+- Decision: (c) — `tang index --codex-home` reads Codex session logs, redacts visible turns, and stores them in `PROJECT/.tang/tang.db`. It skips symlinks and sessions from other projects. Grok, OpenCode, Cursor, and the other adapters are not in this slice. `docs/tangspec.md` stays unchanged. Serves: Technological Implementation, Potential Impact.
+- By: agent, continuing the Rust rewrite after review of the catalog stack
