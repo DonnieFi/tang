@@ -1,12 +1,52 @@
 # Tang
 
+<table>
+<tr>
+<td width="68%" valign="top">
+
 **Keep the blade, switch the handle.**
+
+**Continue one coding agent's work inside another, with the original sources cited.**
 
 Tang is a local Rust CLI. It indexes coding-agent sessions, searches them, and records only the continuations you confirm. The Multiverse Map is that confirmed graph.
 
-Continue one coding agent's work inside another, with the original sources cited.
+Supported readers: Codex, Grok, OpenCode, Cursor, Claude Code, Antigravity, and OpenClaw. Native logs stay read-only. Tang stores derived data in `.tang/tang.db` and, when you sync, a global catalog at `~/.tang/catalog.db`.
 
-Supported readers: Codex, Grok, OpenCode, Cursor, Claude Code, Antigravity, and OpenClaw. Native logs stay read-only. Tang stores derived data in `.tang/tang.db` and, when you sync, a global catalog at `~/.tang/catalog.db`. Per-harness capabilities are listed in [`docs/harness-matrix.md`](docs/harness-matrix.md).
+</td>
+<td width="32%" align="right" valign="top">
+<img src="docs/assets/tang-mascot-concept.png" width="280" alt="Tang samurai holding the blade as the work changes handles">
+</td>
+</tr>
+</table>
+
+## The Multiverse Map
+
+Every edge is a continuation you confirmed. Several sources can merge into one session, and that session can later branch. Tang does not invent the relationships.
+
+```text
+  A grok ─────────────┐                       ┌─▶ D codex
+                      │                       │
+                      ├─▶ C codex ────────────┤
+                      │                       │
+  B codex ────────────┘                       └─▶ E codex ────────────┐
+                                                                      │
+  F grok ─────────────────────────────────────────────────────────────┼─▶ ★G codex
+                                                                      │
+  ×U grok ────────────────────────────────────────────────────────────┘
+```
+
+`U` is present in the graph and unavailable as a native source, so it cannot start a new edge. `G` is the active handle.
+
+![The isolated tang demo: research and review merge into a plan, the plan branches, and testing plus an unavailable source merge into active session G.](docs/assets/tang-multiverse-demo.svg)
+
+That card is the real `tang demo --svg --width 120` output. Regenerate it from a checkout with:
+
+```bash
+cargo run --manifest-path rust/Cargo.toml -- demo --svg --width 120 \
+  --output docs/assets/tang-multiverse-demo.svg
+```
+
+Per-harness capabilities are listed in [`docs/harness-matrix.md`](docs/harness-matrix.md).
 
 ## Build
 
@@ -54,6 +94,12 @@ tang demo --ascii
 ```
 
 A harness is scanned only when its home flag is set, except Codex, which is the default when you pass no harness flag.
+
+## Session cards
+
+`tang cards` and `tang browse --cards` print one card per indexed session: handle, harness, health, time, and title.
+
+![Human-approved Tang session cards showing harness identity, health, and the session title.](docs/assets/tang-session-cards.png)
 
 ## Privacy
 

@@ -666,5 +666,11 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 ## 2026-11-10T03:00:00Z · project · Complete the Rust port of Python indexing behavior
 - Context: The Rust CLI port is the release surface, but it still lacked the Python incremental checkpoint and the Python OpenCode/OpenClaw identity namespaces. That left the port incomplete and made a fresh Rust database diverge from the reviewed schema.
 - Options: (a) keep the simplified full rescan and document the gap; (b) keep two supported CLIs; (c) finish the Rust port so it matches the Python indexing behavior, schema version, and identity hashes.
-- Decision: (c) — add `adapter_checkpoints` with schema-4 fingerprint cursors, skip unchanged sources, retain last-known-good rows on invalid data, delete or tombstone missing sources, create `capsules_fts`, `session_overrides`, and `adapter_checkpoints`, set `user_version` 8, use `sha256(executable + XDG data home)` for OpenCode, and use `sha256(home:agent_id)` for OpenClaw. The Python CLI remains removed by the stacked removal PR. Serves: Technological Implementation, Design, Potential Impact.
+- Decision: (c) — add `adapter_checkpoints` with schema-4 fingerprint cursors, skip unchanged sources, retain last-known-good rows on invalid data, delete or tombstone missing sources, create `capsules_fts`, `session_overrides`, and `adapter_checkpoints`, set `user_version` 8, use `sha256(executable + XDG data home)` for OpenCode, and use `sha256(home:agent_id)` for OpenClaw. The Python CLI remains removed. Serves: Technological Implementation, Design, Potential Impact.
 - By: human (100% Rust port direction) and agent (checkpoint and identity implementation)
+
+## 2026-11-10T03:05:00Z · project · Put the Multiverse graphics back
+- Context: The Rust README dropped the samurai mark, the session-card image, and the captured Multiverse Map. The checked-in SVG still showed the old OpenCode `O1` demo.
+- Options: (a) leave the README as text only; (b) embed the stale SVG; (c) regenerate the card from the current `tang demo` and put the three assets back.
+- Decision: (c) — `tang demo --svg` writes the card, and the README shows that SVG, the samurai mark, and the approved session cards. Serves: Design, Quality of Idea.
+- By: human (restore the graphics) and agent (regenerated the demo card)

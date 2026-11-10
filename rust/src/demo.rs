@@ -144,3 +144,60 @@ fn seed(connection: &Connection) {
             .expect("demo edge");
     }
 }
+
+/// Render the demo text as a self-contained SVG. This keeps the checked-in
+/// README capture reproducible without a Python or Rich dependency.
+pub fn render_svg(text: &str) -> String {
+    let lines = text
+        .lines()
+        .filter(|line| line.trim() != "TANG MULTIVERSE MAP")
+        .collect::<Vec<_>>();
+    let columns = lines
+        .iter()
+        .map(|line| line.chars().count())
+        .max()
+        .unwrap_or(80);
+    let width = (columns as f64 * 9.6 + 48.0).max(640.0);
+    let height = (lines.len() as f64 * 22.0 + 96.0).max(200.0);
+    let mut svg = String::new();
+    svg.push_str(&format!(
+        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width:.0} {height:.0}" role="img" aria-labelledby="tang-demo-title">"##
+    ));
+    svg.push_str(r##"<title id="tang-demo-title">Tang Multiverse Map — isolated demo</title>"##);
+    svg.push_str(r##"<rect width="100%" height="100%" fill="#171717"/>"##);
+    svg.push_str(r##"<rect x="1.5" y="1.5" width="99%" height="97%" fill="none" stroke="#ff9d3d" stroke-width="3"/>"##);
+    svg.push_str(r##"<text x="24" y="38" fill="#ff9d3d" font-family="'Fira Code','DejaVu Sans Mono',monospace" font-size="18" font-weight="bold">TANG MULTIVERSE MAP</text>"##);
+    for (index, line) in lines.iter().enumerate() {
+        let y = 70.0 + index as f64 * 22.0;
+        let escaped = escape_xml(line);
+        let color = line_color(line);
+        svg.push_str(&format!(
+            r##"<text x="24" y="{y:.1}" fill="{color}" xml:space="preserve" font-family="'Fira Code','DejaVu Sans Mono',monospace" font-size="16">{escaped}</text>"##
+        ));
+    }
+    svg.push_str("</svg>\n");
+    svg
+}
+
+fn line_color(line: &str) -> &'static str {
+    if line.contains("ACTIVE") || line.contains('★') {
+        "#ff9d3d"
+    } else if line.contains('×') || line.contains("unavailable") {
+        "#cc555a"
+    } else if line.starts_with("MULTIVERSE")
+        || line.starts_with("TIMELINE")
+        || line.starts_with("SESSION")
+        || line.starts_with("Demo complete")
+    {
+        "#ff9d3d"
+    } else {
+        "#c5c8c6"
+    }
+}
+
+fn escape_xml(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
