@@ -4,6 +4,14 @@
 
 Concise operating rules for coding agents on Tang. Read fully before acting; re-read the **Epic close gate** section whenever an epic completes.
 
+## Current implementation (2026-11-10)
+
+The Python CLI, pytest suite, and Python release scripts are being replaced by the Rust binary in `rust/`. The release surface is a **100% port** of the Python CLI: index, browse, cards, search, catalog sync/recall, labels, context, join/link, title, graph, demo, resume, doctor, continuity, skill install, stats, and purge. Build and test with `cargo test --manifest-path rust/Cargo.toml`.
+
+Incremental indexing is part of the port. `adapter_checkpoints` stores the schema-4 fingerprint cursor; unchanged sources are skipped, invalid sources retain the last-known-good row, and missing sources are deleted or tombstoned. The Rust writer creates `capsules_fts`, `session_overrides`, and `adapter_checkpoints`, and sets `user_version` 8. OpenCode identity is `sha256(executable + XDG data home)` and OpenClaw identity is `sha256(home:agent_id)`, matching the Python identities.
+
+The historical epic, Beads, and pytest guidance below is retained for project history. Do not use it to run the current CLI.
+
 ## North star
 
 This is a hackathon (deadline **2026-07-21 17:00 PT**). Judged on four equal criteria — **Technological Implementation, Design, Potential Impact, Quality of Idea**. Every material decision must serve one coherent Grok-to-Codex path over broad-but-incomplete coverage. When material options compete, pick the one that most improves those four criteria on the demo path, and log why in `decision.md`.

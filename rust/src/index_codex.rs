@@ -1,7 +1,10 @@
 //! Read Codex JSONL sessions into the per-project database.
 
 use crate::error::{Result, TangError};
-use crate::index_store::{finish_session, write_sessions, SavedSession, SessionDraft};
+use crate::index_store::{
+    finish_session, load_checkpoint, write_sessions, Checkpoint, IndexScope, SavedSession,
+    SessionDraft,
+};
 use crate::project::{owns_project, ProjectIdentity};
 use regex::Regex;
 use serde_json::Value;
@@ -15,6 +18,7 @@ use std::sync::OnceLock;
 pub struct CodexIndexResult {
     pub indexed: i64,
     pub deleted: i64,
+    pub unchanged: i64,
     pub skipped: i64,
     pub warnings: Vec<String>,
 }
@@ -47,6 +51,8 @@ pub fn index_codex(
     let mut saved = Vec::new();
     let mut warnings = Vec::new();
     let mut protected = HashSet::new();
+    let prior = load_checkpoint(database_path, &project.key, "codex", &namespace)?;
+    let mut checkpoint = Checkpoint::default();
     let mut skipped = 0;
     for log in logs {
         if is_symlink(&log) {
@@ -56,20 +62,33 @@ pub fn index_codex(
             warnings.push(format!("skipped symlinked Codex log {}", log.display()));
             continue;
         }
+        if let Some((source_id, fingerprint)) = log_fingerprint(&log, &namespace) {
+            if prior.should_skip(&source_id, &fingerprint) {
+                checkpoint.remember(&source_id, &fingerprint, true);
+                continue;
+            }
+        }
         match read_log(&log, &namespace, &mut warnings) {
             Ok(Some(session)) => {
                 if !owns_project(&session.project_hint, project) {
                     // A foreign project is not proof that this project's row is
                     // gone; keep the last known row instead of deleting it.
+                    if let Some(prior) = prior.fingerprints.get(&session.source_id).cloned() {
+                        checkpoint.remember(&session.source_id, &prior, true);
+                    }
                     protected.insert(session.source_id.clone());
                     skipped += 1;
                     continue;
                 }
+                checkpoint.remember(&session.source_id, &session.fingerprint, true);
                 saved.push(session);
             }
             Ok(None) => skipped += 1,
             Err(message) => {
-                if let Some(source_id) = source_id_for_log(&log, &namespace) {
+                if let Some((source_id, _)) = log_fingerprint(&log, &namespace) {
+                    if let Some(prior) = prior.fingerprints.get(&source_id).cloned() {
+                        checkpoint.remember(&source_id, &prior, false);
+                    }
                     protected.insert(source_id);
                 }
                 warnings.push(message);
@@ -78,16 +97,21 @@ pub fn index_codex(
     }
     let wrote = write_sessions(
         database_path,
-        &project.key,
-        "codex",
-        &namespace,
-        "C",
+        IndexScope {
+            project_key: &project.key,
+            adapter: "codex",
+            namespace: &namespace,
+            handle_prefix: "C",
+        },
         &saved,
         &protected,
+        &mut checkpoint,
+        true,
     )?;
     Ok(CodexIndexResult {
         indexed: wrote.indexed,
         deleted: wrote.deleted,
+        unchanged: wrote.unchanged,
         skipped,
         warnings,
     })
@@ -278,6 +302,12 @@ fn filename_id(path: &Path) -> Option<String> {
 
 fn source_id_for_log(path: &Path, namespace: &str) -> Option<String> {
     filename_id(path).map(|native_id| format!("codex:{namespace}:{native_id}"))
+}
+
+fn log_fingerprint(path: &Path, namespace: &str) -> Option<(String, String)> {
+    let source_id = source_id_for_log(path, namespace)?;
+    let bytes = fs::read(path).ok()?;
+    Some((source_id, format!("{:x}", Sha256::digest(&bytes))))
 }
 
 fn is_symlink(path: &Path) -> bool {
