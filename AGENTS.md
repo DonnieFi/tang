@@ -1,5 +1,7 @@
 # AGENTS.md — Tang execution contract
 
+> Current implementation (2026-11-10): the Python CLI, pytest suite, and Python scripts have been removed. `rust/` is the only implementation; build and test with `cargo test --manifest-path rust/Cargo.toml`. The historical epic, Beads, and pytest guidance below is retained for project history and does not describe the current CLI.
+
 Concise operating rules for coding agents on Tang. Read fully before acting; re-read the **Epic close gate** section whenever an epic completes.
 
 ## North star

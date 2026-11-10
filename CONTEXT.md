@@ -124,7 +124,7 @@ and split safety policy between surfaces.
 
 **Decision:** The Codex skill owns the interactive workflow and uses host-native
 questions when available. The `tang` CLI remains deterministic and scriptable.
-The verified wheel bundles the matching skill, installed with `tang skill install
+The verified release binary bundles the matching skill, installed with `tang skill install
 codex`; `$tang` or a plain-English request invokes it in a new Codex session.
 
 **Consequences:** Human previews hide canonical IDs and expose only redacted

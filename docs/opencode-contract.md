@@ -1,3 +1,5 @@
+> Historical note: the Python probe script was removed with the Python CLI. The contract evidence below is retained as a record of the original probe.
+
 # OpenCode contract evidence
 
 Tang accepts stable OpenCode versions `>=1.17.18,<2.0.0` on Linux and validates

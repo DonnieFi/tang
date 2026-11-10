@@ -219,7 +219,7 @@ fn visible_text(row: &Value, role: &str) -> String {
     }
 }
 
-fn is_agent_prose(text: &str) -> bool {
+pub(crate) fn is_agent_prose(text: &str) -> bool {
     let stripped = text.trim();
     if stripped.is_empty() || stripped.starts_with("Created At:") {
         return false;

@@ -53,7 +53,7 @@ Legend: **yes** · **no** · **partial** (manual or source-only)
 | Grok Build | 0.2.106 | Live-verified local store and native resume contract (Linux) |
 | OpenCode | `>=1.17.18,<2.0.0` | Contract fixtures; 1.17.20 live-verified |
 | Cursor Agent | 2026.07.17 | Live-verified local agent transcripts and native resume contract (Linux) |
-| Tang package | v0.3.0 | Tagged wheel + README install URL |
+| Tang binary | 2.0 | Build from source or tagged Linux binary |
 
 macOS and Windows are unsupported for v0.3.0 (no CI claim).
 

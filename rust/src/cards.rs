@@ -53,5 +53,15 @@ fn labeled(label: &str, value: &str) -> String {
 }
 
 fn single_line(value: &str) -> String {
-    value.replace(['\n', '\r', '\t'], " ").trim().to_string()
+    let cleaned = value
+        .chars()
+        .map(|character| {
+            if character.is_control() {
+                ' '
+            } else {
+                character
+            }
+        })
+        .collect::<String>();
+    cleaned.split_whitespace().collect::<Vec<_>>().join(" ")
 }

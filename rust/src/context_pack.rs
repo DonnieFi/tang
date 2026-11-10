@@ -365,6 +365,9 @@ fn reread_native(row: &SessionRow) -> Option<Vec<ContextExcerpt>> {
     };
     let mut excerpts = Vec::new();
     for (role, text) in turns {
+        if crate::index_store::is_host_envelope(&text) {
+            continue;
+        }
         let text = redact(&text, ContentKind::VisibleText).trim().to_string();
         if text.is_empty() {
             continue;
@@ -549,6 +552,9 @@ fn antigravity_turns(text: &str) -> Vec<(String, String)> {
             _ => continue,
         };
         if let Some(content) = row.get("content").and_then(Value::as_str) {
+            if role == "agent" && !crate::index_antigravity::is_agent_prose(content) {
+                continue;
+            }
             if !content.trim().is_empty() {
                 turns.push((role.to_string(), content.to_string()));
             }
@@ -592,21 +598,47 @@ fn opencode_turns(text: &str) -> Vec<(String, String)> {
     turns
 }
 
-fn openclaw_turns(path: &Path, _source_id: &str) -> Vec<(String, String)> {
+fn openclaw_turns(path: &Path, source_id: &str) -> Vec<(String, String)> {
     if is_symlink(path) {
         return Vec::new();
     }
+    let Some(native_id) = source_id.rsplit(':').next() else {
+        return Vec::new();
+    };
+    let Some(session_key) =
+        urlsafe_b64_decode(native_id).and_then(|bytes| String::from_utf8(bytes).ok())
+    else {
+        return Vec::new();
+    };
     let Ok(connection) =
         Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
     else {
         return Vec::new();
     };
-    let mut statement =
-        match connection.prepare("SELECT event_json FROM transcript_events ORDER BY seq") {
-            Ok(statement) => statement,
-            Err(_) => return Vec::new(),
-        };
-    let rows = statement.query_map([], |row| row.get::<_, String>(0)).ok();
+    let session_id: Option<String> = connection
+        .query_row(
+            "SELECT session_id FROM session_windows
+             WHERE session_key = ?1
+             ORDER BY COALESCE(ended_at, started_at, 0) DESC, session_id DESC
+             LIMIT 1",
+            [&session_key],
+            |row| row.get(0),
+        )
+        .optional()
+        .ok()
+        .flatten();
+    let Some(session_id) = session_id else {
+        return Vec::new();
+    };
+    let mut statement = match connection
+        .prepare("SELECT event_json FROM transcript_events WHERE session_id = ?1 ORDER BY seq")
+    {
+        Ok(statement) => statement,
+        Err(_) => return Vec::new(),
+    };
+    let rows = statement
+        .query_map([&session_id], |row| row.get::<_, String>(0))
+        .ok();
     let Some(rows) = rows else {
         return Vec::new();
     };
@@ -615,26 +647,66 @@ fn openclaw_turns(path: &Path, _source_id: &str) -> Vec<(String, String)> {
         let Ok(event) = serde_json::from_str::<Value>(&row) else {
             continue;
         };
-        let role = event
-            .get("message")
-            .and_then(|message| message.get("role"))
-            .and_then(Value::as_str)
-            .unwrap_or("");
-        let role = match role {
-            "user" => "user",
-            "assistant" => "agent",
+        let Some(message) = event.get("message") else {
+            continue;
+        };
+        let role = match message.get("role").and_then(Value::as_str) {
+            Some("user") => "user",
+            Some("assistant") => "agent",
             _ => continue,
         };
-        let text = event
-            .get("message")
-            .and_then(|message| message.get("content"))
-            .and_then(Value::as_str)
-            .unwrap_or("");
+        let text = message.get("content").map(content_text).unwrap_or_default();
         if !text.trim().is_empty() {
-            turns.push((role.to_string(), text.to_string()));
+            turns.push((role.to_string(), text));
         }
     }
     turns
+}
+
+fn urlsafe_b64_decode(input: &str) -> Option<Vec<u8>> {
+    fn value(byte: u8) -> Option<u32> {
+        match byte {
+            b'A'..=b'Z' => Some(u32::from(byte - b'A')),
+            b'a'..=b'z' => Some(u32::from(byte - b'a' + 26)),
+            b'0'..=b'9' => Some(u32::from(byte - b'0' + 52)),
+            b'-' => Some(62),
+            b'_' => Some(63),
+            _ => None,
+        }
+    }
+    let bytes = input.as_bytes();
+    let mut out = Vec::new();
+    let mut index = 0;
+    while index + 4 <= bytes.len() {
+        let a = value(bytes[index])?;
+        let b = value(bytes[index + 1])?;
+        let c = value(bytes[index + 2])?;
+        let d = value(bytes[index + 3])?;
+        let chunk = (a << 18) | (b << 12) | (c << 6) | d;
+        out.push((chunk >> 16) as u8);
+        out.push((chunk >> 8) as u8);
+        out.push(chunk as u8);
+        index += 4;
+    }
+    match bytes.len() - index {
+        0 => {}
+        2 => {
+            let a = value(bytes[index])?;
+            let b = value(bytes[index + 1])?;
+            let chunk = (a << 18) | (b << 12);
+            out.push((chunk >> 16) as u8);
+        }
+        3 => {
+            let a = value(bytes[index])?;
+            let b = value(bytes[index + 1])?;
+            let c = value(bytes[index + 2])?;
+            let chunk = (a << 18) | (b << 12) | (c << 6);
+            out.push((chunk >> 16) as u8);
+            out.push((chunk >> 8) as u8);
+        }
+        _ => return None,
+    }
+    Some(out)
 }
 
 fn excerpts_from(content: &Value) -> Vec<ContextExcerpt> {

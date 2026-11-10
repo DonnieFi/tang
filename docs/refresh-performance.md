@@ -1,3 +1,5 @@
+> Historical note: the Python benchmark script was removed with the Python CLI. The measurements below are retained as evidence from the Python implementation.
+
 # Refresh performance evidence
 
 This note records the Epic 6 refresh investigation. It uses only a synthetic

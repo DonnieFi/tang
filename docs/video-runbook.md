@@ -1,3 +1,5 @@
+> Historical note: the Python video-lab script was removed with the Python CLI. The commands below are retained as a record of the original workflow.
+
 # Prepare real session data for a Tang video
 
 Use this only when you want real local sessions for a filmed Tang workflow.

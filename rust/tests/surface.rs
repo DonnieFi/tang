@@ -156,6 +156,9 @@ fn project_commands_cover_search_context_map_resume_and_purge() {
     assert!(demo.contains("ACTIVE G"));
     assert!(demo.contains("Codex hardening"));
 
+    let error = run(&["demo", "--width", "0"]).unwrap_err();
+    assert_eq!(error.code, "invalid-argument");
+
     let stub = root.join("codex-stub.sh");
     fs::write(&stub, "#!/bin/sh\nexit 0\n").unwrap();
     #[cfg(unix)]
