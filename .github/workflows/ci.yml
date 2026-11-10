@@ -9,75 +9,24 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Python ${{ matrix.python-version }}
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12"]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: ${{ matrix.python-version }}
-          enable-cache: false
-      - name: Install locked development environment
-        run: uv sync --locked --python ${{ matrix.python-version }}
-      - name: Run full suite
-        run: uv run --python ${{ matrix.python-version }} pytest -q
-      - name: Compile package
-        run: uv run --python ${{ matrix.python-version }} python -m compileall -q src
-
-  release-smoke:
-    name: Build and install wheel
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.12"
-          enable-cache: false
-      - name: Build reproducible artifacts
-        run: uv run --with setuptools python scripts/build_release.py dist
-      - name: Install wheel without rebuilding source
-        run: |
-          uv venv --python 3.12 /tmp/tang-wheel
-          uv pip install --python /tmp/tang-wheel/bin/python dist/tang_multiverse-0.3.0-py3-none-any.whl
-      - name: Smoke CLI, skill, and isolated demo
-        run: |
-          export PATH="/tmp/tang-wheel/bin:$PATH"
-          tang --help
-          tang resume --help
-          tang skill install codex --codex-home /tmp/tang-codex
-          tang demo --ascii --width 100 > demo-output.txt
-          grep -q "Demo complete" demo-output.txt
-          tang demo --unicode --color always --width 120 > demo-unicode-output.txt
-          grep -q "MULTIVERSE NETWORK" demo-unicode-output.txt
-          test ! -e "$HOME/.local/share/tang/tang.db"
-          test ! -e "$HOME/.tang/tang.db"
-          test ! -e "$GITHUB_WORKSPACE/.tang/tang.db"
-      - name: Upload demo output on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: demo-failure-output
-          path: |
-            demo-output.txt
-            demo-unicode-output.txt
-          if-no-files-found: ignore
-
-  rust-catalog:
-    name: Rust catalog
+  rust:
+    name: Rust CLI
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.83.0
         with:
           components: rustfmt, clippy
-      - name: Check Rust formatting
+      - name: Check formatting
         run: cargo fmt --manifest-path rust/Cargo.toml --check
-      - name: Lint the Rust catalog
+      - name: Lint
         run: cargo clippy --manifest-path rust/Cargo.toml --all-targets -- -D warnings
-      - name: Test the Rust catalog CLI
+      - name: Test
         run: cargo test --manifest-path rust/Cargo.toml
+      - name: Smoke the isolated demo
+        run: |
+          cargo run --manifest-path rust/Cargo.toml --quiet -- demo --ascii --width 100 > demo-output.txt
+          grep -q "Demo complete" demo-output.txt
+          grep -q "MULTIVERSE NETWORK" demo-output.txt
+          test ! -e "$HOME/.tang/catalog.db"
+          test ! -e "$GITHUB_WORKSPACE/.tang/tang.db"
