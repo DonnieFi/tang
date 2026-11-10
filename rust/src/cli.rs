@@ -397,7 +397,8 @@ fn resume_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
         .clone()
         .ok_or_else(|| TangError::new("resume-handle-required", "A Tang handle is required."))?;
     let command = crate::resume::plan_resume(&project_db, &project.key, &handle, &cwd)?;
-    writeln!(stdout, "{} {}", command.program, command.args.join(" ")).map_err(io_error)?;
+    crate::resume::launch_resume(&command)?;
+    writeln!(stdout, "Resumed {handle}.").map_err(io_error)?;
     Ok(())
 }
 

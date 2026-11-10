@@ -156,6 +156,14 @@ fn project_commands_cover_search_context_map_resume_and_purge() {
     assert!(demo.contains("ACTIVE G"));
     assert!(demo.contains("Codex hardening"));
 
+    let stub = root.join("codex-stub.sh");
+    fs::write(&stub, "#!/bin/sh\nexit 0\n").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&stub, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    std::env::set_var("TANG_CODEX_EXECUTABLE", &stub);
     let resume = run(&[
         "resume",
         "C1",
@@ -165,8 +173,8 @@ fn project_commands_cover_search_context_map_resume_and_purge() {
         &database_arg,
     ])
     .unwrap();
-    assert!(resume.contains("codex"));
-    assert!(resume.contains("resume"));
+    std::env::remove_var("TANG_CODEX_EXECUTABLE");
+    assert!(resume.contains("Resumed C1"));
 
     let missing = run(&[
         "doctor",

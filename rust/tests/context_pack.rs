@@ -564,6 +564,42 @@ fn redacts_secrets_and_drops_path_titles() {
     assert!(!render_json(&pack).contains("/home/someone"));
 }
 
+#[test]
+fn context_rereads_a_regular_native_file() {
+    let db = open_db("reread");
+    let log = std::env::temp_dir().join(format!(
+        "tang-context-reread-{}-{}.jsonl",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::write(
+        &log,
+        "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"FRESH_REREAD_CANARY\"}]}}\n",
+    )
+    .unwrap();
+    db.execute(
+        "INSERT INTO sessions(source_id, project_key, adapter, session_handle, title, updated_at, locator)
+         VALUES ('codex:ns:fresh', ?1, 'codex', 'C9', 'Fresh', '2026-07-01T00:00:00Z', ?2)",
+        params![PROJECT, log.display().to_string()],
+    )
+    .unwrap();
+    db.execute(
+        "INSERT INTO capsules(source_id, project_key, content_json) VALUES ('codex:ns:fresh', ?1, ?2)",
+        params![PROJECT, r#"{"excerpts":[{"role":"user","text":"STALE_CAPSULE"}],"source_title":"Fresh","schema_version":1}"#],
+    )
+    .unwrap();
+    let tokens = vec!["C9".to_string()];
+    let pack = build_pack(&db, PROJECT, ContextRequest::Sessions(&tokens)).unwrap();
+    let markdown = render_markdown(&pack);
+    assert!(markdown.contains("FRESH_REREAD_CANARY"));
+    assert!(!markdown.contains("STALE_CAPSULE"));
+    assert!(!markdown.contains(&log.display().to_string()));
+    let _ = std::fs::remove_file(log);
+}
+
 fn handles(pack: &ContextPack) -> Vec<&str> {
     pack.sources
         .iter()

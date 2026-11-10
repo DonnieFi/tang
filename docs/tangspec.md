@@ -285,23 +285,23 @@ Scaffold `skills/tang` with the official skill initializer. `SKILL.md` contains 
 
 ## Installation And Distribution
 
-The distribution name is `tang-multiverse`; the installed command is `tang`. The hackathon release supports Linux only and requires Python 3.11 or later. Linux is live-tested. macOS and Windows are unsupported and receive no compatibility or CI claim for this release.
+The installed command is `tang`. The CLI is the Rust binary in `rust/`. The release supports Linux only. Linux is live-tested. macOS and Windows are unsupported and receive no compatibility or CI claim for this release.
 
 ### Judge Installation
 
-Publish a tagged wheel so judges can install Tang without rebuilding it from source. The README leads with a version-pinned command after the public repository owner is known:
+Build the Rust CLI from the public repository. The README leads with that command:
 
 ```bash
-uv tool install https://github.com/DonnieFi/tang/releases/download/v0.3.0/tang_multiverse-0.3.0-py3-none-any.whl
-tang skill install codex
+cargo build --manifest-path rust/Cargo.toml --release
+./rust/target/release/tang --help
+./rust/target/release/tang skill install codex --cwd "$HOME/.codex"
 ```
 
-The release does not include a custom shell installer. `uv` supplies the isolated environment; Tang supplies the explicit skill installation and a minimal `tang doctor` readiness check.
+The release does not include a custom shell installer or a Python wheel. Tang supplies the explicit skill installation and a minimal `tang doctor` readiness check.
 
 ### Standard Alternatives
 
-If the package is also published to PyPI, document `uv tool install tang-multiverse==0.1.0` as a convenience rather than making PyPI publication part of the critical path.
-Publish a tagged wheel or equivalent release artifact so judges do not need to reconstruct the package from source. Tang's supported Codex installation path is `tang skill install codex`, using the skill bundled in that exact wheel.
+A tagged binary release may be added later. It is not required to build or run Tang. The supported Codex installation path is `tang skill install codex`, using the skill bundled in the repository.
 
 ## README
 

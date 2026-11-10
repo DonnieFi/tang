@@ -1,4 +1,4 @@
-//! Plan a native resume command without launching it.
+//! Plan and launch a native resume. `plan_resume` only builds argv.
 //!
 //! Argv matches `src/tang/resume.py`. `cwd` is the launch directory, and the
 //! same directory is included in the flags each harness actually requires.
@@ -48,6 +48,60 @@ pub fn plan_resume(
     }
     let cwd = fs::canonicalize(project_dir).unwrap_or_else(|_| project_dir.to_path_buf());
     command_for(&session, &cwd)
+}
+
+pub fn launch_resume(command: &ResumeCommand) -> Result<()> {
+    let program = configured_executable(&command.program)?;
+    let status = std::process::Command::new(program)
+        .args(&command.args)
+        .current_dir(&command.cwd)
+        .status()
+        .map_err(|_| {
+            TangError::new(
+                "resume-launch-failed",
+                "The native harness could not be started.",
+            )
+        })?;
+    if !status.success() {
+        return Err(TangError::new(
+            "resume-launch-failed",
+            "The harness exited before the selected Tang session was resumed.",
+        ));
+    }
+    Ok(())
+}
+
+fn configured_executable(program: &str) -> Result<PathBuf> {
+    let override_name = match program {
+        "codex" => "TANG_CODEX_EXECUTABLE",
+        "grok" => "TANG_GROK_EXECUTABLE",
+        "opencode" => "TANG_OPENCODE_EXECUTABLE",
+        "agent" => "TANG_CURSOR_EXECUTABLE",
+        "claude" => "TANG_CLAUDE_EXECUTABLE",
+        "agy" => "TANG_ANTIGRAVITY_EXECUTABLE",
+        _ => "TANG_EXECUTABLE",
+    };
+    if let Ok(configured) = std::env::var(override_name) {
+        let path = PathBuf::from(configured);
+        if path.is_file() {
+            return Ok(path);
+        }
+        return Err(TangError::new(
+            "resume-executable-missing",
+            "The configured harness executable is unavailable.",
+        ));
+    }
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    for dir in std::env::split_paths(&path) {
+        let candidate = dir.join(program);
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+    }
+    Err(TangError::new(
+        "resume-executable-missing",
+        "The harness executable is unavailable.",
+    ))
 }
 
 fn command_for(session: &ResolvedSession, cwd: &Path) -> Result<ResumeCommand> {
