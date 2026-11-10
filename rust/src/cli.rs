@@ -75,7 +75,7 @@ Usage:
   tang title HANDLE TITLE | tang title HANDLE --clear
   tang resume HANDLE
   tang graph [HANDLE] [--ascii] [--width N]
-  tang demo [--ascii] [--width N]
+  tang demo [--ascii] [--width N] [--svg] [--output PATH]
   tang doctor [--database PATH]
   tang continuity
   tang skill install codex|claude|opencode [--force]
@@ -268,7 +268,21 @@ fn graph_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
 fn demo_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
     let flags = parse_flags(args)?;
     let rendered = crate::demo::render_demo(flags.width.unwrap_or(100) as usize, flags.ascii);
-    write!(stdout, "{rendered}").map_err(io_error)?;
+    if flags.svg {
+        let svg = crate::demo::render_svg(&rendered);
+        if let Some(output) = flags.output {
+            std::fs::write(&output, svg).map_err(|error| {
+                TangError::new(
+                    "output",
+                    format!("cannot write {}: {error}", output.display()),
+                )
+            })?;
+        } else {
+            write!(stdout, "{svg}").map_err(io_error)?;
+        }
+    } else {
+        write!(stdout, "{rendered}").map_err(io_error)?;
+    }
     Ok(())
 }
 
@@ -714,6 +728,8 @@ struct Flags {
     cards: bool,
     brief: bool,
     ascii: bool,
+    svg: bool,
+    output: Option<PathBuf>,
     width: Option<i64>,
     current: bool,
     current_native_id: Option<String>,
@@ -764,6 +780,8 @@ fn parse_flags_mode(args: &[String], allow_positional: bool, allow_many: bool) -
         cards: false,
         brief: false,
         ascii: false,
+        svg: false,
+        output: None,
         width: None,
         current: false,
         current_native_id: None,
@@ -789,6 +807,8 @@ fn parse_flags_mode(args: &[String], allow_positional: bool, allow_many: bool) -
             flags.brief = true;
         } else if arg == "--ascii" {
             flags.ascii = true;
+        } else if arg == "--svg" {
+            flags.svg = true;
         } else if arg == "--current" {
             flags.current = true;
         } else if arg == "--exclude-current" {
@@ -833,6 +853,8 @@ fn parse_flags_mode(args: &[String], allow_positional: bool, allow_many: bool) -
             flags.since = Some(value);
         } else if let Some(value) = flag_value(args, &mut index, "--until")? {
             flags.until = Some(value);
+        } else if let Some(value) = flag_value(args, &mut index, "--output")? {
+            flags.output = Some(PathBuf::from(value));
         } else if let Some(value) = flag_value(args, &mut index, "--width")? {
             let parsed: i64 = value
                 .parse()

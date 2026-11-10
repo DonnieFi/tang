@@ -9,13 +9,11 @@ The samurai mark sits beside the README promise. It is displayed at a reduced wi
 A framed capture of the real isolated `tang demo`. Regenerate it after the demo story changes:
 
 ```bash
-cargo build --manifest-path rust/Cargo.toml --release
-python3 scripts/capture_demo_hero.py \
-  --tang ./rust/target/release/tang \
+cargo run --manifest-path rust/Cargo.toml -- demo --svg --width 120 \
   --output docs/assets/tang-multiverse-demo.svg
 ```
 
-The script only draws that command's output. It does not open a user's database or native logs.
+The command only renders the isolated demo. It does not open a user's database or native logs.
 
 ## `tang-session-cards.png`
 

@@ -159,6 +159,26 @@ fn project_commands_cover_search_context_map_resume_and_purge() {
     let error = run(&["demo", "--width", "0"]).unwrap_err();
     assert_eq!(error.code, "invalid-argument");
 
+    let svg = run(&["demo", "--svg", "--width", "120"]).unwrap();
+    assert!(svg.starts_with("<svg"));
+    assert!(svg.contains("MULTIVERSE"));
+    assert!(svg.contains("Grok research"));
+    assert!(svg.contains("Codex hardening"));
+    assert!(!svg.contains("O1"));
+    let svg_path = root.join("demo.svg");
+    run(&[
+        "demo",
+        "--svg",
+        "--width",
+        "120",
+        "--output",
+        svg_path.to_str().unwrap(),
+    ])
+    .unwrap();
+    let written = fs::read_to_string(&svg_path).unwrap();
+    assert!(written.starts_with("<svg"));
+    assert!(written.contains("Codex hardening"));
+
     let stub = root.join("codex-stub.sh");
     fs::write(&stub, "#!/bin/sh\nexit 0\n").unwrap();
     #[cfg(unix)]

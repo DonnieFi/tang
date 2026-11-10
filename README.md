@@ -39,12 +39,10 @@ Every edge is a continuation you confirmed. Several sources can merge into one s
 
 ![The isolated tang demo: research and review merge into a plan, the plan branches, and testing plus an unavailable source merge into active session G.](docs/assets/tang-multiverse-demo.svg)
 
-That card is the real `tang demo --width 120` output. Regenerate it from a checkout with:
+That card is the real `tang demo --svg --width 120` output. Regenerate it from a checkout with:
 
 ```bash
-cargo build --manifest-path rust/Cargo.toml --release
-python3 scripts/capture_demo_hero.py \
-  --tang ./rust/target/release/tang \
+cargo run --manifest-path rust/Cargo.toml -- demo --svg --width 120 \
   --output docs/assets/tang-multiverse-demo.svg
 ```
 

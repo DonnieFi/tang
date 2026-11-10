@@ -307,7 +307,7 @@ A tagged binary release may be added later. It is not required to build or run T
 
 Treat the README as the product surface for the Rust CLI.
 
-1. The line "Keep the blade, switch the handle.", the promise "Continue one coding agent's work inside another, with the original sources cited.", the samurai mark, and a capture of the real `tang demo` Multiverse Map.
+1. The line "Keep the blade, switch the handle.", the promise "Continue one coding agent's work inside another, with the original sources cited.", the samurai mark, and a capture of the real `tang demo --svg` Multiverse Map.
 2. Linux-only support, `cargo build --manifest-path rust/Cargo.toml --release`, and `cargo test --manifest-path rust/Cargo.toml`.
 3. The command reference: index, browse, search, catalog, recall, label, context, join, title, graph, demo, resume, doctor, continuity, skill install, stats, and purge.
 4. Privacy: mode `0600`, catalog only on `tang catalog sync`, 8 KiB capsules, redaction, recall and search do not open native logs, same-project joins, and purge does not delete native logs.
