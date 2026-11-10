@@ -6,7 +6,7 @@ only continuations a person explicitly confirms. The approved behavior and
 support boundary live in [`docs/tangspec.md`](docs/tangspec.md); this file records
 the architectural reasons behind the main seams.
 
-The current CLI is the Rust crate in `rust/`. Indexing is a full rescan: the writer creates `capsules_fts` and `session_overrides`, and it does not create `adapter_checkpoints` or set Python `user_version` 8. OpenCode identity is the SHA-256 of the export directory. OpenClaw identity is the SHA-256 of the home. Those identities and incremental checkpoints stay as they are until a human changes them. `tang doctor` checks SQLite and FTS5 only.
+The current CLI is the Rust crate in `rust/`. Indexing keeps schema-4 fingerprints in `adapter_checkpoints`, skips an unchanged source, and sets `user_version` 8. The writer also creates `capsules_fts` and `session_overrides`. OpenCode identity is the SHA-256 of the executable plus the XDG data home. OpenClaw identity is the SHA-256 of `home:agent_id`. `tang doctor` checks SQLite and FTS5 only.
 
 ## Ubiquitous language
 

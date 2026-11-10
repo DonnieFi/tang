@@ -56,8 +56,6 @@ Catalog handles are global and are not reused after a session leaves the catalog
 - Model-written summaries and persisted Continuation Briefs.
 - Semantic or vector search.
 - Continuation edges that cross projects.
-- `adapter_checkpoints`, incremental index, and Python `user_version` 8.
-- Changing the OpenCode export-directory hash or the OpenClaw home hash.
 - A second interactive UI. The Codex skill remains the only interactive workflow; these commands are scriptable.
 
 ## Privacy
