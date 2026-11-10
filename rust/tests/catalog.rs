@@ -47,6 +47,7 @@ fn project_db(root: &Path) -> (tang::project::ProjectIdentity, Connection) {
     (project, connection)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn insert(
     connection: &Connection,
     project_key: &str,
@@ -393,4 +394,52 @@ fn capsule_source_title_wins_over_the_derived_display_name() {
     assert!(recall(&catalog, "Derived", None, 20, false)
         .unwrap()
         .is_empty());
+}
+
+#[test]
+fn empty_project_database_does_not_wipe_catalog_rows() {
+    let root = scratch();
+    let (project, database) = project_db(&root.join("work"));
+    insert(
+        &database,
+        &project.key,
+        "codex:fixture:keep",
+        "codex",
+        "C1",
+        "Keep me",
+        "keep this capsule",
+        1,
+    );
+    let mut catalog = open_catalog(&root.join("catalog.db")).unwrap();
+    sync_project(
+        &mut catalog,
+        &database,
+        &project.key,
+        &project.display_name,
+        &project.database_path,
+        "2026-11-09T21:00:00Z",
+    )
+    .unwrap();
+    drop(database);
+    let empty_path = root.join("empty.db");
+    let empty = Connection::open(&empty_path).unwrap();
+    empty
+        .execute_batch(
+            "CREATE TABLE sessions (project_key TEXT);
+             CREATE TABLE capsules (project_key TEXT);",
+        )
+        .unwrap();
+    let result = sync_project(
+        &mut catalog,
+        &empty,
+        &project.key,
+        &project.display_name,
+        &empty_path,
+        "2026-11-09T21:00:00Z",
+    )
+    .unwrap();
+    assert_eq!(result.removed, 0);
+    assert_eq!(result.warnings.len(), 1);
+    let hits = recall(&catalog, "keep", None, 20, false).unwrap();
+    assert_eq!(hits.len(), 1);
 }

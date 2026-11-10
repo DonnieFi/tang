@@ -76,6 +76,9 @@ fn catalog_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
         )
         .map_err(io_error)?;
     }
+    for warning in &result.warnings {
+        let _ = writeln!(std::io::stderr(), "warning: {warning}");
+    }
     Ok(())
 }
 
@@ -198,6 +201,7 @@ fn sync_json(result: &SyncResult) -> String {
         "schema_version": 1,
         "skipped": result.skipped,
         "upserted": result.upserted,
+        "warnings": result.warnings,
     }))
 }
 

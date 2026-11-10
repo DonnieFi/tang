@@ -15,6 +15,7 @@ pub struct SyncResult {
     pub upserted: i64,
     pub removed: i64,
     pub skipped: i64,
+    pub warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,7 +50,7 @@ fn home_dir() -> PathBuf {
 
 pub fn open_catalog(path: &Path) -> Result<Connection> {
     secure_parent(path)?;
-    let connection = Connection::open(path).map_err(|error| {
+    let mut connection = Connection::open(path).map_err(|error| {
         TangError::new(
             "catalog-unavailable",
             format!("Tang cannot open the global catalog at {}", path.display()),
@@ -58,7 +59,7 @@ pub fn open_catalog(path: &Path) -> Result<Connection> {
     })?;
     set_private(path);
     prepare_connection(&connection)?;
-    migrate(&connection)?;
+    migrate(&mut connection)?;
     Ok(connection)
 }
 
@@ -110,6 +111,17 @@ pub fn sync_project(
             "The database does not belong to the current project.",
         ));
     }
+    if table_count(project_db, "sessions")? == 0 || table_count(project_db, "capsules")? == 0 {
+        return Ok(SyncResult {
+            upserted: 0,
+            removed: 0,
+            skipped: 0,
+            warnings: vec![
+                "project database has no sessions or capsules; catalog rows were left unchanged"
+                    .to_string(),
+            ],
+        });
+    }
     let rows = load_capsules(project_db, project_key)?;
     let stored_path = database_path
         .canonicalize()
@@ -130,19 +142,21 @@ pub fn sync_project(
         let title = title_from(row.title, &row.content_json);
         upsert_session(
             &tx,
-            &row.source_id,
-            project_key,
-            &display,
-            &stored_path,
-            &row.adapter,
-            &project_handle,
-            title.as_deref(),
-            &row.health,
-            row.native_available,
-            &row.started_at,
-            &row.updated_at,
-            synced_at,
-            &search_text,
+            &SessionRecord {
+                source_id: &row.source_id,
+                project_key,
+                project_display: &display,
+                database_path: &stored_path,
+                adapter: &row.adapter,
+                project_handle: &project_handle,
+                title: title.as_deref(),
+                health: &row.health,
+                native_available: row.native_available,
+                started_at: &row.started_at,
+                updated_at: &row.updated_at,
+                synced_at,
+                search_text: &search_text,
+            },
         )?;
         kept.push(row.source_id);
         upserted += 1;
@@ -153,7 +167,24 @@ pub fn sync_project(
         upserted,
         removed,
         skipped,
+        warnings: Vec::new(),
     })
+}
+
+struct SessionRecord<'a> {
+    source_id: &'a str,
+    project_key: &'a str,
+    project_display: &'a str,
+    database_path: &'a str,
+    adapter: &'a str,
+    project_handle: &'a str,
+    title: Option<&'a str>,
+    health: &'a str,
+    native_available: bool,
+    started_at: &'a str,
+    updated_at: &'a str,
+    synced_at: &'a str,
+    search_text: &'a str,
 }
 
 pub fn recall(
@@ -270,33 +301,18 @@ fn distinct_project_keys(project_db: &Connection) -> Result<Vec<String>> {
         .map_err(storage)
 }
 
-fn upsert_session(
-    catalog: &Connection,
-    source_id: &str,
-    project_key: &str,
-    project_display: &str,
-    database_path: &str,
-    adapter: &str,
-    project_handle: &str,
-    title: Option<&str>,
-    health: &str,
-    native_available: bool,
-    started_at: &str,
-    updated_at: &str,
-    synced_at: &str,
-    search_text: &str,
-) -> Result<()> {
+fn upsert_session(catalog: &Connection, record: &SessionRecord<'_>) -> Result<()> {
     let existing: Option<String> = catalog
         .query_row(
             "SELECT catalog_handle FROM catalog_sessions WHERE source_id = ?1",
-            [source_id],
+            [record.source_id],
             |row| row.get(0),
         )
         .optional()
         .map_err(storage)?;
     let handle = match existing {
         Some(handle) => handle,
-        None => allocate_handle(catalog, adapter)?,
+        None => allocate_handle(catalog, record.adapter)?,
     };
     catalog
         .execute(
@@ -320,30 +336,33 @@ fn upsert_session(
                 synced_at=excluded.synced_at,
                 search_text=excluded.search_text",
             rusqlite::params![
-                source_id,
-                project_key,
-                project_display,
-                database_path,
-                adapter,
+                record.source_id,
+                record.project_key,
+                record.project_display,
+                record.database_path,
+                record.adapter,
                 handle,
-                project_handle,
-                title,
-                health,
-                i64::from(native_available),
-                started_at,
-                updated_at,
-                synced_at,
-                search_text,
+                record.project_handle,
+                record.title,
+                record.health,
+                i64::from(record.native_available),
+                record.started_at,
+                record.updated_at,
+                record.synced_at,
+                record.search_text,
             ],
         )
         .map_err(storage)?;
     catalog
-        .execute("DELETE FROM catalog_fts WHERE source_id = ?1", [source_id])
+        .execute(
+            "DELETE FROM catalog_fts WHERE source_id = ?1",
+            [record.source_id],
+        )
         .map_err(storage)?;
     catalog
         .execute(
             "INSERT INTO catalog_fts(source_id, project_key, search_text) VALUES (?1, ?2, ?3)",
-            rusqlite::params![source_id, project_key, search_text],
+            rusqlite::params![record.source_id, record.project_key, record.search_text],
         )
         .map_err(storage)?;
     Ok(())
@@ -484,8 +503,19 @@ fn prepare_connection(connection: &Connection) -> Result<()> {
     Ok(())
 }
 
-fn migrate(connection: &Connection) -> Result<()> {
-    let current: i64 = connection
+fn table_count(project_db: &Connection, table: &str) -> Result<i64> {
+    project_db
+        .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+            row.get(0)
+        })
+        .map_err(storage)
+}
+
+fn migrate(connection: &mut Connection) -> Result<()> {
+    let tx = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(storage)?;
+    let current: i64 = tx
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .map_err(storage)?;
     if current > SCHEMA_VERSION {
@@ -495,6 +525,7 @@ fn migrate(connection: &Connection) -> Result<()> {
         ));
     }
     if current == SCHEMA_VERSION {
+        tx.commit().map_err(storage)?;
         return Ok(());
     }
     if current != 0 {
@@ -503,7 +534,6 @@ fn migrate(connection: &Connection) -> Result<()> {
             format!("Missing catalog migration between {current} and {SCHEMA_VERSION}."),
         ));
     }
-    let tx = connection.unchecked_transaction().map_err(storage)?;
     tx.execute_batch(
         "CREATE TABLE catalog_sessions (
             source_id TEXT PRIMARY KEY,

@@ -73,5 +73,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.83.0
+        with:
+          components: rustfmt, clippy
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path rust/Cargo.toml --check
+      - name: Lint the Rust catalog
+        run: cargo clippy --manifest-path rust/Cargo.toml --all-targets -- -D warnings
       - name: Test the Rust catalog CLI
         run: cargo test --manifest-path rust/Cargo.toml
