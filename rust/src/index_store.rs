@@ -416,6 +416,8 @@ pub fn open_project_database(path: &Path) -> Result<Connection> {
             );
             CREATE UNIQUE INDEX IF NOT EXISTS sessions_project_handle
                 ON sessions(project_key, session_handle);
+            CREATE INDEX IF NOT EXISTS sessions_project_updated
+                ON sessions(project_key, updated_at DESC, source_id);
             CREATE TABLE IF NOT EXISTS capsules (
                 source_id TEXT PRIMARY KEY,
                 project_key TEXT NOT NULL,
@@ -434,6 +436,10 @@ pub fn open_project_database(path: &Path) -> Result<Connection> {
                 schema_version INTEGER NOT NULL DEFAULT 1,
                 PRIMARY KEY(source_id, target_id)
             );
+            CREATE INDEX IF NOT EXISTS continuation_edges_target
+                ON continuation_edges(target_id, source_id);
+            CREATE INDEX IF NOT EXISTS continuation_edges_project
+                ON continuation_edges(project_key, source_id, target_id);
             CREATE TABLE IF NOT EXISTS adapter_checkpoints (
                 adapter TEXT NOT NULL,
                 source_namespace TEXT NOT NULL,
@@ -685,6 +691,13 @@ pub(crate) fn ensure_session_overrides(connection: &Connection) -> Result<()> {
             )
             .map_err(storage)?;
     }
+    connection
+        .execute(
+            "CREATE INDEX IF NOT EXISTS session_overrides_project
+                ON session_overrides(project_key, source_id)",
+            [],
+        )
+        .map_err(storage)?;
     Ok(())
 }
 
