@@ -1,7 +1,10 @@
 //! Read Cursor agent transcripts into the per-project database.
 
 use crate::error::{Result, TangError};
-use crate::index_store::{file_updated_at, finish_session, write_sessions, SessionDraft};
+use crate::index_store::{
+    file_updated_at, finish_session, load_checkpoint, write_sessions, Checkpoint, IndexScope,
+    SessionDraft,
+};
 use crate::project::ProjectIdentity;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -12,6 +15,7 @@ use std::path::{Path, PathBuf};
 pub struct CursorIndexResult {
     pub indexed: i64,
     pub deleted: i64,
+    pub unchanged: i64,
     pub skipped: i64,
     pub warnings: Vec<String>,
 }
@@ -47,6 +51,8 @@ pub fn index_cursor(
     let mut saved = Vec::new();
     let mut warnings = Vec::new();
     let mut protected = HashSet::new();
+    let prior = load_checkpoint(database_path, &project.key, "cursor", &namespace)?;
+    let mut checkpoint = Checkpoint::default();
     let mut skipped = 0;
     for log in logs {
         if is_symlink(&log) {
@@ -59,10 +65,24 @@ pub fn index_cursor(
             ));
             continue;
         }
+        if let Some((source_id, fingerprint)) =
+            transcript_fingerprint(&log, &namespace, &home, &root_path)
+        {
+            if prior.should_skip(&source_id, &fingerprint) {
+                checkpoint.remember(&source_id, &fingerprint, true);
+                continue;
+            }
+        }
         match read_transcript(&log, &namespace, &hint, &home, &root_path, &mut warnings) {
-            Ok(record) => saved.push(record),
+            Ok(record) => {
+                checkpoint.remember(&record.source_id, &record.fingerprint, true);
+                saved.push(record);
+            }
             Err(message) => {
                 if let Some(source_id) = source_id_for_transcript(&log, &namespace) {
+                    if let Some(prior) = prior.fingerprints.get(&source_id).cloned() {
+                        checkpoint.remember(&source_id, &prior, false);
+                    }
                     protected.insert(source_id);
                 }
                 skipped += 1;
@@ -72,16 +92,21 @@ pub fn index_cursor(
     }
     let wrote = write_sessions(
         database_path,
-        &project.key,
-        "cursor",
-        &namespace,
-        "R",
+        IndexScope {
+            project_key: &project.key,
+            adapter: "cursor",
+            namespace: &namespace,
+            handle_prefix: "R",
+        },
         &saved,
         &protected,
+        &mut checkpoint,
+        true,
     )?;
     Ok(CursorIndexResult {
         indexed: wrote.indexed,
         deleted: wrote.deleted,
+        unchanged: wrote.unchanged,
         skipped,
         warnings,
     })
@@ -348,6 +373,30 @@ fn row_timestamp(row: &Value) -> Option<String> {
 fn source_id_for_transcript(path: &Path, namespace: &str) -> Option<String> {
     let native_id = path.file_stem()?.to_str()?;
     Some(format!("cursor:{namespace}:{native_id}"))
+}
+
+fn transcript_fingerprint(
+    path: &Path,
+    namespace: &str,
+    cursor_home: &Path,
+    project_root: &Path,
+) -> Option<(String, String)> {
+    let source_id = source_id_for_transcript(path, namespace)?;
+    let native_id = path.file_stem()?.to_str()?;
+    let bytes = fs::read(path).ok()?;
+    let mut hasher = Sha256::new();
+    hasher.update(&bytes);
+    let meta = cursor_home
+        .join("chats")
+        .join(workspace_chat_hash(&project_root.to_string_lossy()))
+        .join(native_id)
+        .join("meta.json");
+    if !is_symlink(&meta) && meta.is_file() {
+        if let Ok(sidecar) = fs::read(&meta) {
+            hasher.update(&sidecar);
+        }
+    }
+    Some((source_id, format!("{:x}", hasher.finalize())))
 }
 
 fn project_root(project: &ProjectIdentity) -> PathBuf {

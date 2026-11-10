@@ -656,3 +656,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) keep the Python package beside the new commands; (b) replace the Python CLI in place and delete the package, tests, and Python CI.
 - Decision: (b) — Rust implements index, browse, cards, project search, catalog recall, labels, context, join/link including a current Codex target, title, graph, demo, resume planning, doctor, continuity, skill install, stats, and project purge. `capsules_fts` and `session_overrides` are added by the Rust writer. `adapter_checkpoints` and Python `user_version` 8 are not recreated. OpenCode and OpenClaw identity hashes stay as previously decided. Serves: Technological Implementation, Design, Potential Impact.
 - By: human (Donnie Fiander, port everything and remove Python) and agent (implementation)
+
+## 2026-11-10T03:00:00Z · project · Complete the Rust port of Python indexing behavior
+- Context: The Rust CLI port is the release surface, but it still lacked the Python incremental checkpoint and the Python OpenCode/OpenClaw identity namespaces. That left the port incomplete and made a fresh Rust database diverge from the reviewed schema.
+- Options: (a) keep the simplified full rescan and document the gap; (b) keep two supported CLIs; (c) finish the Rust port so it matches the Python indexing behavior, schema version, and identity hashes.
+- Decision: (c) — add `adapter_checkpoints` with schema-4 fingerprint cursors, skip unchanged sources, retain last-known-good rows on invalid data, delete or tombstone missing sources, create `capsules_fts`, `session_overrides`, and `adapter_checkpoints`, set `user_version` 8, use `sha256(executable + XDG data home)` for OpenCode, and use `sha256(home:agent_id)` for OpenClaw. The Python CLI remains removed by the stacked removal PR. Serves: Technological Implementation, Design, Potential Impact.
+- By: human (100% Rust port direction) and agent (checkpoint and identity implementation)

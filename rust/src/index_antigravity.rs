@@ -1,7 +1,10 @@
 //! Read Antigravity history and brain transcripts into the project database.
 
 use crate::error::{Result, TangError};
-use crate::index_store::{file_updated_at, finish_session, write_sessions, SessionDraft};
+use crate::index_store::{
+    file_updated_at, finish_session, load_checkpoint, write_sessions, Checkpoint, IndexScope,
+    SessionDraft,
+};
 use crate::project::{owns_project, ProjectIdentity};
 use crate::timeutil::rfc3339_secs;
 use serde_json::Value;
@@ -13,6 +16,7 @@ use std::path::Path;
 pub struct AntigravityIndexResult {
     pub indexed: i64,
     pub deleted: i64,
+    pub unchanged: i64,
     pub skipped: i64,
     pub warnings: Vec<String>,
 }
@@ -33,6 +37,7 @@ pub fn index_antigravity(
         return Ok(AntigravityIndexResult {
             indexed: 0,
             deleted: 0,
+            unchanged: 0,
             skipped: 0,
             warnings: vec![format!(
                 "skipped symlinked Antigravity history {}",
@@ -90,6 +95,8 @@ pub fn index_antigravity(
     let mut saved = Vec::new();
     let mut warnings = Vec::new();
     let mut protected = HashSet::new();
+    let prior = load_checkpoint(database_path, &project.key, "antigravity", &namespace)?;
+    let mut checkpoint = Checkpoint::default();
     for (conversation_id, (workspace, started, title)) in entries {
         let transcript = home
             .join("brain")
@@ -107,6 +114,19 @@ pub fn index_antigravity(
             skipped += 1;
             continue;
         }
+        if let Some((source_id, fingerprint)) = transcript_fingerprint(
+            &transcript,
+            &namespace,
+            &conversation_id,
+            &workspace,
+            &started,
+            &title,
+        ) {
+            if prior.should_skip(&source_id, &fingerprint) {
+                checkpoint.remember(&source_id, &fingerprint, true);
+                continue;
+            }
+        }
         match read_transcript(
             &transcript,
             &namespace,
@@ -115,25 +135,37 @@ pub fn index_antigravity(
             &started,
             &title,
         ) {
-            Ok(record) => saved.push(record),
+            Ok(record) => {
+                checkpoint.remember(&record.source_id, &record.fingerprint, true);
+                saved.push(record);
+            }
             Err(message) => {
-                protected.insert(format!("antigravity:{namespace}:{conversation_id}"));
+                let source_id = format!("antigravity:{namespace}:{conversation_id}");
+                if let Some(prior) = prior.fingerprints.get(&source_id).cloned() {
+                    checkpoint.remember(&source_id, &prior, false);
+                }
+                protected.insert(source_id);
                 warnings.push(message);
             }
         }
     }
     let wrote = write_sessions(
         database_path,
-        &project.key,
-        "antigravity",
-        &namespace,
-        "A",
+        IndexScope {
+            project_key: &project.key,
+            adapter: "antigravity",
+            namespace: &namespace,
+            handle_prefix: "A",
+        },
         &saved,
         &protected,
+        &mut checkpoint,
+        true,
     )?;
     Ok(AntigravityIndexResult {
         indexed: wrote.indexed,
         deleted: wrote.deleted,
+        unchanged: wrote.unchanged,
         skipped,
         warnings,
     })
@@ -180,7 +212,12 @@ fn read_transcript(
             updated = fallback;
         }
     }
-    let fingerprint = format!("{:x}", Sha256::digest(&bytes));
+    let mut hasher = Sha256::new();
+    hasher.update(&bytes);
+    hasher.update(workspace.as_bytes());
+    hasher.update(started.as_bytes());
+    hasher.update(title.as_bytes());
+    let fingerprint = format!("{:x}", hasher.finalize());
     let locator = path.to_string_lossy();
     finish_session(SessionDraft {
         adapter: "antigravity",
@@ -195,6 +232,26 @@ fn read_transcript(
         title: Some(title.to_string()).filter(|value| !value.is_empty()),
         turns,
     })
+}
+
+fn transcript_fingerprint(
+    path: &Path,
+    namespace: &str,
+    native_id: &str,
+    workspace: &str,
+    started: &str,
+    title: &str,
+) -> Option<(String, String)> {
+    let bytes = fs::read(path).ok()?;
+    let mut hasher = Sha256::new();
+    hasher.update(&bytes);
+    hasher.update(workspace.as_bytes());
+    hasher.update(started.as_bytes());
+    hasher.update(title.as_bytes());
+    Some((
+        format!("antigravity:{namespace}:{native_id}"),
+        format!("{:x}", hasher.finalize()),
+    ))
 }
 
 fn visible_text(row: &Value, role: &str) -> String {

@@ -8,8 +8,8 @@ use rusqlite::Connection;
 use tang::cards::{render_brief, render_cards};
 use tang::discovery::{browse, search_project, DiscoveryQuery, DiscoveryRow};
 use tang::index_store::{
-    ensure_project_search, finish_session, open_project_database, write_sessions, SavedSession,
-    SessionDraft,
+    ensure_project_search, finish_session, open_project_database, write_sessions, Checkpoint,
+    IndexScope, SavedSession, SessionDraft,
 };
 use tang::titles::{clear_title, set_title};
 
@@ -65,8 +65,19 @@ fn saved(
 
 fn index(path: &Path, adapter: &str, prefix: &str, sessions: &[SavedSession]) {
     let protected = HashSet::new();
+    let mut checkpoint = Checkpoint::default();
     write_sessions(
-        path, PROJECT, adapter, "local", prefix, sessions, &protected,
+        path,
+        IndexScope {
+            project_key: PROJECT,
+            adapter,
+            namespace: "local",
+            handle_prefix: prefix,
+        },
+        sessions,
+        &protected,
+        &mut checkpoint,
+        true,
     )
     .unwrap_or_else(|error| panic!("write sessions: {} {}", error.code, error.message));
 }
@@ -242,8 +253,21 @@ fn search_finds_visible_words_and_skips_redacted_secrets() {
     assert_eq!(ids(&shown), ["Codex:local:z"]);
 
     drop(db);
-    let removed =
-        write_sessions(&path, PROJECT, "grok", "local", "G", &[], &HashSet::new()).unwrap();
+    let mut checkpoint = Checkpoint::default();
+    let removed = write_sessions(
+        &path,
+        IndexScope {
+            project_key: PROJECT,
+            adapter: "grok",
+            namespace: "local",
+            handle_prefix: "G",
+        },
+        &[],
+        &HashSet::new(),
+        &mut checkpoint,
+        true,
+    )
+    .unwrap();
     assert_eq!(removed.deleted, 3);
     let db = Connection::open(&path).unwrap();
     let gone = search_project(&db, PROJECT, &ask(Some("lighthouse"), None, true, 20)).unwrap();

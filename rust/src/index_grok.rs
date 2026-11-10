@@ -1,7 +1,10 @@
 //! Read Grok Build session directories into the per-project database.
 
 use crate::error::{Result, TangError};
-use crate::index_store::{finish_session, write_sessions, SavedSession, SessionDraft};
+use crate::index_store::{
+    finish_session, load_checkpoint, write_sessions, Checkpoint, IndexScope, SavedSession,
+    SessionDraft,
+};
 use crate::project::{owns_project, ProjectIdentity};
 use crate::timeutil::rfc3339_secs;
 use serde_json::Value;
@@ -14,6 +17,7 @@ use std::time::UNIX_EPOCH;
 pub struct GrokIndexResult {
     pub indexed: i64,
     pub deleted: i64,
+    pub unchanged: i64,
     pub skipped: i64,
     pub warnings: Vec<String>,
 }
@@ -46,13 +50,24 @@ pub fn index_grok(
     let mut saved = Vec::new();
     let mut warnings = Vec::new();
     let mut protected = HashSet::new();
+    let prior = load_checkpoint(database_path, &project.key, "grok", &namespace)?;
+    let mut checkpoint = Checkpoint::default();
     let mut skipped = 0;
     for session in sessions {
+        if let Some((source_id, fingerprint)) = session_fingerprint(&session, &namespace) {
+            if prior.should_skip(&source_id, &fingerprint) {
+                checkpoint.remember(&source_id, &fingerprint, true);
+                continue;
+            }
+        }
         match read_session(&session, &namespace) {
             Ok(parsed) => {
                 warnings.extend(parsed.warnings);
                 if parsed.protect {
                     if let Some(source_id) = source_id_for_session(&session, &namespace) {
+                        if let Some(prior) = prior.fingerprints.get(&source_id).cloned() {
+                            checkpoint.remember(&source_id, &prior, false);
+                        }
                         protected.insert(source_id);
                     }
                 }
@@ -60,10 +75,14 @@ pub fn index_grok(
                     if !owns_project(&record.project_hint, project) {
                         // A foreign project is not proof that this project's row is
                         // gone; keep the last known row instead of deleting it.
+                        if let Some(prior) = prior.fingerprints.get(&record.source_id).cloned() {
+                            checkpoint.remember(&record.source_id, &prior, true);
+                        }
                         protected.insert(record.source_id.clone());
                         skipped += 1;
                         continue;
                     }
+                    checkpoint.remember(&record.source_id, &record.fingerprint, true);
                     saved.push(record);
                 } else if !parsed.protect {
                     skipped += 1;
@@ -71,6 +90,9 @@ pub fn index_grok(
             }
             Err(message) => {
                 if let Some(source_id) = source_id_for_session(&session, &namespace) {
+                    if let Some(prior) = prior.fingerprints.get(&source_id).cloned() {
+                        checkpoint.remember(&source_id, &prior, false);
+                    }
                     protected.insert(source_id);
                 }
                 warnings.push(message);
@@ -79,16 +101,21 @@ pub fn index_grok(
     }
     let wrote = write_sessions(
         database_path,
-        &project.key,
-        "grok",
-        &namespace,
-        "G",
+        IndexScope {
+            project_key: &project.key,
+            adapter: "grok",
+            namespace: &namespace,
+            handle_prefix: "G",
+        },
         &saved,
         &protected,
+        &mut checkpoint,
+        true,
     )?;
     Ok(GrokIndexResult {
         indexed: wrote.indexed,
         deleted: wrote.deleted,
+        unchanged: wrote.unchanged,
         skipped,
         warnings,
     })
@@ -328,6 +355,16 @@ fn present_file(path: &Path, label: &str) -> std::result::Result<bool, String> {
 fn source_id_for_session(session_dir: &Path, namespace: &str) -> Option<String> {
     let native_id = session_dir.file_name()?.to_str()?;
     Some(format!("grok:{namespace}:{native_id}"))
+}
+
+fn session_fingerprint(session_dir: &Path, namespace: &str) -> Option<(String, String)> {
+    let source_id = source_id_for_session(session_dir, namespace)?;
+    let summary = fs::read(session_dir.join("summary.json")).unwrap_or_default();
+    let updates = fs::read(session_dir.join("updates.jsonl")).unwrap_or_default();
+    let mut hasher = Sha256::new();
+    hasher.update(&summary);
+    hasher.update(&updates);
+    Some((source_id, format!("{:x}", hasher.finalize())))
 }
 
 fn percent_decode(value: &str) -> String {
