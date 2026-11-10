@@ -272,3 +272,62 @@ fn index_keeps_a_graph_referenced_session_as_a_tombstone() {
         .unwrap();
     assert_eq!(sessions, 0);
 }
+
+#[test]
+fn reindex_skips_unchanged_codex_logs_and_records_a_checkpoint() {
+    let root = scratch();
+    let project_dir = root.join("work");
+    fs::create_dir_all(&project_dir).unwrap();
+    let home = root.join("codex");
+    let native_id = "019f6000-5678-7000-8000-000000000321";
+    let log = write_minimal_log(&home, &project_dir, native_id);
+    let arguments = [
+        "index".to_string(),
+        "--cwd".to_string(),
+        project_dir.display().to_string(),
+        "--codex-home".to_string(),
+        home.display().to_string(),
+        "--json".to_string(),
+    ];
+    let mut stdout = Vec::new();
+    run_with(&arguments, &mut stdout).unwrap();
+    let first: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
+    assert_eq!(first["indexed"], 1);
+
+    stdout.clear();
+    run_with(&arguments, &mut stdout).unwrap();
+    let second: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
+    assert_eq!(second["indexed"], 0);
+    assert_eq!(second["unchanged"], 1);
+    assert_eq!(second["deleted"], 0);
+
+    let project = resolve_project(&project_dir).unwrap();
+    let database = Connection::open(&project.database_path).unwrap();
+    let checkpoints: i64 = database
+        .query_row("SELECT COUNT(*) FROM adapter_checkpoints", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(checkpoints, 1);
+    let version: i64 = database
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 8);
+    drop(database);
+
+    let mut changed = fs::read_to_string(&log).unwrap();
+    changed.push_str(
+        "{\"timestamp\":\"2026-11-09T00:00:02Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"a new turn\"}]}}\n",
+    );
+    fs::write(&log, changed).unwrap();
+    stdout.clear();
+    run_with(&arguments, &mut stdout).unwrap();
+    let third: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
+    assert_eq!(third["indexed"], 1);
+
+    fs::remove_file(&log).unwrap();
+    stdout.clear();
+    run_with(&arguments, &mut stdout).unwrap();
+    let fourth: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
+    assert_eq!(fourth["deleted"], 1);
+}

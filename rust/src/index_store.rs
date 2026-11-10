@@ -4,8 +4,8 @@ use crate::error::{storage, Result, TangError};
 use crate::redact::{redact, ContentKind};
 use crate::timeutil::rfc3339_now;
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
-use serde_json::json;
-use std::collections::HashSet;
+use serde_json::{json, Value};
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::time::Duration;
@@ -60,6 +60,39 @@ pub struct SavedSession {
 pub struct IndexWrite {
     pub indexed: i64,
     pub deleted: i64,
+    pub unchanged: i64,
+}
+
+/// The Python adapter checkpoint shape: source id to native fingerprint, plus
+/// the subset that parsed cleanly on the last scan.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Checkpoint {
+    pub fingerprints: BTreeMap<String, String>,
+    pub validated: HashSet<String>,
+}
+
+impl Checkpoint {
+    pub fn should_skip(&self, source_id: &str, fingerprint: &str) -> bool {
+        self.fingerprints
+            .get(source_id)
+            .is_some_and(|stored| stored == fingerprint)
+            && self.validated.contains(source_id)
+    }
+
+    pub fn remember(&mut self, source_id: &str, fingerprint: &str, valid: bool) {
+        self.fingerprints
+            .insert(source_id.to_string(), fingerprint.to_string());
+        if valid {
+            self.validated.insert(source_id.to_string());
+        } else {
+            self.validated.remove(source_id);
+        }
+    }
+
+    pub fn forget(&mut self, source_id: &str) {
+        self.fingerprints.remove(source_id);
+        self.validated.remove(source_id);
+    }
 }
 
 pub struct SessionDraft<'a> {
@@ -175,14 +208,20 @@ fn bound_chars(text: &str, limit: usize) -> String {
     )
 }
 
+pub struct IndexScope<'a> {
+    pub project_key: &'a str,
+    pub adapter: &'a str,
+    pub namespace: &'a str,
+    pub handle_prefix: &'a str,
+}
+
 pub fn write_sessions(
     database_path: &Path,
-    project_key: &str,
-    adapter: &str,
-    namespace: &str,
-    handle_prefix: &str,
+    scope: IndexScope<'_>,
     sessions: &[SavedSession],
     protected: &HashSet<String>,
+    checkpoint: &mut Checkpoint,
+    checkpoint_safe: bool,
 ) -> Result<IndexWrite> {
     let mut database = open_project_database(database_path)?;
     let indexed_at = rfc3339_now();
@@ -190,22 +229,140 @@ pub fn write_sessions(
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(storage)?;
     let mut indexed = 0;
-    let mut seen = Vec::new();
     for session in sessions {
         upsert(
             &tx,
-            adapter,
-            handle_prefix,
+            scope.adapter,
+            scope.handle_prefix,
             session,
-            project_key,
+            scope.project_key,
             &indexed_at,
         )?;
-        seen.push(session.source_id.clone());
+        checkpoint.remember(&session.source_id, &session.fingerprint, true);
         indexed += 1;
     }
-    let deleted = delete_missing(&tx, project_key, adapter, namespace, &seen, protected)?;
+    let deleted = if checkpoint_safe {
+        delete_missing(
+            &tx,
+            scope.project_key,
+            scope.adapter,
+            scope.namespace,
+            checkpoint,
+            protected,
+        )?
+    } else {
+        0
+    };
+    let unchanged = checkpoint.validated.len().saturating_sub(indexed as usize) as i64;
+    if checkpoint_safe {
+        save_checkpoint(
+            &tx,
+            scope.adapter,
+            scope.namespace,
+            scope.project_key,
+            checkpoint,
+            &indexed_at,
+        )?;
+    }
     tx.commit().map_err(storage)?;
-    Ok(IndexWrite { indexed, deleted })
+    Ok(IndexWrite {
+        indexed,
+        deleted,
+        unchanged,
+    })
+}
+
+pub fn load_checkpoint(
+    database_path: &Path,
+    project_key: &str,
+    adapter: &str,
+    namespace: &str,
+) -> Result<Checkpoint> {
+    let database = open_project_database(database_path)?;
+    load_checkpoint_from(&database, project_key, adapter, namespace)
+}
+
+fn load_checkpoint_from(
+    connection: &Connection,
+    project_key: &str,
+    adapter: &str,
+    namespace: &str,
+) -> Result<Checkpoint> {
+    let raw: Option<String> = connection
+        .query_row(
+            "SELECT cursor FROM adapter_checkpoints
+             WHERE adapter = ?1 AND source_namespace = ?2 AND project_key = ?3",
+            rusqlite::params![adapter, namespace, project_key],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(storage)?;
+    let Some(raw) = raw else {
+        return Ok(Checkpoint::default());
+    };
+    let Ok(value) = serde_json::from_str::<Value>(&raw) else {
+        return Ok(Checkpoint::default());
+    };
+    if value.get("schema_version").and_then(Value::as_i64) != Some(4) {
+        return Ok(Checkpoint::default());
+    }
+    let Some(fingerprints) = value.get("fingerprints").and_then(Value::as_object) else {
+        return Ok(Checkpoint::default());
+    };
+    let mut checkpoint = Checkpoint::default();
+    for (source_id, fingerprint) in fingerprints {
+        let Some(fingerprint) = fingerprint.as_str() else {
+            return Ok(Checkpoint::default());
+        };
+        checkpoint
+            .fingerprints
+            .insert(source_id.clone(), fingerprint.to_string());
+    }
+    if let Some(validated) = value.get("validated").and_then(Value::as_array) {
+        for source_id in validated {
+            if let Some(source_id) = source_id.as_str() {
+                if checkpoint.fingerprints.contains_key(source_id) {
+                    checkpoint.validated.insert(source_id.to_string());
+                }
+            }
+        }
+    }
+    Ok(checkpoint)
+}
+
+fn save_checkpoint(
+    connection: &Connection,
+    adapter: &str,
+    namespace: &str,
+    project_key: &str,
+    checkpoint: &Checkpoint,
+    updated_at: &str,
+) -> Result<()> {
+    let mut validated = checkpoint
+        .validated
+        .iter()
+        .filter(|source_id| checkpoint.fingerprints.contains_key(*source_id))
+        .cloned()
+        .collect::<Vec<_>>();
+    validated.sort();
+    let cursor = serde_json::to_string(&json!({
+        "schema_version": 4,
+        "fingerprints": checkpoint.fingerprints,
+        "validated": validated,
+    }))
+    .unwrap_or_else(|_| "{}".to_string());
+    connection
+        .execute(
+            "INSERT INTO adapter_checkpoints(
+                adapter, source_namespace, project_key, cursor, updated_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(adapter, source_namespace, project_key) DO UPDATE SET
+                cursor = excluded.cursor,
+                updated_at = excluded.updated_at",
+            rusqlite::params![adapter, namespace, project_key, cursor, updated_at],
+        )
+        .map_err(storage)?;
+    Ok(())
 }
 
 pub fn open_project_database(path: &Path) -> Result<Connection> {
@@ -259,6 +416,8 @@ pub fn open_project_database(path: &Path) -> Result<Connection> {
             );
             CREATE UNIQUE INDEX IF NOT EXISTS sessions_project_handle
                 ON sessions(project_key, session_handle);
+            CREATE INDEX IF NOT EXISTS sessions_project_updated
+                ON sessions(project_key, updated_at DESC, source_id);
             CREATE TABLE IF NOT EXISTS capsules (
                 source_id TEXT PRIMARY KEY,
                 project_key TEXT NOT NULL,
@@ -276,11 +435,31 @@ pub fn open_project_database(path: &Path) -> Result<Connection> {
                 confirmed_at TEXT NOT NULL,
                 schema_version INTEGER NOT NULL DEFAULT 1,
                 PRIMARY KEY(source_id, target_id)
+            );
+            CREATE INDEX IF NOT EXISTS continuation_edges_target
+                ON continuation_edges(target_id, source_id);
+            CREATE INDEX IF NOT EXISTS continuation_edges_project
+                ON continuation_edges(project_key, source_id, target_id);
+            CREATE TABLE IF NOT EXISTS adapter_checkpoints (
+                adapter TEXT NOT NULL,
+                source_namespace TEXT NOT NULL,
+                project_key TEXT NOT NULL,
+                cursor TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(adapter, source_namespace, project_key)
             );",
         )
         .map_err(storage)?;
     ensure_capsules_fts(&connection)?;
     ensure_session_overrides(&connection)?;
+    let current: i64 = connection
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .map_err(storage)?;
+    if current < 8 {
+        connection
+            .pragma_update(None, "user_version", 8)
+            .map_err(storage)?;
+    }
     Ok(connection)
 }
 
@@ -403,7 +582,7 @@ fn delete_missing(
     project_key: &str,
     adapter: &str,
     namespace: &str,
-    seen: &[String],
+    checkpoint: &Checkpoint,
     protected: &HashSet<String>,
 ) -> Result<i64> {
     let mut statement = connection
@@ -422,7 +601,7 @@ fn delete_missing(
     drop(statement);
     let mut deleted = 0;
     for source_id in ids {
-        if seen.iter().any(|id| id == &source_id) || protected.contains(&source_id) {
+        if checkpoint.fingerprints.contains_key(&source_id) || protected.contains(&source_id) {
             continue;
         }
         connection
@@ -512,6 +691,13 @@ pub(crate) fn ensure_session_overrides(connection: &Connection) -> Result<()> {
             )
             .map_err(storage)?;
     }
+    connection
+        .execute(
+            "CREATE INDEX IF NOT EXISTS session_overrides_project
+                ON session_overrides(project_key, source_id)",
+            [],
+        )
+        .map_err(storage)?;
     Ok(())
 }
 

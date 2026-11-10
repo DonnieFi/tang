@@ -100,6 +100,7 @@ fn index_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
         .unwrap_or_else(|| project.database_path.clone());
     let mut indexed = 0;
     let mut deleted = 0;
+    let mut unchanged = 0;
     let mut skipped = 0;
     let mut warnings = Vec::new();
     let explicit = flags.codex_home.is_some()
@@ -114,6 +115,7 @@ fn index_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
         let result = index_codex(&codex_home, &project, &database)?;
         indexed += result.indexed;
         deleted += result.deleted;
+        unchanged += result.unchanged;
         skipped += result.skipped;
         warnings.extend(result.warnings);
     }
@@ -121,6 +123,7 @@ fn index_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
         let result = index_grok(grok_home, &project, &database)?;
         indexed += result.indexed;
         deleted += result.deleted;
+        unchanged += result.unchanged;
         skipped += result.skipped;
         warnings.extend(result.warnings);
     }
@@ -128,6 +131,7 @@ fn index_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
         let result = index_opencode(opencode_home, &project, &database)?;
         indexed += result.indexed;
         deleted += result.deleted;
+        unchanged += result.unchanged;
         skipped += result.skipped;
         warnings.extend(result.warnings);
     }
@@ -135,6 +139,7 @@ fn index_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
         let result = index_cursor(cursor_home, &project, &database)?;
         indexed += result.indexed;
         deleted += result.deleted;
+        unchanged += result.unchanged;
         skipped += result.skipped;
         warnings.extend(result.warnings);
     }
@@ -142,6 +147,7 @@ fn index_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
         let result = index_claude(claude_home, &project, &database)?;
         indexed += result.indexed;
         deleted += result.deleted;
+        unchanged += result.unchanged;
         skipped += result.skipped;
         warnings.extend(result.warnings);
     }
@@ -149,6 +155,7 @@ fn index_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
         let result = index_antigravity(antigravity_home, &project, &database)?;
         indexed += result.indexed;
         deleted += result.deleted;
+        unchanged += result.unchanged;
         skipped += result.skipped;
         warnings.extend(result.warnings);
     }
@@ -156,12 +163,14 @@ fn index_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
         let result = index_openclaw(openclaw_home, &project, &database)?;
         indexed += result.indexed;
         deleted += result.deleted;
+        unchanged += result.unchanged;
         skipped += result.skipped;
         warnings.extend(result.warnings);
     }
     let result = CodexIndexResult {
         indexed,
         deleted,
+        unchanged,
         skipped,
         warnings,
     };
@@ -170,8 +179,8 @@ fn index_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
     } else {
         writeln!(
             stdout,
-            "Indexed {} sessions, deleted {}, skipped {}.",
-            result.indexed, result.deleted, result.skipped
+            "Indexed {} sessions, unchanged {}, deleted {}, skipped {}.",
+            result.indexed, result.unchanged, result.deleted, result.skipped
         )
         .map_err(io_error)?;
     }
@@ -198,6 +207,7 @@ fn index_json(result: &CodexIndexResult) -> String {
         "deleted": result.deleted,
         "indexed": result.indexed,
         "schema_version": 1,
+        "unchanged": result.unchanged,
         "skipped": result.skipped,
         "warnings": result.warnings,
     }))

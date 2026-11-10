@@ -2,6 +2,14 @@
 
 Concise operating rules for coding agents on Tang. The CLI is the Rust crate in `rust/`.
 
+## Current implementation (2026-11-10)
+
+The Python CLI has been removed. `rust/` is the only implementation. It covers index, browse, cards, search, catalog sync/recall, labels, context, join/link, title, graph, demo, resume, doctor, continuity, skill install, stats, and purge. Build and test with `cargo test --manifest-path rust/Cargo.toml`.
+
+Incremental indexing is part of the port. `adapter_checkpoints` stores the schema-4 fingerprint cursor; unchanged sources are skipped, invalid sources retain the last-known-good row, and missing sources are deleted or tombstoned. The Rust writer creates `capsules_fts`, `session_overrides`, and `adapter_checkpoints`, and sets `user_version` 8. OpenCode identity is `sha256(executable + XDG data home)` and OpenClaw identity is `sha256(home:agent_id)`, matching the Python identities.
+
+The Python-era epic, Beads, and pytest workflow is retired; use the Rust build and test commands below.
+
 ## Source of truth
 
 1. `docs/tangspec.md` — approved behavior and privacy. Do not rewrite the v1 privacy rules to fit code.
@@ -37,11 +45,3 @@ Linux is the tested platform. Do not claim macOS or Windows support.
 - Append a `decision.md` entry when a choice changes scope, architecture, privacy, support claims, or a later agent's work.
 - Tests use temporary directories outside this git checkout so project resolution does not write this repo's `.tang/tang.db`.
 
-## Open decisions
-
-These stay as implemented until a human changes them:
-
-- OpenCode namespace is the SHA-256 of the export directory.
-- OpenClaw namespace is the SHA-256 of the home.
-- The writer does not create `adapter_checkpoints` and does not set Python `user_version` 8.
-- The writer does create `capsules_fts` and `session_overrides`.

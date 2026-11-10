@@ -1,7 +1,10 @@
 //! Read Claude Code project transcripts into the per-project database.
 
 use crate::error::{Result, TangError};
-use crate::index_store::{file_updated_at, finish_session, write_sessions, SessionDraft};
+use crate::index_store::{
+    file_updated_at, finish_session, load_checkpoint, write_sessions, Checkpoint, IndexScope,
+    SessionDraft,
+};
 use crate::project::{owns_project, ProjectIdentity};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -12,6 +15,7 @@ use std::path::{Path, PathBuf};
 pub struct ClaudeIndexResult {
     pub indexed: i64,
     pub deleted: i64,
+    pub unchanged: i64,
     pub skipped: i64,
     pub warnings: Vec<String>,
 }
@@ -61,6 +65,8 @@ pub fn index_claude(
     let mut saved = Vec::new();
     let mut warnings = Vec::new();
     let mut protected = HashSet::new();
+    let prior = load_checkpoint(database_path, &project.key, "claude", &namespace)?;
+    let mut checkpoint = Checkpoint::default();
     let mut skipped = 0;
     for log in logs {
         if is_symlink(&log) {
@@ -73,16 +79,31 @@ pub fn index_claude(
             ));
             continue;
         }
+        if let Some((source_id, fingerprint)) = transcript_fingerprint(&log, &namespace) {
+            if prior.should_skip(&source_id, &fingerprint) {
+                checkpoint.remember(&source_id, &fingerprint, true);
+                continue;
+            }
+        }
         match read_transcript(&log, &namespace, project, &mut warnings) {
-            Ok(Some(record)) => saved.push(record),
+            Ok(Some(record)) => {
+                checkpoint.remember(&record.source_id, &record.fingerprint, true);
+                saved.push(record);
+            }
             Ok(None) => {
                 if let Some(source_id) = source_id_for_transcript(&log, &namespace) {
+                    if let Some(prior) = prior.fingerprints.get(&source_id).cloned() {
+                        checkpoint.remember(&source_id, &prior, true);
+                    }
                     protected.insert(source_id);
                 }
                 skipped += 1;
             }
             Err(message) => {
                 if let Some(source_id) = source_id_for_transcript(&log, &namespace) {
+                    if let Some(prior) = prior.fingerprints.get(&source_id).cloned() {
+                        checkpoint.remember(&source_id, &prior, false);
+                    }
                     protected.insert(source_id);
                 }
                 skipped += 1;
@@ -92,16 +113,21 @@ pub fn index_claude(
     }
     let wrote = write_sessions(
         database_path,
-        &project.key,
-        "claude",
-        &namespace,
-        "L",
+        IndexScope {
+            project_key: &project.key,
+            adapter: "claude",
+            namespace: &namespace,
+            handle_prefix: "L",
+        },
         &saved,
         &protected,
+        &mut checkpoint,
+        true,
     )?;
     Ok(ClaudeIndexResult {
         indexed: wrote.indexed,
         deleted: wrote.deleted,
+        unchanged: wrote.unchanged,
         skipped,
         warnings,
     })
@@ -206,6 +232,12 @@ fn sits_under_project_slug(path: &Path, project: &ProjectIdentity) -> bool {
 fn source_id_for_transcript(path: &Path, namespace: &str) -> Option<String> {
     let native_id = path.file_stem()?.to_str()?;
     Some(format!("claude:{namespace}:{native_id}"))
+}
+
+fn transcript_fingerprint(path: &Path, namespace: &str) -> Option<(String, String)> {
+    let source_id = source_id_for_transcript(path, namespace)?;
+    let bytes = fs::read(path).ok()?;
+    Some((source_id, format!("{:x}", Sha256::digest(&bytes))))
 }
 
 fn visible_text(row: &Value) -> String {

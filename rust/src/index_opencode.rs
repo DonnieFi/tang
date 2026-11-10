@@ -1,7 +1,10 @@
 //! Read OpenCode session export JSON into the per-project database.
 
 use crate::error::{Result, TangError};
-use crate::index_store::{finish_session, write_sessions, SavedSession, SessionDraft};
+use crate::index_store::{
+    finish_session, load_checkpoint, write_sessions, Checkpoint, IndexScope, SavedSession,
+    SessionDraft,
+};
 use crate::project::{owns_project, ProjectIdentity};
 use crate::timeutil::rfc3339_secs;
 use serde_json::Value;
@@ -13,6 +16,7 @@ use std::path::{Path, PathBuf};
 pub struct OpenCodeIndexResult {
     pub indexed: i64,
     pub deleted: i64,
+    pub unchanged: i64,
     pub skipped: i64,
     pub warnings: Vec<String>,
 }
@@ -28,16 +32,15 @@ pub fn index_opencode(
             "The configured OpenCode export directory is unavailable.",
         )
     })?;
-    let namespace = format!(
-        "store-{:x}",
-        Sha256::digest(home.to_string_lossy().as_bytes())
-    );
+    let namespace = opencode_namespace();
     let mut exports = Vec::new();
     collect_exports(&home, &mut exports)?;
     exports.sort();
     let mut saved = Vec::new();
     let mut warnings = Vec::new();
     let mut protected = HashSet::new();
+    let prior = load_checkpoint(database_path, &project.key, "opencode", &namespace)?;
+    let mut checkpoint = Checkpoint::default();
     let mut skipped = 0;
     for path in exports {
         if is_symlink(&path) {
@@ -47,6 +50,12 @@ pub fn index_opencode(
             ));
             continue;
         }
+        if let Some((source_id, fingerprint)) = export_fingerprint(&path, &namespace) {
+            if prior.should_skip(&source_id, &fingerprint) {
+                checkpoint.remember(&source_id, &fingerprint, true);
+                continue;
+            }
+        }
         let peeked = fs::read(&path)
             .ok()
             .and_then(|bytes| peek_export_id(&bytes));
@@ -55,16 +64,24 @@ pub fn index_opencode(
                 if !owns_project(&record.project_hint, project) {
                     // A foreign project is not proof that this project's row is
                     // gone; keep the last known row instead of deleting it.
+                    if let Some(prior) = prior.fingerprints.get(&record.source_id).cloned() {
+                        checkpoint.remember(&record.source_id, &prior, true);
+                    }
                     protected.insert(record.source_id.clone());
                     skipped += 1;
                     continue;
                 }
+                checkpoint.remember(&record.source_id, &record.fingerprint, true);
                 saved.push(record);
             }
             Ok(None) => skipped += 1,
             Err(message) => {
                 if let Some(native_id) = peeked {
-                    protected.insert(format!("opencode:{namespace}:{native_id}"));
+                    let source_id = format!("opencode:{namespace}:{native_id}");
+                    if let Some(prior) = prior.fingerprints.get(&source_id).cloned() {
+                        checkpoint.remember(&source_id, &prior, false);
+                    }
+                    protected.insert(source_id);
                 }
                 warnings.push(message);
             }
@@ -72,19 +89,60 @@ pub fn index_opencode(
     }
     let wrote = write_sessions(
         database_path,
-        &project.key,
-        "opencode",
-        &namespace,
-        "O",
+        IndexScope {
+            project_key: &project.key,
+            adapter: "opencode",
+            namespace: &namespace,
+            handle_prefix: "O",
+        },
         &saved,
         &protected,
+        &mut checkpoint,
+        true,
     )?;
     Ok(OpenCodeIndexResult {
         indexed: wrote.indexed,
         deleted: wrote.deleted,
+        unchanged: wrote.unchanged,
         skipped,
         warnings,
     })
+}
+
+fn opencode_namespace() -> String {
+    let executable = find_executable("opencode")
+        .map(|path| path.to_string_lossy().into_owned())
+        .unwrap_or_else(|| {
+            std::env::current_dir()
+                .unwrap_or_default()
+                .join("opencode")
+                .to_string_lossy()
+                .into_owned()
+        });
+    let data_home = std::env::var_os("XDG_DATA_HOME")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            std::env::var_os("HOME")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(".local")
+                .join("share")
+        });
+    let digest =
+        Sha256::digest(format!("{executable}\0{}", data_home.to_string_lossy()).as_bytes());
+    format!("store-{:x}", digest)
+}
+
+fn find_executable(name: &str) -> Option<PathBuf> {
+    let path = std::env::var_os("PATH")?;
+    for directory in std::env::split_paths(&path) {
+        let candidate = directory.join(name);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+    None
 }
 
 fn read_export(path: &Path, namespace: &str) -> std::result::Result<Option<SavedSession>, String> {
@@ -157,6 +215,15 @@ fn read_export(path: &Path, namespace: &str) -> std::result::Result<Option<Saved
         turns,
     })
     .map(Some)
+}
+
+fn export_fingerprint(path: &Path, namespace: &str) -> Option<(String, String)> {
+    let bytes = fs::read(path).ok()?;
+    let native_id = peek_export_id(&bytes)?;
+    Some((
+        format!("opencode:{namespace}:{native_id}"),
+        format!("{:x}", Sha256::digest(&bytes)),
+    ))
 }
 
 fn peek_export_id(bytes: &[u8]) -> Option<String> {

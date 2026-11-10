@@ -1,7 +1,9 @@
 //! Read OpenClaw agent SQLite sessions into the per-project database.
 
 use crate::error::{storage, Result, TangError};
-use crate::index_store::{finish_session, write_sessions, SessionDraft};
+use crate::index_store::{
+    finish_session, load_checkpoint, write_sessions, Checkpoint, IndexScope, SessionDraft,
+};
 use crate::project::{owns_project, ProjectIdentity};
 use crate::timeutil::rfc3339_secs;
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
@@ -14,6 +16,7 @@ use std::path::{Path, PathBuf};
 pub struct OpenClawIndexResult {
     pub indexed: i64,
     pub deleted: i64,
+    pub unchanged: i64,
     pub skipped: i64,
     pub warnings: Vec<String>,
 }
@@ -30,22 +33,19 @@ pub fn index_openclaw(
         )
     })?;
     let databases = agent_databases(&home)?;
-    if databases.iter().all(|path| is_symlink(path)) {
+    if databases.iter().all(|(_, path)| is_symlink(path)) {
         return Err(TangError::new(
             "unsafe-session-source",
             "The OpenClaw agent database is a symlink and was not read.",
         ));
     }
-    let namespace = format!(
-        "store-{:x}",
-        Sha256::digest(home.to_string_lossy().as_bytes())
-    );
     let hint = project_root(project).to_string_lossy().to_string();
-    let mut saved = Vec::new();
     let mut warnings = Vec::new();
-    let mut protected = HashSet::new();
     let mut skipped = 0;
-    for agent_db in databases {
+    let mut indexed = 0;
+    let mut deleted = 0;
+    let mut unchanged = 0;
+    for (agent_id, agent_db) in databases {
         if is_symlink(&agent_db) {
             warnings.push(format!(
                 "skipped symlinked OpenClaw agent database {}",
@@ -53,6 +53,14 @@ pub fn index_openclaw(
             ));
             continue;
         }
+        let namespace = format!(
+            "store-{:x}",
+            Sha256::digest(format!("{}:{}", home.to_string_lossy(), agent_id).as_bytes())
+        );
+        let prior = load_checkpoint(database_path, &project.key, "openclaw", &namespace)?;
+        let mut checkpoint = Checkpoint::default();
+        let mut saved = Vec::new();
+        let mut protected = HashSet::new();
         read_agent_database(
             &agent_db,
             project,
@@ -63,27 +71,37 @@ pub fn index_openclaw(
                 warnings: &mut warnings,
                 protected: &mut protected,
                 skipped: &mut skipped,
+                prior: &prior,
+                checkpoint: &mut checkpoint,
             },
         )?;
+        let wrote = write_sessions(
+            database_path,
+            IndexScope {
+                project_key: &project.key,
+                adapter: "openclaw",
+                namespace: &namespace,
+                handle_prefix: "W",
+            },
+            &saved,
+            &protected,
+            &mut checkpoint,
+            true,
+        )?;
+        indexed += wrote.indexed;
+        deleted += wrote.deleted;
+        unchanged += wrote.unchanged;
     }
-    let wrote = write_sessions(
-        database_path,
-        &project.key,
-        "openclaw",
-        &namespace,
-        "W",
-        &saved,
-        &protected,
-    )?;
     Ok(OpenClawIndexResult {
-        indexed: wrote.indexed,
-        deleted: wrote.deleted,
+        indexed,
+        deleted,
+        unchanged,
         skipped,
         warnings,
     })
 }
 
-fn agent_databases(home: &Path) -> Result<Vec<PathBuf>> {
+fn agent_databases(home: &Path) -> Result<Vec<(String, PathBuf)>> {
     let agents = home.join("agents");
     if !agents.is_dir() {
         return Err(TangError::new(
@@ -103,7 +121,12 @@ fn agent_databases(home: &Path) -> Result<Vec<PathBuf>> {
         }
         let database = path.join("agent/openclaw-agent.sqlite");
         if database.is_file() || is_symlink(&database) {
-            found.push(database);
+            let agent_id = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("main")
+                .to_string();
+            found.push((agent_id, database));
         }
     }
     found.sort();
@@ -127,6 +150,8 @@ struct AgentRead<'a> {
     warnings: &'a mut Vec<String>,
     protected: &'a mut HashSet<String>,
     skipped: &'a mut i64,
+    prior: &'a Checkpoint,
+    checkpoint: &'a mut Checkpoint,
 }
 
 fn read_agent_database(
@@ -162,12 +187,23 @@ fn read_agent_database(
         let native_id = urlsafe_b64(session_key.as_bytes());
         let source_id = format!("openclaw:{namespace}:{native_id}");
         let Some((session_id, started_millis)) = latest_window(&connection, &session_key)? else {
+            if let Some(prior) = read.prior.fingerprints.get(&source_id).cloned() {
+                read.checkpoint.remember(&source_id, &prior, false);
+            }
             read.protected.insert(source_id);
             *read.skipped += 1;
             continue;
         };
+        let fingerprint = format!("{:x}", Sha256::digest(session_id.as_bytes()));
+        if read.prior.should_skip(&source_id, &fingerprint) {
+            read.checkpoint.remember(&source_id, &fingerprint, true);
+            continue;
+        }
         let events = read_events(&connection, &session_id)?;
         if events_are_foreign(&events, project) {
+            if let Some(prior) = read.prior.fingerprints.get(&source_id).cloned() {
+                read.checkpoint.remember(&source_id, &prior, true);
+            }
             read.protected.insert(source_id);
             *read.skipped += 1;
             continue;
@@ -181,7 +217,6 @@ fn read_agent_database(
             .max()
             .unwrap_or(0);
         let updated = rfc3339_secs((updated_millis.max(0) / 1000) as u64);
-        let fingerprint = format!("{:x}", Sha256::digest(session_id.as_bytes()));
         let locator = agent_db.to_string_lossy();
         match finish_session(SessionDraft {
             adapter: "openclaw",
@@ -196,8 +231,15 @@ fn read_agent_database(
             title,
             turns,
         }) {
-            Ok(record) => read.saved.push(record),
+            Ok(record) => {
+                read.checkpoint
+                    .remember(&record.source_id, &record.fingerprint, true);
+                read.saved.push(record);
+            }
             Err(message) => {
+                if let Some(prior) = read.prior.fingerprints.get(&source_id).cloned() {
+                    read.checkpoint.remember(&source_id, &prior, false);
+                }
                 read.protected.insert(source_id);
                 read.warnings.push(message);
             }
