@@ -51,6 +51,8 @@ fn index_reads_codex_fixture_then_recall_redacts_it() {
     let foreign_dir = root.join("foreign");
     fs::create_dir_all(&foreign_dir).unwrap();
     let home = root.join("codex");
+    let index_db = root.join("index.db");
+    let index_arg = index_db.display().to_string();
     let log = home.join(
         "sessions/2026/07/14/rollout-2026-07-14T20-00-00-019f6000-5678-7000-8000-000000000002.jsonl",
     );
@@ -85,6 +87,8 @@ fn index_reads_codex_fixture_then_recall_redacts_it() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            index_arg.clone(),
             "--codex-home".into(),
             home.display().to_string(),
             "--json".into(),
@@ -104,7 +108,7 @@ fn index_reads_codex_fixture_then_recall_redacts_it() {
     assert_eq!(fs::read(original_path()).unwrap(), original);
 
     let project = resolve_project(&project_dir).unwrap();
-    let database = Connection::open(&project.database_path).unwrap();
+    let database = Connection::open(&index_db).unwrap();
     let health: String = database
         .query_row(
             "SELECT health FROM sessions WHERE project_key = ?1",
@@ -144,6 +148,8 @@ fn index_reads_codex_fixture_then_recall_redacts_it() {
             "sync".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            index_arg.clone(),
             "--catalog".into(),
             catalog.display().to_string(),
         ],
@@ -155,6 +161,8 @@ fn index_reads_codex_fixture_then_recall_redacts_it() {
         &[
             "recall".into(),
             "checkpoint".into(),
+            "--database".into(),
+            index_arg.clone(),
             "--catalog".into(),
             catalog.display().to_string(),
             "--json".into(),
@@ -175,6 +183,8 @@ fn index_reads_codex_fixture_then_recall_redacts_it() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            index_arg,
             "--codex-home".into(),
             home.display().to_string(),
             "--json".into(),
@@ -227,12 +237,14 @@ fn index_keeps_a_graph_referenced_session_as_a_tombstone() {
         project_dir.display().to_string(),
         "--codex-home".to_string(),
         home.display().to_string(),
+        "--database".to_string(),
+        root.join("index.db").display().to_string(),
         "--json".to_string(),
     ];
     run_with(&arguments, &mut stdout).unwrap();
 
     let project = resolve_project(&project_dir).unwrap();
-    let database = Connection::open(&project.database_path).unwrap();
+    let database = Connection::open(root.join("index.db")).unwrap();
     let source_id: String = database
         .query_row("SELECT source_id FROM sessions", [], |row| row.get(0))
         .unwrap();
@@ -252,7 +264,7 @@ fn index_keeps_a_graph_referenced_session_as_a_tombstone() {
     let document: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
     assert_eq!(document["deleted"], 1);
 
-    let database = Connection::open(&project.database_path).unwrap();
+    let database = Connection::open(root.join("index.db")).unwrap();
     let available: i64 = database
         .query_row(
             "SELECT native_available FROM sessions WHERE source_id = ?1",
@@ -278,7 +290,7 @@ fn index_keeps_a_graph_referenced_session_as_a_tombstone() {
     drop(database);
     stdout.clear();
     run_with(&arguments, &mut stdout).unwrap();
-    let database = Connection::open(&project.database_path).unwrap();
+    let database = Connection::open(root.join("index.db")).unwrap();
     let sessions: i64 = database
         .query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get(0))
         .unwrap();
@@ -299,6 +311,8 @@ fn reindex_skips_unchanged_codex_logs_and_records_a_checkpoint() {
         project_dir.display().to_string(),
         "--codex-home".to_string(),
         home.display().to_string(),
+        "--database".to_string(),
+        root.join("index.db").display().to_string(),
         "--json".to_string(),
     ];
     let mut stdout = Vec::new();
@@ -313,8 +327,7 @@ fn reindex_skips_unchanged_codex_logs_and_records_a_checkpoint() {
     assert_eq!(second["unchanged"], 1);
     assert_eq!(second["deleted"], 0);
 
-    let project = resolve_project(&project_dir).unwrap();
-    let database = Connection::open(&project.database_path).unwrap();
+    let database = Connection::open(root.join("index.db")).unwrap();
     let checkpoints: i64 = database
         .query_row("SELECT COUNT(*) FROM adapter_checkpoints", [], |row| {
             row.get(0)
@@ -368,6 +381,10 @@ fn index_keeps_a_codex_session_whose_directory_is_outside_the_working_directory(
     )
     .unwrap();
     let original = fs::read(&log).unwrap();
+    let index_db = root.join("index.db");
+    let index_arg = index_db.display().to_string();
+    let other_dir = root.join("home-b");
+    fs::create_dir_all(&other_dir).unwrap();
 
     let mut stdout = Vec::new();
     run_with(
@@ -375,6 +392,8 @@ fn index_keeps_a_codex_session_whose_directory_is_outside_the_working_directory(
             "index".into(),
             "--cwd".into(),
             home_dir.display().to_string(),
+            "--database".into(),
+            index_arg.clone(),
             "--codex-home".into(),
             codex_home.display().to_string(),
             "--json".into(),
@@ -389,7 +408,7 @@ fn index_keeps_a_codex_session_whose_directory_is_outside_the_working_directory(
 
     let home = resolve_project(&home_dir).unwrap();
     let elsewhere_project = resolve_project(&elsewhere).unwrap();
-    let database = Connection::open(&home.database_path).unwrap();
+    let database = Connection::open(&index_db).unwrap();
     let (project_key, hint): (String, String) = database
         .query_row(
             "SELECT project_key, project_hint FROM sessions",
@@ -406,4 +425,47 @@ fn index_keeps_a_codex_session_whose_directory_is_outside_the_working_directory(
     assert!(tag.contains("Documents"));
     assert!(tag.contains("run"));
     assert!(!tag.contains("supersecret"));
+
+    stdout.clear();
+    run_with(
+        &[
+            "index".into(),
+            "--cwd".into(),
+            other_dir.display().to_string(),
+            "--database".into(),
+            index_arg.clone(),
+            "--codex-home".into(),
+            codex_home.display().to_string(),
+            "--json".into(),
+        ],
+        &mut stdout,
+    )
+    .unwrap();
+    let again: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
+    assert_eq!(again["indexed"], 0);
+    let copies: i64 = database
+        .query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(copies, 1);
+
+    stdout.clear();
+    run_with(
+        &[
+            "search".into(),
+            "--cwd".into(),
+            other_dir.display().to_string(),
+            "--database".into(),
+            index_arg,
+            "outside".into(),
+            "--json".into(),
+        ],
+        &mut stdout,
+    )
+    .unwrap();
+    let found: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
+    assert_eq!(found["results"].as_array().unwrap().len(), 1);
+    assert!(found["results"][0]["directory"]
+        .as_str()
+        .unwrap()
+        .contains("Documents"));
 }

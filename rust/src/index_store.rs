@@ -10,6 +10,8 @@ use std::fs;
 use std::path::Path;
 use std::time::Duration;
 
+const GLOBAL_INDEX_SCOPE: &str = "global";
+
 // Host-provided wrappers that Codex records as visible user messages. They are
 // not a session title or recoverable user intent, so they never enter a capsule.
 const HOST_ENVELOPE_PREFIXES: &[&str] = &[
@@ -276,17 +278,16 @@ pub fn write_sessions(
 
 pub fn load_checkpoint(
     database_path: &Path,
-    project_key: &str,
+    _project_key: &str,
     adapter: &str,
     namespace: &str,
 ) -> Result<Checkpoint> {
     let database = open_project_database(database_path)?;
-    load_checkpoint_from(&database, project_key, adapter, namespace)
+    load_checkpoint_from(&database, adapter, namespace)
 }
 
 fn load_checkpoint_from(
     connection: &Connection,
-    project_key: &str,
     adapter: &str,
     namespace: &str,
 ) -> Result<Checkpoint> {
@@ -294,7 +295,7 @@ fn load_checkpoint_from(
         .query_row(
             "SELECT cursor FROM adapter_checkpoints
              WHERE adapter = ?1 AND source_namespace = ?2 AND project_key = ?3",
-            rusqlite::params![adapter, namespace, project_key],
+            rusqlite::params![adapter, namespace, GLOBAL_INDEX_SCOPE],
             |row| row.get(0),
         )
         .optional()
@@ -336,7 +337,7 @@ fn save_checkpoint(
     connection: &Connection,
     adapter: &str,
     namespace: &str,
-    project_key: &str,
+    _project_key: &str,
     checkpoint: &Checkpoint,
     updated_at: &str,
 ) -> Result<()> {
@@ -361,7 +362,7 @@ fn save_checkpoint(
              ON CONFLICT(adapter, source_namespace, project_key) DO UPDATE SET
                 cursor = excluded.cursor,
                 updated_at = excluded.updated_at",
-            rusqlite::params![adapter, namespace, project_key, cursor, updated_at],
+            rusqlite::params![adapter, namespace, GLOBAL_INDEX_SCOPE, cursor, updated_at],
         )
         .map_err(storage)?;
     Ok(())

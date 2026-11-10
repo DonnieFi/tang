@@ -81,6 +81,8 @@ fn index_reads_claude_transcript_then_recall_redacts_it() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--claude-home".into(),
             home.display().to_string(),
             "--json".into(),
@@ -98,7 +100,7 @@ fn index_reads_claude_transcript_then_recall_redacts_it() {
         .any(|warning| warning.as_str().unwrap().contains("malformed")));
     assert_eq!(fs::read(fixture()).unwrap(), original);
 
-    let database = Connection::open(&project.database_path).unwrap();
+    let database = Connection::open(root.join("index.db")).unwrap();
     let title: String = database
         .query_row(
             "SELECT title FROM sessions WHERE title = 'Indexer review fixture'",
@@ -135,6 +137,8 @@ fn index_reads_claude_transcript_then_recall_redacts_it() {
             "sync".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--catalog".into(),
             catalog.display().to_string(),
         ],
@@ -146,6 +150,8 @@ fn index_reads_claude_transcript_then_recall_redacts_it() {
         &[
             "recall".into(),
             "indexer".into(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--catalog".into(),
             catalog.display().to_string(),
             "--json".into(),
@@ -164,6 +170,8 @@ fn index_reads_claude_transcript_then_recall_redacts_it() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--claude-home".into(),
             home.display().to_string(),
             "--json".into(),
@@ -210,6 +218,8 @@ fn index_uses_the_project_slug_when_no_row_has_cwd() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--claude-home".into(),
             home.display().to_string(),
             "--json".into(),
@@ -220,7 +230,7 @@ fn index_uses_the_project_slug_when_no_row_has_cwd() {
     let document: Value = serde_json::from_slice(&stdout).unwrap();
     assert_eq!(document["indexed"], 1);
     assert_eq!(document["skipped"], 0);
-    let database = Connection::open(&project.database_path).unwrap();
+    let database = Connection::open(root.join("index.db")).unwrap();
     let search: String = database
         .query_row("SELECT search_text FROM capsules", [], |row| row.get(0))
         .unwrap();

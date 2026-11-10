@@ -13,7 +13,7 @@ use crate::index_grok::index_grok;
 use crate::index_openclaw::index_openclaw;
 use crate::index_opencode::index_opencode;
 use crate::join::{link_plan, open_project_readwrite, resolve_join};
-use crate::project::resolve_project;
+use crate::project::{global_index_path, resolve_project};
 use crate::stats::{counts, render_counts};
 use crate::timeutil::rfc3339_now;
 use serde_json::{json, Value};
@@ -64,6 +64,7 @@ Tang 2.0 catalog
 
 Usage:
   tang index [--cwd DIR] [--database PATH] [--codex-home PATH] [--grok-home PATH] [--opencode-home PATH] [--cursor-home PATH] [--claude-home PATH] [--antigravity-home PATH] [--openclaw-home PATH] [--json]
+  tang browse [--directory TEXT] [--harness NAME]
   tang catalog sync [--cwd DIR] [--database PATH] [--catalog PATH] [--json]
   tang recall [QUERY] [--label NAME] [--category NAME] [--harness NAME] [--limit N]
                [--include-unavailable] [--json] [--catalog PATH]
@@ -92,12 +93,10 @@ fn index_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
     let flags = parse_flags(args)?;
     let cwd = flags
         .cwd
+        .clone()
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     let project = resolve_project(&cwd)?;
-    let database = flags
-        .database
-        .clone()
-        .unwrap_or_else(|| project.database_path.clone());
+    let database = index_path(&flags);
     let mut indexed = 0;
     let mut deleted = 0;
     let mut unchanged = 0;
@@ -217,9 +216,10 @@ fn stats_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
     let flags = parse_flags(args)?;
     let cwd = flags
         .cwd
+        .clone()
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     let project = resolve_project(&cwd)?;
-    let database = flags.database.unwrap_or(project.database_path);
+    let database = index_path(&flags);
     let project_db = open_project_readonly(&database)?;
     let catalog_path = flags.catalog.unwrap_or_else(default_catalog_path);
     let catalog_present = catalog_path.is_file();
@@ -288,22 +288,19 @@ fn demo_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
 
 fn browse_command(args: &[String], cards_default: bool, stdout: &mut dyn Write) -> Result<()> {
     let flags = parse_flags(args)?;
-    let (_cwd, project, project_db) = open_work(&flags)?;
+    let (_cwd, _project, project_db) = open_work(&flags)?;
     let query = discovery_query(&flags);
-    let rows = narrow_discovery(
-        &flags,
-        crate::discovery::browse(&project_db, &project.key, &query)?,
-    );
+    let rows = narrow_discovery(&flags, crate::discovery::browse(&project_db, None, &query)?);
     render_discovery(&flags, cards_default || flags.cards, &rows, stdout)
 }
 
 fn search_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
     let flags = parse_flags(args)?;
-    let (_cwd, project, project_db) = open_work_mut(&flags)?;
+    let (_cwd, _project, project_db) = open_work_mut(&flags)?;
     let query = discovery_query(&flags);
     let rows = narrow_discovery(
         &flags,
-        crate::discovery::search_project(&project_db, &project.key, &query)?,
+        crate::discovery::search_project(&project_db, None, &query)?,
     );
     render_discovery(&flags, false, &rows, stdout)
 }
@@ -325,6 +322,7 @@ fn render_discovery(
                     "native_available": row.native_available,
                     "snippet": row.snippet,
                     "source_id": row.source_id,
+                    "directory": row.directory,
                     "title": row.title,
                     "updated_at": row.updated_at,
                 })
@@ -432,8 +430,8 @@ fn doctor_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
         .cwd
         .clone()
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
-    let project = resolve_project(&cwd)?;
-    let database = flags.database.clone().unwrap_or(project.database_path);
+    let _project = resolve_project(&cwd)?;
+    let database = index_path(&flags);
     let checks = crate::doctor::run_doctor(&database);
     if flags.json {
         writeln!(stdout, "{}", crate::doctor::doctor_json(&checks)).map_err(io_error)?;
@@ -498,10 +496,7 @@ fn open_work(
         .clone()
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     let project = resolve_project(&cwd)?;
-    let database = flags
-        .database
-        .clone()
-        .unwrap_or_else(|| project.database_path.clone());
+    let database = index_path(flags);
     let project_db = open_project_readonly(&database)?;
     Ok((cwd, project, project_db))
 }
@@ -518,10 +513,7 @@ fn open_work_mut(
         .clone()
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     let project = resolve_project(&cwd)?;
-    let database = flags
-        .database
-        .clone()
-        .unwrap_or_else(|| project.database_path.clone());
+    let database = index_path(flags);
     let project_db = crate::join::open_project_readwrite(&database)?;
     Ok((cwd, project, project_db))
 }
@@ -530,9 +522,14 @@ fn discovery_query(flags: &Flags) -> crate::discovery::DiscoveryQuery<'_> {
     crate::discovery::DiscoveryQuery {
         text: flags.query.as_deref(),
         harness: flags.harness.as_deref(),
+        directory: flags.directory.as_deref(),
         include_unavailable: flags.include_unavailable || flags.exclude_current,
         limit: flags.limit.unwrap_or(20),
     }
+}
+
+fn index_path(flags: &Flags) -> PathBuf {
+    flags.database.clone().unwrap_or_else(global_index_path)
 }
 
 fn narrow_discovery(
@@ -615,9 +612,10 @@ fn catalog_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
     let flags = parse_flags(&args[1..])?;
     let cwd = flags
         .cwd
+        .clone()
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     let project = resolve_project(&cwd)?;
-    let database = flags.database.unwrap_or(project.database_path);
+    let database = index_path(&flags);
     let project_db = open_project_readonly(&database)?;
     let catalog_path = flags.catalog.unwrap_or_else(default_catalog_path);
     let mut catalog = open_catalog(&catalog_path)?;
@@ -659,6 +657,55 @@ fn recall_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
     }
     let query = flags.query.clone().unwrap_or_default();
     let limit = flags.limit.unwrap_or(20);
+    if flags.label.is_none() && flags.category.is_none() {
+        let database = index_path(&flags);
+        if !database.is_file() {
+            return Err(TangError::new(
+                "index-required",
+                "Tang has no global index. Run tang index.",
+            ));
+        }
+        let index = open_project_readonly(&database)?;
+        let hits = crate::discovery::recall_index(&index, query.as_str(), limit)?;
+        if flags.json {
+            let results: Vec<Value> = hits
+                .iter()
+                .map(|hit| {
+                    json!({
+                        "catalog_handle": hit.handle,
+                        "category": "other",
+                        "directory": hit.directory,
+                        "harness": hit.harness,
+                        "labels": [],
+                        "project_display": hit.directory,
+                        "project_handle": hit.handle,
+                        "source_id": hit.source_id,
+                        "summary": hit.summary,
+                        "title": hit.title,
+                    })
+                })
+                .collect();
+            writeln!(
+                stdout,
+                "{}",
+                compact(&json!({
+                    "query": flags.query,
+                    "result_count": results.len(),
+                    "results": results,
+                    "schema_version": 1,
+                }))
+            )
+            .map_err(io_error)?;
+        } else if hits.is_empty() {
+            writeln!(stdout, "No matching sessions.").map_err(io_error)?;
+        } else {
+            for hit in &hits {
+                writeln!(stdout, "{}\t{}\t{}", hit.handle, hit.harness, hit.title)
+                    .map_err(io_error)?;
+            }
+        }
+        return Ok(());
+    }
     let catalog_path = flags.catalog.unwrap_or_else(default_catalog_path);
     if !catalog_path.is_file() {
         return Err(TangError::new(
@@ -710,6 +757,7 @@ struct Flags {
     limit: Option<i64>,
     include_unavailable: bool,
     label: Option<String>,
+    directory: Option<String>,
     category: Option<String>,
     sources: Vec<String>,
     into: Option<String>,
@@ -762,6 +810,7 @@ fn parse_flags_mode(args: &[String], allow_positional: bool, allow_many: bool) -
         limit: None,
         include_unavailable: false,
         label: None,
+        directory: None,
         category: None,
         sources: Vec::new(),
         into: None,
@@ -870,6 +919,8 @@ fn parse_flags_mode(args: &[String], allow_positional: bool, allow_many: bool) -
             flags.current_native_id = Some(value);
         } else if let Some(value) = flag_value(args, &mut index, "--label")? {
             flags.label = Some(value);
+        } else if let Some(value) = flag_value(args, &mut index, "--directory")? {
+            flags.directory = Some(value);
         } else if let Some(value) = flag_value(args, &mut index, "--category")? {
             flags.category = Some(value);
         } else if let Some(value) = flag_value(args, &mut index, "--limit")? {
@@ -1006,14 +1057,12 @@ fn purge_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
     }
     let cwd = flags
         .cwd
+        .clone()
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     let project = resolve_project(&cwd)?;
-    let catalog_path = flags.catalog.unwrap_or_else(default_catalog_path);
+    let catalog_path = flags.catalog.clone().unwrap_or_else(default_catalog_path);
     let removed = forget_project(&catalog_path, &project.key)?;
-    let database = flags
-        .database
-        .clone()
-        .unwrap_or(project.database_path.clone());
+    let database = index_path(&flags);
     let project_removed = if database.is_file() {
         let mut project_db = crate::join::open_project_readwrite(&database)?;
         crate::project_purge::purge_project(&mut project_db, &project.key)?
@@ -1021,7 +1070,7 @@ fn purge_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
         (0, 0, 0)
     };
     let mut message = format!(
-        "Removed {removed} global catalog rows and {} project sessions for {}. Native harness logs were not modified.",
+        "Removed {removed} catalog rows and {} sessions for {} from the global index. Other projects in that index were left in place. Native harness logs were not modified.",
         project_removed.0, project.display_name
     );
     if removed == 0 {

@@ -16,7 +16,7 @@ Legend: **yes** · **no**
 | Current-target lookup | yes | no | yes | no | no | no | no |
 | Writes native logs | no | no | no | no | no | no | no |
 
-`tang index` scans a harness only when its `--*-home` flag is set, except Codex, which is the default when no harness flag is set. The scan reads that harness store, not only the working directory. A session from another directory is kept and tagged with that directory. Symlinked logs are skipped. An unchanged fingerprint is not parsed again. A fresh database is `user_version` 8.
+`tang index` scans a harness only when its `--*-home` flag is set, except Codex, which is the default when no harness flag is set. The scan reads that harness store into `~/.tang/index.db`, not only the working directory. A session from another directory is kept and tagged with that directory. A second run from another directory updates the same file. Symlinked logs are skipped. An unchanged fingerprint is not parsed again. A fresh database is `user_version` 8.
 
 **Notes:**
 

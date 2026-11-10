@@ -64,6 +64,20 @@ pub fn owns_project(hint: &str, project: &ProjectIdentity) -> bool {
         .unwrap_or(false)
 }
 
+pub fn global_index_path() -> PathBuf {
+    if let Some(value) = std::env::var_os("TANG_INDEX") {
+        if !value.is_empty() {
+            return PathBuf::from(value);
+        }
+    }
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".tang")
+        .join("index.db")
+}
+
 pub fn resolve_project(directory: &Path) -> Result<ProjectIdentity> {
     let resolved = directory
         .canonicalize()

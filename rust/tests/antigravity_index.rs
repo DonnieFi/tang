@@ -6,7 +6,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rusqlite::Connection;
 use serde_json::Value;
 use tang::cli::run_with;
-use tang::project::resolve_project;
 
 fn scratch() -> PathBuf {
     let nanos = SystemTime::now()
@@ -82,6 +81,8 @@ fn index_reads_antigravity_transcript_then_recall_redacts_it() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--antigravity-home".into(),
             home.display().to_string(),
             "--json".into(),
@@ -95,8 +96,7 @@ fn index_reads_antigravity_transcript_then_recall_redacts_it() {
     assert_eq!(fs::read(history_fixture()).unwrap(), original_history);
     assert_eq!(fs::read(transcript_fixture()).unwrap(), original_transcript);
 
-    let project = resolve_project(&project_dir).unwrap();
-    let database = Connection::open(&project.database_path).unwrap();
+    let database = Connection::open(root.join("index.db")).unwrap();
     let search: String = database
         .query_row(
             "SELECT search_text FROM capsules WHERE search_text LIKE '%Confirm the branch for the release.%'",
@@ -118,6 +118,8 @@ fn index_reads_antigravity_transcript_then_recall_redacts_it() {
             "sync".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--catalog".into(),
             catalog.display().to_string(),
         ],
@@ -129,6 +131,8 @@ fn index_reads_antigravity_transcript_then_recall_redacts_it() {
         &[
             "recall".into(),
             "branch".into(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--catalog".into(),
             catalog.display().to_string(),
             "--json".into(),
@@ -147,6 +151,8 @@ fn index_reads_antigravity_transcript_then_recall_redacts_it() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--antigravity-home".into(),
             home.display().to_string(),
             "--json".into(),
@@ -175,6 +181,8 @@ fn a_symlinked_history_warns_and_skips() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--antigravity-home".into(),
             home.display().to_string(),
             "--json".into(),

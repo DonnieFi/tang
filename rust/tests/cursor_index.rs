@@ -72,6 +72,8 @@ fn index_reads_cursor_transcript_then_recall_redacts_it() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--cursor-home".into(),
             home.display().to_string(),
             "--json".into(),
@@ -88,7 +90,7 @@ fn index_reads_cursor_transcript_then_recall_redacts_it() {
         .any(|warning| warning.as_str().unwrap().contains("malformed")));
     assert_eq!(fs::read(fixture()).unwrap(), original);
 
-    let database = Connection::open(&project.database_path).unwrap();
+    let database = Connection::open(root.join("index.db")).unwrap();
     let search: String = database
         .query_row(
             "SELECT search_text FROM capsules WHERE search_text LIKE '%session search bug%'",
@@ -110,6 +112,8 @@ fn index_reads_cursor_transcript_then_recall_redacts_it() {
             "sync".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--catalog".into(),
             catalog.display().to_string(),
         ],
@@ -121,6 +125,8 @@ fn index_reads_cursor_transcript_then_recall_redacts_it() {
         &[
             "recall".into(),
             "search".into(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--catalog".into(),
             catalog.display().to_string(),
             "--json".into(),
@@ -139,6 +145,8 @@ fn index_reads_cursor_transcript_then_recall_redacts_it() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--cursor-home".into(),
             home.display().to_string(),
             "--json".into(),
@@ -191,6 +199,8 @@ fn index_reads_cursor_sidecar_timestamps() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--cursor-home".into(),
             home.display().to_string(),
             "--json".into(),
@@ -198,7 +208,7 @@ fn index_reads_cursor_sidecar_timestamps() {
         &mut stdout,
     )
     .unwrap();
-    let database = Connection::open(&project.database_path).unwrap();
+    let database = Connection::open(root.join("index.db")).unwrap();
     let (started, updated): (String, String) = database
         .query_row("SELECT started_at, updated_at FROM sessions", [], |row| {
             Ok((row.get(0)?, row.get(1)?))
