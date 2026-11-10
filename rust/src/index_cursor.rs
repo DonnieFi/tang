@@ -128,13 +128,13 @@ fn read_transcript(
         if let Some(timestamp) = row_timestamp(&row) {
             if started
                 .as_deref()
-                .map_or(true, |current| timestamp.as_str() < current)
+                .is_none_or(|current| timestamp.as_str() < current)
             {
                 started = Some(timestamp.clone());
             }
             if updated
                 .as_deref()
-                .map_or(true, |current| timestamp.as_str() > current)
+                .is_none_or(|current| timestamp.as_str() > current)
             {
                 updated = Some(timestamp);
             }
