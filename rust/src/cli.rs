@@ -6,6 +6,7 @@ use crate::catalog::{
 };
 use crate::error::{Result, TangError};
 use crate::index_codex::{index_codex, CodexIndexResult};
+use crate::index_cursor::index_cursor;
 use crate::index_grok::index_grok;
 use crate::index_opencode::index_opencode;
 use crate::join::{link_plan, open_project_readwrite, resolve_join};
@@ -46,7 +47,7 @@ const HELP: &str = "\
 Tang 2.0 catalog
 
 Usage:
-  tang index [--cwd DIR] [--database PATH] [--codex-home PATH] [--grok-home PATH] [--opencode-home PATH] [--json]
+  tang index [--cwd DIR] [--database PATH] [--codex-home PATH] [--grok-home PATH] [--opencode-home PATH] [--cursor-home PATH] [--json]
   tang catalog sync [--cwd DIR] [--database PATH] [--catalog PATH] [--json]
   tang recall [QUERY] [--label NAME] [--category NAME] [--harness NAME] [--limit N]
                [--include-unavailable] [--json] [--catalog PATH]
@@ -74,8 +75,10 @@ fn index_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
     let mut deleted = 0;
     let mut skipped = 0;
     let mut warnings = Vec::new();
-    let explicit =
-        flags.codex_home.is_some() || flags.grok_home.is_some() || flags.opencode_home.is_some();
+    let explicit = flags.codex_home.is_some()
+        || flags.grok_home.is_some()
+        || flags.opencode_home.is_some()
+        || flags.cursor_home.is_some();
     if flags.codex_home.is_some() || !explicit {
         let codex_home = flags.codex_home.clone().unwrap_or_else(default_codex_home);
         let result = index_codex(&codex_home, &project, &database)?;
@@ -93,6 +96,13 @@ fn index_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
     }
     if let Some(opencode_home) = &flags.opencode_home {
         let result = index_opencode(opencode_home, &project, &database)?;
+        indexed += result.indexed;
+        deleted += result.deleted;
+        skipped += result.skipped;
+        warnings.extend(result.warnings);
+    }
+    if let Some(cursor_home) = &flags.cursor_home {
+        let result = index_cursor(cursor_home, &project, &database)?;
         indexed += result.indexed;
         deleted += result.deleted;
         skipped += result.skipped;
@@ -252,6 +262,7 @@ struct Flags {
     codex_home: Option<PathBuf>,
     grok_home: Option<PathBuf>,
     opencode_home: Option<PathBuf>,
+    cursor_home: Option<PathBuf>,
 }
 
 fn parse_flags(args: &[String]) -> Result<Flags> {
@@ -277,6 +288,7 @@ fn parse_flags_with(args: &[String], allow_positional: bool) -> Result<Flags> {
         codex_home: None,
         grok_home: None,
         opencode_home: None,
+        cursor_home: None,
     };
     let mut index = 0;
     while index < args.len() {
@@ -295,6 +307,8 @@ fn parse_flags_with(args: &[String], allow_positional: bool) -> Result<Flags> {
             flags.grok_home = Some(PathBuf::from(value));
         } else if let Some(value) = flag_value(args, &mut index, "--opencode-home")? {
             flags.opencode_home = Some(PathBuf::from(value));
+        } else if let Some(value) = flag_value(args, &mut index, "--cursor-home")? {
+            flags.cursor_home = Some(PathBuf::from(value));
         } else if let Some(value) = flag_value(args, &mut index, "--catalog")? {
             flags.catalog = Some(PathBuf::from(value));
         } else if let Some(value) = flag_value(args, &mut index, "--database")? {

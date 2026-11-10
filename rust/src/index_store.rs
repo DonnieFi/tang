@@ -29,6 +29,16 @@ pub fn is_host_envelope(text: &str) -> bool {
         .any(|prefix| normalized.starts_with(prefix))
 }
 
+/// Fallback timestamp for stores whose transcript rows carry no usable time.
+pub fn file_updated_at(path: &Path) -> String {
+    fs::metadata(path)
+        .and_then(|metadata| metadata.modified())
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duration| crate::timeutil::rfc3339_secs(duration.as_secs()))
+        .unwrap_or_else(|| "1970-01-01T00:00:00Z".to_string())
+}
+
 #[derive(Debug, Clone)]
 pub struct SavedSession {
     pub source_id: String,
