@@ -638,3 +638,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) keep calling the Python indexer; (b) port every harness adapter in one change; (c) add a Codex JSONL indexer that writes the existing per-project tables and leaves the other harnesses for a later slice.
 - Decision: (c) — `tang index --codex-home` reads Codex session logs, redacts visible turns, and stores them in `PROJECT/.tang/tang.db`. It skips symlinks and sessions from other projects. Grok, OpenCode, Cursor, and the other adapters are not in this slice. `docs/tangspec.md` stays unchanged. Serves: Technological Implementation, Potential Impact.
 - By: agent, continuing the Rust rewrite after review of the catalog stack
+
+## 2026-11-09T22:38:25Z · project · Port the remaining harness readers one at a time
+- Context: Codex indexing is in Rust. Donnie wants every remaining session harness ported the same way, with fixture tests, without merging or reopening the closed Python catalog PRs.
+- Options: (a) one pull request for every adapter; (b) leave the other harnesses on the Python adapters; (c) stack one harness reader per pull request on the Codex index branch.
+- Decision: (c) — Grok, OpenCode, Cursor, Claude, Antigravity, and OpenClaw each get a reader that writes the same per-project tables, skips other projects and symlinks, redacts visible text, and does not write native logs. Serves: Technological Implementation, Potential Impact.
+- By: human (Donnie Fiander, port every harness) and agent (stack order)

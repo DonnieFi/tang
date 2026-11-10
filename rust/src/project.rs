@@ -11,6 +11,16 @@ pub struct ProjectIdentity {
     pub database_path: PathBuf,
 }
 
+pub fn owns_project(hint: &str, project: &ProjectIdentity) -> bool {
+    let path = Path::new(hint);
+    if !path.is_dir() {
+        return false;
+    }
+    resolve_project(path)
+        .map(|resolved| resolved.key == project.key)
+        .unwrap_or(false)
+}
+
 pub fn resolve_project(directory: &Path) -> Result<ProjectIdentity> {
     let resolved = directory
         .canonicalize()

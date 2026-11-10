@@ -6,6 +6,7 @@ use crate::catalog::{
 };
 use crate::error::{Result, TangError};
 use crate::index_codex::{index_codex, CodexIndexResult};
+use crate::index_grok::index_grok;
 use crate::join::{link_plan, open_project_readwrite, resolve_join};
 use crate::project::resolve_project;
 use crate::timeutil::rfc3339_now;
@@ -44,7 +45,7 @@ const HELP: &str = "\
 Tang 2.0 catalog
 
 Usage:
-  tang index [--cwd DIR] [--database PATH] [--codex-home PATH] [--json]
+  tang index [--cwd DIR] [--database PATH] [--codex-home PATH] [--grok-home PATH] [--json]
   tang catalog sync [--cwd DIR] [--database PATH] [--catalog PATH] [--json]
   tang recall [QUERY] [--label NAME] [--category NAME] [--harness NAME] [--limit N]
                [--include-unavailable] [--json] [--catalog PATH]
@@ -68,14 +69,38 @@ fn index_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
         .database
         .clone()
         .unwrap_or_else(|| project.database_path.clone());
-    let codex_home = flags.codex_home.unwrap_or_else(default_codex_home);
-    let result = index_codex(&codex_home, &project, &database)?;
+    let mut indexed = 0;
+    let mut deleted = 0;
+    let mut skipped = 0;
+    let mut warnings = Vec::new();
+    let explicit = flags.codex_home.is_some() || flags.grok_home.is_some();
+    if flags.codex_home.is_some() || !explicit {
+        let codex_home = flags.codex_home.clone().unwrap_or_else(default_codex_home);
+        let result = index_codex(&codex_home, &project, &database)?;
+        indexed += result.indexed;
+        deleted += result.deleted;
+        skipped += result.skipped;
+        warnings.extend(result.warnings);
+    }
+    if let Some(grok_home) = &flags.grok_home {
+        let result = index_grok(grok_home, &project, &database)?;
+        indexed += result.indexed;
+        deleted += result.deleted;
+        skipped += result.skipped;
+        warnings.extend(result.warnings);
+    }
+    let result = CodexIndexResult {
+        indexed,
+        deleted,
+        skipped,
+        warnings,
+    };
     if flags.json {
         writeln!(stdout, "{}", index_json(&result)).map_err(io_error)?;
     } else {
         writeln!(
             stdout,
-            "Indexed {} Codex sessions, deleted {}, skipped {}.",
+            "Indexed {} sessions, deleted {}, skipped {}.",
             result.indexed, result.deleted, result.skipped
         )
         .map_err(io_error)?;
@@ -216,6 +241,7 @@ struct Flags {
     yes: bool,
     all: bool,
     codex_home: Option<PathBuf>,
+    grok_home: Option<PathBuf>,
 }
 
 fn parse_flags(args: &[String]) -> Result<Flags> {
@@ -239,6 +265,7 @@ fn parse_flags_with(args: &[String], allow_positional: bool) -> Result<Flags> {
         yes: false,
         all: false,
         codex_home: None,
+        grok_home: None,
     };
     let mut index = 0;
     while index < args.len() {
@@ -253,6 +280,8 @@ fn parse_flags_with(args: &[String], allow_positional: bool) -> Result<Flags> {
             flags.all = true;
         } else if let Some(value) = flag_value(args, &mut index, "--codex-home")? {
             flags.codex_home = Some(PathBuf::from(value));
+        } else if let Some(value) = flag_value(args, &mut index, "--grok-home")? {
+            flags.grok_home = Some(PathBuf::from(value));
         } else if let Some(value) = flag_value(args, &mut index, "--catalog")? {
             flags.catalog = Some(PathBuf::from(value));
         } else if let Some(value) = flag_value(args, &mut index, "--database")? {
