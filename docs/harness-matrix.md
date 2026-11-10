@@ -1,163 +1,31 @@
 # Harness capability matrix
 
-Authoritative comparison of what Tang supports in v0.3.0. Implementation truth
-is defined by `tang.harness_capabilities`,
-`tang.adapter_registry.configured_adapters`, and `ResumeService`.
+What the Rust CLI in `rust/` does on Linux. There is no separate tagged-binary release claim. macOS and Windows are unsupported.
 
-The v0.3.0 Linux release covers all four read-only adapters, explicit Tang-owned
-continuation destinations, and exact native resume. Native session archives
-remain read-only.
+Legend: **yes** · **no**
 
-Legend: **yes** · **no** · **partial** (manual or source-only)
+| Capability | Codex | Grok | OpenCode | Cursor | Claude | Antigravity | OpenClaw |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Read-only index | yes | yes | yes | yes | yes | yes | yes |
+| Incremental checkpoint | no | no | no | no | no | no | no |
+| Capsule and project FTS | yes | yes | yes | yes | yes | yes | yes |
+| Context reread of a regular file | yes | yes | yes | yes | yes | yes | yes |
+| Link as source or destination | yes | yes | yes | yes | yes | yes | yes |
+| `tang resume` launches the harness | yes | yes | yes | yes | yes | yes | no |
+| `tang skill install` | yes | no | yes | no | yes | no | no |
+| Current-target lookup | yes | no | yes | no | no | no | no |
+| Writes native logs | no | no | no | no | no | no | no |
 
-| Capability | Codex CLI 0.145.0 | Grok 0.2.106 | OpenCode 1.17.18–1.x | Cursor IDE / Agent 2026.07.17 |
-| --- | --- | --- | --- | --- |
-| Linux release claim | yes | yes | yes | yes |
-| Read-only session adapter | yes | yes | yes | yes |
-| Incremental index + checkpoint | yes | yes | yes | yes |
-| Discovery capsule + FTS search | yes | yes | yes | yes |
-| Browse / search (current project) | yes | yes | yes | yes |
-| Context pack (cited native reread) | yes | yes | yes | yes |
-| Link as **source** | yes | yes | yes | yes |
-| Link as **destination** | yes | yes | yes | yes |
-| Host current-target resolution | yes (skill) | no | yes (`/tang` tools) | no |
-| Predecessor recall (`context all`) | yes | partial | yes | partial |
-| `tang resume` native session | yes | yes | yes | yes |
-| Host workflow (skill / MCP) | yes (`$tang`) | no | yes (`/tang`) | partial |
-| `tang skill install …` | yes | no | yes (project-local) | no |
-| Import from Tang into active session | yes | partial | yes | partial |
-| Write recovered transcript to native logs | no | no | no | no |
-| Write continuation edges (`.tang`) | yes | yes | yes | yes |
-| Multiverse graph node | yes | yes | yes | yes |
-
-**Partial notes:**
-
-- **Grok:** Tang never writes Grok transcript stores. An indexed `G*` session
-  can be an explicit link destination and can be reopened through Grok's native
-  `--resume` contract. Context import remains a deliberate cited-pack handoff;
-  there is no `--current` bridge.
-- **Cursor:** Tang indexes project-scoped agent transcripts and enriches them
-  from `~/.cursor/chats/<md5(path)>/…` sidecars when present. Composer-only
-  SQLite history is out of scope. An indexed `R*` session can be an explicit
-  link destination and can be reopened through Cursor Agent's `--resume` and
-  `--workspace` contract. Context import remains a deliberate cited-pack
-  handoff; there is no `--current` bridge.
-- Cursor discovery maps native **`mode`** into the JSON **`effort`** field as
-  an identifier only, not as Codex effort semantics.
-
-## Version and platform pins
-
-| Harness | Pin | Evidence |
-| --- | --- | --- |
-| Codex CLI | 0.145.0 | Live-verified local JSONL store and native resume contract (Linux) |
-| Grok Build | 0.2.106 | Live-verified local store and native resume contract (Linux) |
-| OpenCode | `>=1.17.18,<2.0.0` | Contract fixtures; 1.17.20 live-verified |
-| Cursor Agent | 2026.07.17 | Live-verified local agent transcripts and native resume contract (Linux) |
-| Tang package | v0.3.0 | Tagged wheel + README install URL |
-
-macOS and Windows are unsupported for v0.3.0 (no CI claim).
-
-## Native write / import policy
-
-Tang **never** appends recovered transcript text to a harness's native session
-store. Continuation is:
-
-1. **Discovery and graph** — derived `.tang/tang.db` (capsules, FTS, edges).
-2. **Active-session synthesis** — the host agent writes the Continuation Brief
-   in the open chat; Tang does not persist that brief.
-3. **Import from Tang** — delivering a Context Pack or brief into the **current**
-   host context, with the untrusted-data envelope.
-4. **Resume** — launching the owning harness CLI to reopen one **exact** indexed
-   native session; no context or edge is added.
-
-See [native-write-policy.md](native-write-policy.md) for write/import rules.
-
-## Non-goals (v0.3 release claim)
-
-- Cross-project discovery without explicit opt-in (research: bead `tang-9nb`).
-- Semantic / vector search (`sqlite-vec`).
-- Writing recovered transcript content to any native harness archive.
-- Guessing an active Grok or Cursor target without a private host bridge.
-
-## Delivery evidence
-
-| Track | Bead |
-| --- | --- |
-| This matrix + doc guards | `tang-sis.9` |
-| Grok destination + import | `tang-sis.10`–`tang-sis.12` |
-| Cursor read + host + destination | `tang-sis.6`, `tang-sis.13`–`tang-sis.15` |
-| In-code capability registry | `tang-sis.16` |
-| Parity integration tests | `tang-sis.17` |
-| Native-write spec amendment | `tang-sis.18` |
-
-## Epic 11 extension (in progress — not a v0.3.0 release claim)
-
-Implementation on branch `epic/11-claude-antigravity`. Fixture-verified on Linux;
-live smoke uses `/opt/family-bot` Antigravity history and Claude Code JSONL.
-
-| Capability | Claude Code 2.1.x | Antigravity CLI (`agy`) 1.1.x |
-| --- | --- | --- |
-| Linux release claim | no | no |
-| Read-only session adapter | yes | yes |
-| Incremental index + checkpoint | yes | yes |
-| Discovery capsule + FTS search | yes | yes |
-| Browse / search (current project) | yes | yes |
-| Context pack (cited native reread) | yes | yes |
-| Link as **source** | yes | yes |
-| Link as **destination** | yes | yes |
-| `tang resume` native session | yes (`claude --resume`) | yes (`agy --conversation`) |
-| Host workflow (skill / handoff) | partial | partial |
-| `tang skill install …` | yes | no |
+`tang index` scans a harness only when its `--*-home` flag is set, except Codex, which is the default when no harness flag is set. Every reader skips other projects and symlinked logs. None of them write `adapter_checkpoints`.
 
 **Notes:**
 
-- **Claude Code:** indexes flat `~/.claude/projects/<slug>/*.jsonl` for the
-  resolved project path. Directory-only session folders without a root JSONL are
-  skipped. Subagent sidechains are deferred.
-- **Antigravity:** indexes `history.jsonl` rows filtered by `workspace`, rereads
-  `brain/<id>/.system_generated/logs/transcript.jsonl`. Encrypted `conversations/*.pb`
-  stores and nested subagent brains are out of scope for v1.
-- **`/opt/tang`:** no native sessions on the dev host; use `/opt/family-bot` for
-  live verification until Claude sessions exist under `-opt-tang`.
+- **Codex.** `--current --current-native-id` resolves a Codex `native_id` in the project database and uses that session as the link target. Resume runs `codex resume`.
+- **Grok.** Resume needs the recorded project directory and runs `grok --resume`. There is no current-target bridge.
+- **OpenCode.** The home flag is an export directory. Identity is the SHA-256 of that directory. Resume runs `opencode --session`. Skill install copies the skill and the `/tang` tools.
+- **Cursor.** Sidecar `createdAtMs` and `updatedAtMs` are read when present. Resume runs `agent --resume`. There is no skill install.
+- **Claude.** A transcript with no `cwd` is indexed when it sits under the project slug directory. Resume runs `claude --resume`.
+- **Antigravity.** A symlinked `history.jsonl` is skipped with a warning. Resume runs `agy --conversation`.
+- **OpenClaw.** Every `agents/*/agent/openclaw-agent.sqlite` is indexed. Identity is the SHA-256 of the home, shared across agents. Context reread opens that database read-only and keeps only the selected session. Resume is unsupported.
 
-| Track | Bead |
-| --- | --- |
-| Session storage research | `tang-wxa.1` |
-| Claude adapter + resume | `tang-wxa.3`, `tang-wxa.4` |
-| Antigravity adapter + resume | `tang-wxa.6`, `tang-wxa.7` |
-| Registry + matrix | `tang-wxa.9` |
-
-## Production host extensions (not a v0.3.0 release claim)
-
-Post-v0.3.0 adapters for the operator production host. They ship in `main` when
-implemented; `release_claim_linux` stays false until a tagged release pins them.
-
-| Capability | OpenClaw | Grok Bot |
-| --- | --- | --- |
-| Linux release claim | no | no |
-| Read-only session adapter | yes (live) | blocked |
-| Incremental index + checkpoint | yes (live) | blocked |
-| Link as **source** | yes | blocked |
-| Link as **destination** | yes | blocked |
-| `tang resume` native session | no | no |
-| Handle prefix | `W` | `B` (planned) |
-
-**Notes:**
-
-- **OpenClaw:** live-verified on the production host (`tang index` indexed 55
-  sessions as `W1`–`W55`). Reads
-  `~/.openclaw/agents/<agent>/agent/openclaw-agent.sqlite` `session_nodes` (one
-  record per `session_key`; latest `session_window` for transcript read). Colon
-  session keys are encoded into `native_id`; the real key is stored in
-  `OpaqueSourceLocator`. Leftover JSONL under `agents/*/sessions` is ignored when
-  SQLite is present. Today only `agents/main` is scanned.
-- **Grok Bot:** separate from Grok CLI (`grok` / `G` handles). Agent
-  `store.db` paths live under a sealed sandbox (`/home/box/sand-data/...`) and
-  are not readable from the host filesystem; adapter work (`tang-sis.22`) remains
-  blocked on discovery bead `tang-sis.21`.
-
-| Track | Bead |
-| --- | --- |
-| OpenClaw adapter | `tang-sis.20` |
-| Grok Bot store discovery | `tang-sis.21` |
-| Grok Bot adapter | `tang-sis.22` |
+Grok Bot is not a reader. The OpenCode and OpenClaw identity hashes, the missing checkpoints, and Python `user_version` 8 remain open decisions.

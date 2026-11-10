@@ -6,6 +6,8 @@ only continuations a person explicitly confirms. The approved behavior and
 support boundary live in [`docs/tangspec.md`](docs/tangspec.md); this file records
 the architectural reasons behind the main seams.
 
+The current CLI is the Rust crate in `rust/`. Indexing is a full rescan: the writer creates `capsules_fts` and `session_overrides`, and it does not create `adapter_checkpoints` or set Python `user_version` 8. OpenCode identity is the SHA-256 of the export directory. OpenClaw identity is the SHA-256 of the home. Those identities and incremental checkpoints stay as they are until a human changes them. `tang doctor` checks SQLite and FTS5 only.
+
 ## Ubiquitous language
 
 - **Native source:** a harness-owned session store that Tang reads but never
@@ -124,7 +126,7 @@ and split safety policy between surfaces.
 
 **Decision:** The Codex skill owns the interactive workflow and uses host-native
 questions when available. The `tang` CLI remains deterministic and scriptable.
-The verified wheel bundles the matching skill, installed with `tang skill install
+The verified release binary bundles the matching skill, installed with `tang skill install
 codex`; `$tang` or a plain-English request invokes it in a new Codex session.
 
 **Consequences:** Human previews hide canonical IDs and expose only redacted

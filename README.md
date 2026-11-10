@@ -28,13 +28,13 @@ Linux is the tested platform. This tree makes no macOS or Windows claim.
 | `tang catalog sync` | Copy redacted capsules into the global catalog |
 | `tang recall [QUERY]` | Search the global catalog. Filters: `--label`, `--category`, `--harness` |
 | `tang label add\|remove HANDLE LABEL` | Attach or remove an operator tag |
-| `tang context HANDLE...` | Build a cited Context Pack from stored excerpts |
+| `tang context HANDLE...` | Reread the selected native sources, redact them, and cite the pack. A missing or symlinked source keeps the stored capsule |
 | `tang context all --for HANDLE` | Pack the confirmed predecessors of a session |
 | `tang join` / `tang link` | Record a same-project continuation. `--into HANDLE` or `--current --current-native-id ID` |
 | `tang title HANDLE TITLE` | Set a custom title. `--clear` restores the previous one |
 | `tang graph [HANDLE]` | Render the Multiverse Map. `tang map` is the same command |
 | `tang demo` | Print an isolated map. It does not create a database or read native logs |
-| `tang resume HANDLE` | Print the native resume command for a project handle |
+| `tang resume HANDLE` | Launch the native harness for a project handle |
 | `tang doctor` | Check that SQLite and FTS5 are usable |
 | `tang continuity` | Show the git branch and indexed session count |
 | `tang skill install codex\|claude\|opencode` | Copy the bundled skill into a home you pass with `--cwd` |
