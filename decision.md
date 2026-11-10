@@ -644,3 +644,15 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) one pull request for every adapter; (b) leave the other harnesses on the Python adapters; (c) stack one harness reader per pull request on the Codex index branch.
 - Decision: (c) — Grok, OpenCode, Cursor, Claude, Antigravity, and OpenClaw each get a reader that writes the same per-project tables, skips other projects and symlinks, redacts visible text, and does not write native logs. Serves: Technological Implementation, Potential Impact.
 - By: human (Donnie Fiander, port every harness) and agent (stack order)
+
+## 2026-11-10T01:30:00Z · project · Deprecate the Python CLI and keep the Rust project schema
+- Context: A fresh Rust project database has `sessions`, `capsules`, and `continuation_edges` only. It does not create the Python tables `capsules_fts`, `adapter_checkpoints`, or `session_overrides`, and it does not set `user_version` 8, so the Python CLI cannot open it. The OpenCode namespace stays the SHA-256 of the export directory, and the OpenClaw namespace stays the SHA-256 of the home.
+- Options: (a) make the Rust writer emit the Python schema and the Python identity hashes; (b) keep two supported CLIs; (c) deprecate Python and treat the Rust database as the supported store.
+- Decision: (c) — Python 0.3 is deprecated. The Rust binary is the Tang 2.0 CLI, including catalog search, operator labels, same-project join, counts, and the Multiverse Map. The identity schemes above stay as they are. Serves: Technological Implementation, Design, Potential Impact.
+- By: human (deprecate Python; the schema difference is acceptable) and agent (recorded boundary)
+
+## 2026-11-10T02:10:00Z · project · Port the Python CLI surface and remove the Python package
+- Context: Donnie asked for every current Python CLI command in Rust, then removal of the Python implementation so Rust is the only CLI. The Rust stack is already on main. Python pull requests #4–#6 stay closed.
+- Options: (a) keep the Python package beside the new commands; (b) replace the Python CLI in place and delete the package, tests, and Python CI.
+- Decision: (b) — Rust implements index, browse, cards, project search, catalog recall, labels, context, join/link including a current Codex target, title, graph, demo, resume planning, doctor, continuity, skill install, stats, and project purge. `capsules_fts` and `session_overrides` are added by the Rust writer. `adapter_checkpoints` and Python `user_version` 8 are not recreated. OpenCode and OpenClaw identity hashes stay as previously decided. Serves: Technological Implementation, Design, Potential Impact.
+- By: human (Donnie Fiander, port everything and remove Python) and agent (implementation)

@@ -12,34 +12,33 @@ def test_readme_is_a_verified_release_candidate_surface() -> None:
         "Continue one coding agent's work inside another, "
         "with the original sources cited."
     ) in readme
-    assert "docs/assets/tang-multiverse-demo.svg" in readme
-    hero = (ROOT / "docs" / "assets" / "tang-multiverse-demo.svg").read_text(
-        encoding="utf-8"
-    )
-    assert "cdnjs.cloudflare.com" not in hero
-    assert 'url("http' not in hero
-    assert "DonnieFi/tang/releases/download/v0.3.0" in readme
-    assert "docs/assets/tang-mascot-concept.png" in readme
-    assert readme.index("```text") < readme.index("docs/assets/tang-multiverse-demo.svg")
-    assert "Codex CLI 0.145.0" in readme and "Grok 0.2.106" in readme
-    assert "OpenCode `>=1.17.18,<2.0.0`" in readme
-    assert "The source repository is public" in readme
+    assert "docs/harness-matrix.md" in readme
+    assert "docs/tangspec.md" in readme
     assert "SECURITY.md" in readme
-    assert "## Choose your entry point" in readme
-    assert "**Codex:**" in readme
-    assert "**OpenCode:**" in readme
-    assert "**Grok:**" in readme
-    assert "**Cursor:**" in readme
-    assert "four-harness Linux release" in readme
-    assert "$tang" in readme and "not a `/tang` slash command" in readme
-    assert "019f62b2-5a7d-75c3-922d-969b182ec9a2" in readme
-    assert "CONTEXT.md" in readme
+    assert "cargo build --manifest-path rust/Cargo.toml --release" in readme
+    for command in (
+        "tang index",
+        "tang browse",
+        "tang search",
+        "tang catalog sync",
+        "tang recall",
+        "tang context",
+        "tang join",
+        "tang graph",
+        "tang demo",
+        "tang resume HANDLE",
+        "tang doctor",
+        "tang skill install codex",
+        "tang stats",
+        "tang purge --all --yes",
+    ):
+        assert command in readme
+    assert "0600" in readme
+    assert "8 KiB" in readme
+    assert "not native logs" in readme
     assert "TODO(" not in readme
     assert "<owner>" not in readme
     assert "npx" not in readme.lower()
-    assert "core under 0.6 seconds" in readme
-    assert "complete isolated\ndemo under 2 seconds" in readme
-    assert "complete isolated\ndemo under 0.2 seconds" not in readme
 
 
 def test_harness_matrix_matches_release_claims() -> None:
@@ -56,7 +55,6 @@ def test_harness_matrix_matches_release_claims() -> None:
     assert "`tang resume` native session | yes | yes | yes | yes" in matrix
     policy = (ROOT / "docs" / "native-write-policy.md").read_text(encoding="utf-8")
     assert "No silent transcript injection" in policy
-    assert "**Cursor:**" in readme
 
 
 def test_supported_install_contract_has_one_skill_path() -> None:
@@ -64,19 +62,14 @@ def test_supported_install_contract_has_one_skill_path() -> None:
     guide = (ROOT / "docs" / "getting-started.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
-    for document in (spec, guide):
+    for document in (spec, guide, readme):
         assert "tang skill install codex" in document
         assert "npx" not in document.lower()
 
     assert "Cursor" in spec
     assert "tang resume HANDLE" in spec
-    assert "releases/download/v0.3.0" in spec
-    assert 'tang skill install opencode --project-root "$PWD"' in guide
-    assert "**minimum reviewed build**" in guide
-    assert "`tang resume C5`, `G1`, `O1`, or `R1` reopens the exact" in guide
-    assert "| `tang resume SESSION` |" in readme
-    assert "## Separate-host smoke checklist" in guide
-    assert "tang purge --all --yes" in guide
+    assert "cargo build --manifest-path rust/Cargo.toml --release" in guide
+    assert "tang resume HANDLE" in readme
 
     codex_skill = (ROOT / "skills" / "tang" / "SKILL.md").read_text(
         encoding="utf-8"
