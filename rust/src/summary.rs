@@ -20,7 +20,16 @@ const RULES: &[(&str, &[&str])] = &[
         &["decision", "decided", "tradeoff", "trade-off", "chose"],
     ),
     ("review", &["review", "nitpick", "lgtm"]),
-    ("implementation", &["implement", "refactor", "patch"]),
+    (
+        "implementation",
+        &[
+            "implement",
+            "implementation",
+            "refactor",
+            "refactoring",
+            "patch",
+        ],
+    ),
 ];
 
 pub fn categories() -> &'static [&'static str] {
@@ -114,6 +123,8 @@ mod tests {
         assert_eq!(categorize("we decided to keep sqlite", false), "decision");
         assert_eq!(categorize("please review the patch", false), "review");
         assert_eq!(categorize("implement the parser", false), "implementation");
+        assert_eq!(categorize("the implementation", false), "implementation");
+        assert_eq!(categorize("during refactoring", false), "implementation");
         assert_eq!(categorize("ship the catalog", true), "goal");
     }
 
