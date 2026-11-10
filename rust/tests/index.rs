@@ -94,8 +94,8 @@ fn index_reads_codex_fixture_then_recall_redacts_it() {
     .unwrap();
     let document: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
     assert_eq!(document["schema_version"], 1);
-    assert_eq!(document["indexed"], 1);
-    assert_eq!(document["skipped"], 1);
+    assert_eq!(document["indexed"], 2);
+    assert_eq!(document["skipped"], 0);
     assert!(document["warnings"]
         .as_array()
         .unwrap()
@@ -106,18 +106,30 @@ fn index_reads_codex_fixture_then_recall_redacts_it() {
     let project = resolve_project(&project_dir).unwrap();
     let database = Connection::open(&project.database_path).unwrap();
     let health: String = database
-        .query_row("SELECT health FROM sessions", [], |row| row.get(0))
+        .query_row(
+            "SELECT health FROM sessions WHERE project_key = ?1",
+            [project.key.clone()],
+            |row| row.get(0),
+        )
         .unwrap();
     assert_eq!(health, "unknown");
     let title: String = database
-        .query_row("SELECT title FROM sessions", [], |row| row.get(0))
+        .query_row(
+            "SELECT title FROM sessions WHERE project_key = ?1",
+            [project.key.clone()],
+            |row| row.get(0),
+        )
         .unwrap();
     assert_eq!(
         title,
         "Implement deterministic checkpoint recovery for the synthetic adapter."
     );
     let search: String = database
-        .query_row("SELECT search_text FROM capsules", [], |row| row.get(0))
+        .query_row(
+            "SELECT search_text FROM capsules WHERE project_key = ?1",
+            [project.key.clone()],
+            |row| row.get(0),
+        )
         .unwrap();
     assert!(search.contains("deterministic checkpoint recovery"));
     assert!(!search.contains("AGENTS.md"));
@@ -330,4 +342,68 @@ fn reindex_skips_unchanged_codex_logs_and_records_a_checkpoint() {
     run_with(&arguments, &mut stdout).unwrap();
     let fourth: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
     assert_eq!(fourth["deleted"], 1);
+}
+
+#[test]
+fn index_keeps_a_codex_session_whose_directory_is_outside_the_working_directory() {
+    let root = scratch();
+    let home_dir = root.join("home");
+    let elsewhere = root.join("Documents").join("Codex").join("run");
+    fs::create_dir_all(&home_dir).unwrap();
+    fs::create_dir_all(&elsewhere).unwrap();
+    let codex_home = root.join("codex");
+    let native_id = "019f6000-5678-7000-8000-000000000321";
+    let log = codex_home.join(format!(
+        "sessions/2026/07/14/rollout-2026-07-14T20-00-00-{native_id}.jsonl"
+    ));
+    fs::create_dir_all(log.parent().unwrap()).unwrap();
+    fs::write(
+        &log,
+        format!(
+            r#"{{"timestamp":"2026-07-14T20:00:00Z","type":"session_meta","payload":{{"id":"{native_id}","timestamp":"2026-07-14T20:00:00Z","cwd":"{}"}}}}
+{{"timestamp":"2026-07-14T20:00:01Z","type":"response_item","payload":{{"type":"message","role":"user","content":[{{"type":"input_text","text":"outside the working directory"}}]}}}}
+"#,
+            elsewhere.display()
+        ),
+    )
+    .unwrap();
+    let original = fs::read(&log).unwrap();
+
+    let mut stdout = Vec::new();
+    run_with(
+        &[
+            "index".into(),
+            "--cwd".into(),
+            home_dir.display().to_string(),
+            "--codex-home".into(),
+            codex_home.display().to_string(),
+            "--json".into(),
+        ],
+        &mut stdout,
+    )
+    .unwrap();
+    let document: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
+    assert_eq!(document["indexed"], 1);
+    assert_eq!(document["skipped"], 0);
+    assert_eq!(fs::read(&log).unwrap(), original);
+
+    let home = resolve_project(&home_dir).unwrap();
+    let elsewhere_project = resolve_project(&elsewhere).unwrap();
+    let database = Connection::open(&home.database_path).unwrap();
+    let (project_key, hint): (String, String) = database
+        .query_row(
+            "SELECT project_key, project_hint FROM sessions",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(project_key, elsewhere_project.key);
+    assert_ne!(project_key, home.key);
+    assert!(hint.contains("Documents"));
+    let tag: String = database
+        .query_row("SELECT tag FROM session_tags", [], |row| row.get(0))
+        .unwrap();
+    assert!(tag.contains("Documents"));
+    assert!(tag.contains("run"));
+    assert!(!tag.contains("supersecret"));
 }

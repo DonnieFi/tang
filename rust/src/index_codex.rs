@@ -5,7 +5,7 @@ use crate::index_store::{
     finish_session, load_checkpoint, write_sessions, Checkpoint, IndexScope, SavedSession,
     SessionDraft,
 };
-use crate::project::{owns_project, ProjectIdentity};
+use crate::project::ProjectIdentity;
 use regex::Regex;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -70,16 +70,6 @@ pub fn index_codex(
         }
         match read_log(&log, &namespace, &mut warnings) {
             Ok(Some(session)) => {
-                if !owns_project(&session.project_hint, project) {
-                    // A foreign project is not proof that this project's row is
-                    // gone; keep the last known row instead of deleting it.
-                    if let Some(prior) = prior.fingerprints.get(&session.source_id).cloned() {
-                        checkpoint.remember(&session.source_id, &prior, true);
-                    }
-                    protected.insert(session.source_id.clone());
-                    skipped += 1;
-                    continue;
-                }
                 checkpoint.remember(&session.source_id, &session.fingerprint, true);
                 saved.push(session);
             }

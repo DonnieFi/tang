@@ -31,30 +31,21 @@ pub fn index_cursor(
             "The configured Cursor home is unavailable.",
         )
     })?;
-    let slug = project_slug(project);
-    let root = home.join("projects").join(slug).join("agent-transcripts");
-    if !root.is_dir() {
-        return Err(TangError::new(
-            "missing-store",
-            "No Cursor agent transcripts were found for this project.",
-        ));
-    }
     let namespace = format!(
         "store-{:x}",
         Sha256::digest(home.to_string_lossy().as_bytes())
     );
     let root_path = project_root(project);
-    let hint = root_path.to_string_lossy().to_string();
-    let mut logs = Vec::new();
-    collect_transcripts(&root, &mut logs)?;
-    logs.sort();
+    let command_hint = root_path.to_string_lossy().to_string();
+    let command_slug = project_slug(project);
+    let logs = collect_cursor_logs(&home, &command_slug, &command_hint)?;
     let mut saved = Vec::new();
     let mut warnings = Vec::new();
     let mut protected = HashSet::new();
     let prior = load_checkpoint(database_path, &project.key, "cursor", &namespace)?;
     let mut checkpoint = Checkpoint::default();
     let mut skipped = 0;
-    for log in logs {
+    for (log, hint) in logs {
         if is_symlink(&log) {
             if let Some(source_id) = source_id_for_transcript(&log, &namespace) {
                 protected.insert(source_id);
@@ -65,15 +56,16 @@ pub fn index_cursor(
             ));
             continue;
         }
+        let hint_path = PathBuf::from(&hint);
         if let Some((source_id, fingerprint)) =
-            transcript_fingerprint(&log, &namespace, &home, &root_path)
+            transcript_fingerprint(&log, &namespace, &home, &hint_path)
         {
             if prior.should_skip(&source_id, &fingerprint) {
                 checkpoint.remember(&source_id, &fingerprint, true);
                 continue;
             }
         }
-        match read_transcript(&log, &namespace, &hint, &home, &root_path, &mut warnings) {
+        match read_transcript(&log, &namespace, &hint, &home, &hint_path, &mut warnings) {
             Ok(record) => {
                 checkpoint.remember(&record.source_id, &record.fingerprint, true);
                 saved.push(record);
@@ -417,6 +409,62 @@ fn project_slug(project: &ProjectIdentity) -> String {
     } else {
         trimmed.replace('/', "-")
     }
+}
+
+fn collect_cursor_logs(
+    home: &Path,
+    command_slug: &str,
+    command_hint: &str,
+) -> Result<Vec<(PathBuf, String)>> {
+    let projects = home.join("projects");
+    if !projects.is_dir() {
+        return Err(TangError::new(
+            "missing-store",
+            "No Cursor agent transcripts were found.",
+        ));
+    }
+    let mut found = Vec::new();
+    for entry in fs::read_dir(&projects).map_err(|_| {
+        TangError::new(
+            "missing-store",
+            "The Cursor projects directory could not be listed.",
+        )
+    })? {
+        let dir = entry
+            .map_err(|_| {
+                TangError::new(
+                    "missing-store",
+                    "The Cursor projects directory could not be listed.",
+                )
+            })?
+            .path();
+        if !dir.is_dir() {
+            continue;
+        }
+        let transcripts = dir.join("agent-transcripts");
+        if !transcripts.is_dir() {
+            continue;
+        }
+        let name = dir.file_name().and_then(|name| name.to_str()).unwrap_or("");
+        let hint = if name == command_slug {
+            command_hint.to_string()
+        } else {
+            dir.to_string_lossy().to_string()
+        };
+        let mut logs = Vec::new();
+        collect_transcripts(&transcripts, &mut logs)?;
+        for log in logs {
+            found.push((log, hint.clone()));
+        }
+    }
+    if found.is_empty() {
+        return Err(TangError::new(
+            "missing-store",
+            "No Cursor agent transcripts were found.",
+        ));
+    }
+    found.sort();
+    Ok(found)
 }
 
 fn collect_transcripts(dir: &Path, found: &mut Vec<PathBuf>) -> Result<()> {

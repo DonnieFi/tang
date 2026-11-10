@@ -151,13 +151,17 @@ fn index_reads_openclaw_sqlite_then_recall_redacts_it() {
     )
     .unwrap();
     let document: Value = serde_json::from_slice(&stdout).unwrap();
-    assert_eq!(document["indexed"], 1);
-    assert_eq!(document["skipped"], 1);
+    assert_eq!(document["indexed"], 2);
+    assert_eq!(document["skipped"], 0);
 
     let project = resolve_project(&project_dir).unwrap();
     let database = Connection::open(&project.database_path).unwrap();
     let search: String = database
-        .query_row("SELECT search_text FROM capsules", [], |row| row.get(0))
+        .query_row(
+            "SELECT search_text FROM capsules WHERE search_text LIKE '%session naming%'",
+            [],
+            |row| row.get(0),
+        )
         .unwrap();
     assert!(search.contains("session naming"));
     assert!(search.contains("short handles"));
@@ -265,11 +269,11 @@ fn index_reads_openclaw_agents_other_than_main() {
     )
     .unwrap();
     let document: Value = serde_json::from_slice(&stdout).unwrap();
-    assert_eq!(document["indexed"], 2);
+    assert_eq!(document["indexed"], 4);
     let project = resolve_project(&project_dir).unwrap();
     let database = Connection::open(&project.database_path).unwrap();
     let count: i64 = database
         .query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(count, 2);
+    assert_eq!(count, 4);
 }

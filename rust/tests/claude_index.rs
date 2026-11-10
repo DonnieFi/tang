@@ -89,8 +89,8 @@ fn index_reads_claude_transcript_then_recall_redacts_it() {
     )
     .unwrap();
     let document: Value = serde_json::from_slice(&stdout).unwrap();
-    assert_eq!(document["indexed"], 1);
-    assert_eq!(document["skipped"], 1);
+    assert_eq!(document["indexed"], 2);
+    assert_eq!(document["skipped"], 0);
     assert!(document["warnings"]
         .as_array()
         .unwrap()
@@ -100,15 +100,27 @@ fn index_reads_claude_transcript_then_recall_redacts_it() {
 
     let database = Connection::open(&project.database_path).unwrap();
     let title: String = database
-        .query_row("SELECT title FROM sessions", [], |row| row.get(0))
+        .query_row(
+            "SELECT title FROM sessions WHERE title = 'Indexer review fixture'",
+            [],
+            |row| row.get(0),
+        )
         .unwrap();
     assert_eq!(title, "Indexer review fixture");
     let started_at: String = database
-        .query_row("SELECT started_at FROM sessions", [], |row| row.get(0))
+        .query_row(
+            "SELECT started_at FROM sessions WHERE title = 'Indexer review fixture'",
+            [],
+            |row| row.get(0),
+        )
         .unwrap();
     assert!(started_at.starts_with("2026-05-07"));
     let search: String = database
-        .query_row("SELECT search_text FROM capsules", [], |row| row.get(0))
+        .query_row(
+            "SELECT search_text FROM capsules WHERE search_text LIKE '%Review the Tang indexer module.%'",
+            [],
+            |row| row.get(0),
+        )
         .unwrap();
     assert!(search.contains("Review the Tang indexer module."));
     assert!(!search.contains("FOREIGN_CLAUDE_CANARY"));

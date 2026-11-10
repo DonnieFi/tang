@@ -4,7 +4,7 @@ use crate::error::{storage, Result, TangError};
 use crate::index_store::{
     finish_session, load_checkpoint, write_sessions, Checkpoint, IndexScope, SessionDraft,
 };
-use crate::project::{owns_project, ProjectIdentity};
+use crate::project::ProjectIdentity;
 use crate::timeutil::rfc3339_secs;
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
 use serde_json::Value;
@@ -63,7 +63,6 @@ pub fn index_openclaw(
         let mut protected = HashSet::new();
         read_agent_database(
             &agent_db,
-            project,
             &namespace,
             &hint,
             &mut AgentRead {
@@ -156,7 +155,6 @@ struct AgentRead<'a> {
 
 fn read_agent_database(
     agent_db: &Path,
-    project: &ProjectIdentity,
     namespace: &str,
     hint: &str,
     read: &mut AgentRead<'_>,
@@ -200,14 +198,6 @@ fn read_agent_database(
             continue;
         }
         let events = read_events(&connection, &session_id)?;
-        if events_are_foreign(&events, project) {
-            if let Some(prior) = read.prior.fingerprints.get(&source_id).cloned() {
-                read.checkpoint.remember(&source_id, &prior, true);
-            }
-            read.protected.insert(source_id);
-            *read.skipped += 1;
-            continue;
-        }
         let turns = visible_turns(&events);
         let started =
             rfc3339_secs(((started_millis.or(created_at).unwrap_or(0)).max(0) / 1000) as u64);
@@ -224,7 +214,7 @@ fn read_agent_database(
             native_id: &native_id,
             locator: locator.as_ref(),
             fingerprint: &fingerprint,
-            project_hint: hint,
+            project_hint: recorded_directory(&events).as_deref().unwrap_or(hint),
             started_at: &started,
             updated_at: &updated,
             health: "unknown",
@@ -280,8 +270,8 @@ fn read_events(connection: &Connection, session_id: &str) -> Result<Vec<Value>> 
         .collect())
 }
 
-fn events_are_foreign(events: &[Value], project: &ProjectIdentity) -> bool {
-    events.iter().any(|event| {
+fn recorded_directory(events: &[Value]) -> Option<String> {
+    events.iter().find_map(|event| {
         event
             .get("cwd")
             .and_then(Value::as_str)
@@ -291,7 +281,7 @@ fn events_are_foreign(events: &[Value], project: &ProjectIdentity) -> bool {
                     .and_then(|message| message.get("cwd"))
                     .and_then(Value::as_str)
             })
-            .is_some_and(|cwd| Path::new(cwd).is_dir() && !owns_project(cwd, project))
+            .map(str::to_string)
     })
 }
 

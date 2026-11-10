@@ -5,7 +5,7 @@ use crate::index_store::{
     finish_session, load_checkpoint, write_sessions, Checkpoint, IndexScope, SavedSession,
     SessionDraft,
 };
-use crate::project::{owns_project, ProjectIdentity};
+use crate::project::ProjectIdentity;
 use crate::timeutil::rfc3339_secs;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -61,16 +61,6 @@ pub fn index_opencode(
             .and_then(|bytes| peek_export_id(&bytes));
         match read_export(&path, &namespace) {
             Ok(Some(record)) => {
-                if !owns_project(&record.project_hint, project) {
-                    // A foreign project is not proof that this project's row is
-                    // gone; keep the last known row instead of deleting it.
-                    if let Some(prior) = prior.fingerprints.get(&record.source_id).cloned() {
-                        checkpoint.remember(&record.source_id, &prior, true);
-                    }
-                    protected.insert(record.source_id.clone());
-                    skipped += 1;
-                    continue;
-                }
                 checkpoint.remember(&record.source_id, &record.fingerprint, true);
                 saved.push(record);
             }

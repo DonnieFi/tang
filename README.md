@@ -62,7 +62,7 @@ Linux is the tested platform. This tree makes no macOS or Windows claim.
 
 | Command | What it does |
 |---|---|
-| `tang index` | Read native sessions for the current project into `.tang/tang.db` |
+| `tang index` | Read each configured harness store into the working directory's `.tang/tang.db`. A session from another directory is kept and tagged with that directory |
 | `tang browse` / `tang cards` | List project sessions. `--cards` prints cards. Filters: `--harness`, `--health`, `--since`, `--until`, `--include-unavailable` |
 | `tang search QUERY` | Search this project's capsules. Same filters as browse. Does not open native logs |
 | `tang catalog sync` | Copy redacted capsules into the global catalog |

@@ -76,14 +76,18 @@ fn index_reads_opencode_export_then_recall_redacts_it() {
     )
     .unwrap();
     let document: Value = serde_json::from_slice(&stdout).unwrap();
-    assert_eq!(document["indexed"], 1);
-    assert_eq!(document["skipped"], 1);
+    assert_eq!(document["indexed"], 2);
+    assert_eq!(document["skipped"], 0);
     assert_eq!(fs::read(fixture()).unwrap(), original);
 
     let project = resolve_project(&project_dir).unwrap();
     let database = Connection::open(&project.database_path).unwrap();
     let search: String = database
-        .query_row("SELECT search_text FROM capsules", [], |row| row.get(0))
+        .query_row(
+            "SELECT search_text FROM capsules WHERE project_key = ?1",
+            [project.key.clone()],
+            |row| row.get(0),
+        )
         .unwrap();
     assert!(search.contains("source-cited OpenCode continuation"));
     assert!(search.contains("supported source and destination seams"));

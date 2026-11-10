@@ -674,3 +674,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) leave the README as text only; (b) embed the stale SVG; (c) regenerate the card from the current `tang demo` and put the three assets back.
 - Decision: (c) — `tang demo --svg` writes the card, and the README shows that SVG, the samurai mark, and the approved session cards. Serves: Design, Quality of Idea.
 - By: human (restore the graphics) and agent (regenerated the demo card)
+
+## 2026-11-10T18:00:00Z · project · Index the harness store and tag the directory
+- Context: `tang index` skipped any session whose recorded directory did not resolve to the working directory. On a home directory that skipped every Codex session stored under `~/.codex` because those sessions belonged to other folders. The global catalog was only a second copy after that per-project filter.
+- Options: (a) keep the skip and tell people to index inside each project; (b) put every session in one user-global database and drop project keys; (c) read the harness store, write the sessions into the working directory's database, and store each session's own project key plus a redacted directory tag.
+- Decision: (c) — a session outside the working directory is indexed and tagged. Join still refuses a different project key. Browse, search, graph, context, resume, purge, and catalog sync still select the current project key. Serves: Potential Impact, Design, Technological Implementation.
+- By: human (Donnie Fiander, indexing is global and directory is a tag) and agent (implementation)

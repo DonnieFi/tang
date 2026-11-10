@@ -79,8 +79,8 @@ fn index_reads_grok_fixture_then_recall_redacts_it() {
     )
     .unwrap();
     let document: Value = serde_json::from_slice(&stdout).unwrap();
-    assert_eq!(document["indexed"], 1);
-    assert_eq!(document["skipped"], 1);
+    assert_eq!(document["indexed"], 2);
+    assert_eq!(document["skipped"], 0);
     assert_eq!(
         fs::read(fixture_dir().join("summary.json")).unwrap(),
         original_summary
@@ -93,7 +93,11 @@ fn index_reads_grok_fixture_then_recall_redacts_it() {
     let project = resolve_project(&project_dir).unwrap();
     let database = Connection::open(&project.database_path).unwrap();
     let search: String = database
-        .query_row("SELECT search_text FROM capsules", [], |row| row.get(0))
+        .query_row(
+            "SELECT search_text FROM capsules WHERE search_text LIKE '%deterministic cache boundary%'",
+            [],
+            |row| row.get(0),
+        )
         .unwrap();
     assert!(search.contains("deterministic cache boundary"));
     assert!(search.contains("content fingerprint"));
@@ -104,7 +108,11 @@ fn index_reads_grok_fixture_then_recall_redacts_it() {
     assert!(!search.contains("supersecretvalue"));
     assert!(search.contains("[REDACTED:credential]"));
     let harness: String = database
-        .query_row("SELECT adapter FROM sessions", [], |row| row.get(0))
+        .query_row(
+            "SELECT adapter FROM sessions WHERE project_key = ?1",
+            [project.key.clone()],
+            |row| row.get(0),
+        )
         .unwrap();
     assert_eq!(harness, "grok");
 

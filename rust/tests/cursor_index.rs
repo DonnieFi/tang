@@ -80,7 +80,7 @@ fn index_reads_cursor_transcript_then_recall_redacts_it() {
     )
     .unwrap();
     let document: Value = serde_json::from_slice(&stdout).unwrap();
-    assert_eq!(document["indexed"], 1);
+    assert_eq!(document["indexed"], 2);
     assert!(document["warnings"]
         .as_array()
         .unwrap()
@@ -90,7 +90,11 @@ fn index_reads_cursor_transcript_then_recall_redacts_it() {
 
     let database = Connection::open(&project.database_path).unwrap();
     let search: String = database
-        .query_row("SELECT search_text FROM capsules", [], |row| row.get(0))
+        .query_row(
+            "SELECT search_text FROM capsules WHERE search_text LIKE '%session search bug%'",
+            [],
+            |row| row.get(0),
+        )
         .unwrap();
     assert!(search.contains("session search bug"));
     assert!(!search.contains("FOREIGN_CURSOR_CANARY"));

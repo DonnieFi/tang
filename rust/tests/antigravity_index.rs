@@ -98,7 +98,11 @@ fn index_reads_antigravity_transcript_then_recall_redacts_it() {
     let project = resolve_project(&project_dir).unwrap();
     let database = Connection::open(&project.database_path).unwrap();
     let search: String = database
-        .query_row("SELECT search_text FROM capsules", [], |row| row.get(0))
+        .query_row(
+            "SELECT search_text FROM capsules WHERE search_text LIKE '%Confirm the branch for the release.%'",
+            [],
+            |row| row.get(0),
+        )
         .unwrap();
     assert!(search.contains("Confirm the branch for the release."));
     assert!(search.contains("release branch is still open"));
