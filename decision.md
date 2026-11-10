@@ -656,3 +656,9 @@ Technological Implementation · Design · Potential Impact · Quality of Idea.
 - Options: (a) keep the Python package beside the new commands; (b) replace the Python CLI in place and delete the package, tests, and Python CI.
 - Decision: (b) — Rust implements index, browse, cards, project search, catalog recall, labels, context, join/link including a current Codex target, title, graph, demo, resume planning, doctor, continuity, skill install, stats, and project purge. `capsules_fts` and `session_overrides` are added by the Rust writer. `adapter_checkpoints` and Python `user_version` 8 are not recreated. OpenCode and OpenClaw identity hashes stay as previously decided. Serves: Technological Implementation, Design, Potential Impact.
 - By: human (Donnie Fiander, port everything and remove Python) and agent (implementation)
+
+## 2026-11-10T02:50:00Z · project · Update legacy docs to the Rust CLI
+- Context: After the Python package was removed, several docs still told agents to run the deleted scripts, pytest files, Beads epics, and Python doctor modes. Marking those pages historical left the old procedures in place.
+- Options: (a) keep the Python procedures behind a historical banner; (b) restore the Python README contract into the Rust README; (c) rewrite the live docs so they describe the Rust CLI.
+- Decision: (c) — `AGENTS.md`, the harness matrix, the OpenCode contract, the video runbook, refresh and doctor notes, and the compatibility list now match `rust/`. The spec README section matches that CLI. Privacy rules are unchanged. OpenCode and OpenClaw identity hashes, `adapter_checkpoints`, and Python `user_version` 8 stay open. Serves: Design, Technological Implementation.
+- By: human (update legacy files rather than adopt them) and agent (docs)

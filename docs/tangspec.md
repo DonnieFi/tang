@@ -4,7 +4,7 @@ Status: Approved for implementation
 
 ## Product
 
-Tang is a local-first Codex skill and installable Python CLI for continuing coding-agent work across sessions and harnesses.
+Tang is a local-first Codex skill and installable Rust CLI for continuing coding-agent work across sessions and harnesses.
 
 **Promise:** Continue one coding agent's work inside another, with the original sources cited. The hackathon demonstration makes this concrete: continue a Grok session inside Codex.
 
@@ -47,7 +47,7 @@ format is too risky to promise without repeatable recovery from real data.
 - One GPT-5.6 Continuation Brief whose headline identifies the resume point and evidence-backed next action.
 - Explicit, cycle-free continuation links and a polished terminal Multiverse Map.
 - The Codex skill as the primary selection and continuation experience; the standalone CLI remains non-interactive and scriptable.
-- An isolated synthetic demo, a tagged installable wheel, Linux verification, focused demo-path tests, a public README, and submission assets.
+- An isolated synthetic demo, a tagged Linux binary, Linux verification, focused demo-path tests, a public README, and submission assets.
 
 ### Approved v0.2.2 Extension
 
@@ -147,7 +147,7 @@ Human-readable primary output goes to `stdout`; diagnostics and warnings go to `
 
 Keep adapters deep and limited to two core operations:
 
-```python
+```text
 scan(checkpoint) -> ScanBatch(records, next_checkpoint, warnings)
 read(session_ref, selection) -> TurnBatch(turns, warnings)
 ```
@@ -188,7 +188,7 @@ Build the differentiating path first:
 3. Add current-project Discovery Capsules, SQLite/FTS storage, browse/search, and the deterministic compact Context Pack.
 4. Implement the Codex skill, host-native selection, and the GPT-5.6 Continuation Brief.
 5. Add explicit continuation links and build the terminal Multiverse Map against deterministic demo fixtures early enough to polish it as the hero surface.
-6. Finish the isolated demo, tagged wheel, README, focused Linux CI, and submission assets.
+6. Finish the isolated demo, tagged Linux binary, README, focused Linux CI, and submission assets.
 
 Each slice includes focused tests before the next slice starts. Do not create a
 second interactive terminal workflow during the hackathon release; harness-native
@@ -297,7 +297,7 @@ cargo build --manifest-path rust/Cargo.toml --release
 ./rust/target/release/tang skill install codex --cwd "$HOME/.codex"
 ```
 
-The release does not include a custom shell installer or a Python wheel. Tang supplies the explicit skill installation and a minimal `tang doctor` readiness check.
+The release does not include a custom shell installer. Tang supplies the explicit skill installation and a minimal `tang doctor` readiness check.
 
 ### Standard Alternatives
 
@@ -305,33 +305,25 @@ A tagged binary release may be added later. It is not required to build or run T
 
 ## README
 
-Treat the README as a judged product surface, not auxiliary documentation.
+Treat the README as the product surface for the Rust CLI.
 
-1. Hero capture of the terminal Multiverse Map, the line "Keep the blade, switch the handle," and the literal promise "Continue one coding agent's work inside another, with the original sources cited."
-2. The concrete Grok-to-Codex demonstration claim and 30-second version-pinned Linux installation.
-3. The unnamed Sol-session crash as a clearly separated origin story, without
-   implying support for that environment.
-4. A short recorded recovery-to-continuation workflow.
-5. Three-step explanation: find, continue here, see the timeline.
-6. Codex/Grok/OpenCode/Cursor support matrix with Linux as the only supported
-   platform.
-7. Discovery Capsule, local data lifecycle, redaction limits, and purge instructions.
-8. Architecture diagram and concise CLI reference.
-9. Reproducible `tang demo` and judge-testing instructions.
-10. How Codex and GPT-5.6 accelerated the project, including key human decisions.
-11. Honest comparison with adjacent session-history and continuity tools.
-12. Roadmap, contributing guidance, release link, and MIT license.
+1. The line "Keep the blade, switch the handle." and the promise "Continue one coding agent's work inside another, with the original sources cited."
+2. Linux-only support, `cargo build --manifest-path rust/Cargo.toml --release`, and `cargo test --manifest-path rust/Cargo.toml`.
+3. The command reference: index, browse, search, catalog, recall, label, context, join, title, graph, demo, resume, doctor, continuity, skill install, stats, and purge.
+4. Privacy: mode `0600`, catalog only on `tang catalog sync`, 8 KiB capsules, redaction, recall and search do not open native logs, same-project joins, and purge does not delete native logs.
+5. Links to this specification and `docs/harness-matrix.md`.
+6. MIT license and a pointer to `SECURITY.md`.
 
 Do not use third-party logos in the demo or README without permission. Plain-text harness names and Tang's own visual language are sufficient.
 
 ## Repository And Tracking
 
 1. Initialize the existing empty `.git` directory with `git init --initial-branch=main` without deleting it.
-2. Ignore `/plan/`, `/.agents/`, `/.codex/`, `/.beads/`, `/.tang/`, virtual environments, Python caches, build output, coverage, local demo output, and OS metadata.
+2. Ignore `/plan/`, `/.agents/`, `/.codex/`, `/.beads/`, `/.tang/`, virtual environments, build output, coverage, local demo output, and OS metadata.
 3. Track this approved specification at `docs/tangspec.md`; `/plan/` remains private scratch material (research notes, spec deltas, agent planning).
-4. Initialize Beads with `bd init --non-interactive --skip-agents`; treat it as local execution state rather than public project history.
-5. Track `README.md`, `CONTEXT.md`, concise ADRs, `LICENSE`, package code, tests, fixtures, and submission assets.
-6. Create dated milestone commits linking decisions, Beads work, tests, and Codex sessions so post-July 13 work is auditable.
+4. The public implementation is the Rust crate in `rust/`. Tests are `cargo test --manifest-path rust/Cargo.toml`.
+5. Track `README.md`, `CONTEXT.md`, `docs/`, `rust/`, `tests/fixtures`, `LICENSE`, and `SECURITY.md`.
+6. Record material decisions in `decision.md`.
 
 ## Verification
 
@@ -344,7 +336,7 @@ Do not use third-party logos in the demo or README without permission. Plain-tex
 - Graph: branch/merge traversal, cycle rejection, current-node highlighting, terminal snapshots, and ASCII fallback.
 - CLI and demo: JSON schema, exit behavior, ambiguity refusal, current-project boundaries, and proof that temporary demo data cannot touch native logs or the user's normal project Tang database.
 - Skill: official validation, host workflow, evidence-backed Continuation Brief shape, and prompt-injection resistance.
-- Distribution: tagged wheel build and clean installation on Linux without rebuilding from source.
+- Distribution: `cargo build --manifest-path rust/Cargo.toml --release` on Linux. A tagged binary is optional and is not required to run Tang.
 - CI: one focused Ubuntu workflow covering the supported demo path. There is no macOS job or compatibility claim.
 
 ### Acceptance Criteria
@@ -361,7 +353,7 @@ Do not use third-party logos in the demo or README without permission. Plain-tex
 
 - Category: Developer Tools.
 - License: MIT.
-- Repository: public, with a tagged release and wheel available through the August 5, 2026 judging period.
+- Repository: public, with a tagged release and Linux binary available through the August 5, 2026 judging period.
 - Video: public YouTube, under three minutes, with audio covering the product and Codex/GPT-5.6 usage.
 - Evidence: keep most core implementation in the designated GPT-5.6 Codex thread, capture its `/feedback` ID, and tie major decisions to dated commits.
 - README: include setup, supported platforms, sample data, judge test path, Codex collaboration, and human decision points.
