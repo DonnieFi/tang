@@ -10,6 +10,7 @@ use crate::index_claude::index_claude;
 use crate::index_codex::{index_codex, CodexIndexResult};
 use crate::index_cursor::index_cursor;
 use crate::index_grok::index_grok;
+use crate::index_openclaw::index_openclaw;
 use crate::index_opencode::index_opencode;
 use crate::join::{link_plan, open_project_readwrite, resolve_join};
 use crate::project::resolve_project;
@@ -49,7 +50,7 @@ const HELP: &str = "\
 Tang 2.0 catalog
 
 Usage:
-  tang index [--cwd DIR] [--database PATH] [--codex-home PATH] [--grok-home PATH] [--opencode-home PATH] [--cursor-home PATH] [--claude-home PATH] [--antigravity-home PATH] [--json]
+  tang index [--cwd DIR] [--database PATH] [--codex-home PATH] [--grok-home PATH] [--opencode-home PATH] [--cursor-home PATH] [--claude-home PATH] [--antigravity-home PATH] [--openclaw-home PATH] [--json]
   tang catalog sync [--cwd DIR] [--database PATH] [--catalog PATH] [--json]
   tang recall [QUERY] [--label NAME] [--category NAME] [--harness NAME] [--limit N]
                [--include-unavailable] [--json] [--catalog PATH]
@@ -82,7 +83,8 @@ fn index_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
         || flags.opencode_home.is_some()
         || flags.cursor_home.is_some()
         || flags.claude_home.is_some()
-        || flags.antigravity_home.is_some();
+        || flags.antigravity_home.is_some()
+        || flags.openclaw_home.is_some();
     if flags.codex_home.is_some() || !explicit {
         let codex_home = flags.codex_home.clone().unwrap_or_else(default_codex_home);
         let result = index_codex(&codex_home, &project, &database)?;
@@ -121,6 +123,13 @@ fn index_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
     }
     if let Some(antigravity_home) = &flags.antigravity_home {
         let result = index_antigravity(antigravity_home, &project, &database)?;
+        indexed += result.indexed;
+        deleted += result.deleted;
+        skipped += result.skipped;
+        warnings.extend(result.warnings);
+    }
+    if let Some(openclaw_home) = &flags.openclaw_home {
+        let result = index_openclaw(openclaw_home, &project, &database)?;
         indexed += result.indexed;
         deleted += result.deleted;
         skipped += result.skipped;
@@ -283,6 +292,7 @@ struct Flags {
     cursor_home: Option<PathBuf>,
     claude_home: Option<PathBuf>,
     antigravity_home: Option<PathBuf>,
+    openclaw_home: Option<PathBuf>,
 }
 
 fn parse_flags(args: &[String]) -> Result<Flags> {
@@ -311,6 +321,7 @@ fn parse_flags_with(args: &[String], allow_positional: bool) -> Result<Flags> {
         cursor_home: None,
         claude_home: None,
         antigravity_home: None,
+        openclaw_home: None,
     };
     let mut index = 0;
     while index < args.len() {
@@ -335,6 +346,8 @@ fn parse_flags_with(args: &[String], allow_positional: bool) -> Result<Flags> {
             flags.claude_home = Some(PathBuf::from(value));
         } else if let Some(value) = flag_value(args, &mut index, "--antigravity-home")? {
             flags.antigravity_home = Some(PathBuf::from(value));
+        } else if let Some(value) = flag_value(args, &mut index, "--openclaw-home")? {
+            flags.openclaw_home = Some(PathBuf::from(value));
         } else if let Some(value) = flag_value(args, &mut index, "--catalog")? {
             flags.catalog = Some(PathBuf::from(value));
         } else if let Some(value) = flag_value(args, &mut index, "--database")? {
