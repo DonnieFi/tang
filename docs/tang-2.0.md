@@ -2,13 +2,13 @@
 
 Status: implementation plan for the post-hackathon rewrite. This document does not amend [`tangspec.md`](tangspec.md). Donnie Fiander reviews and merges. Privacy and redaction rules in the spec still apply.
 
-The July 2026 hackathon deadline in `AGENTS.md` is historical. This plan follows Donnie's November 2026 direction: a full rewrite that stays lightweight, aimed first at searching, labeling, summarizing, categorizing, and recalling sessions.
+The July 2026 hackathon deadline has passed. This plan is Donnie's November 2026 direction: a lightweight Rust CLI for searching, labeling, summarizing, categorizing, and recalling sessions.
 
 ## Current technology
 
-Tang 0.3.0 is a local Python CLI (`requires-python >= 3.11`). The runtime dependencies are Rich and the standard library. Tests use pytest. Packaging is setuptools. There is no server, no web UI, and no database process.
+Tang 2.0 is the Rust binary in `rust/`. Tests are `cargo test --manifest-path rust/Cargo.toml`. There is no server, no web UI, and no database process.
 
-Derived state is one SQLite file per project at `PROJECT/.tang/tang.db` (mode `0600`, WAL, busy timeout, transactional migrations). Search is SQLite FTS5 with the Porter tokenizer over a redacted Discovery Capsule of at most 8 KiB. Adapters for Codex, Grok, OpenCode, Cursor, Claude Code, Antigravity, and OpenClaw read native logs and write only that derived database. `tang demo` uses a temporary database and does not touch a user's real Tang DB or native logs.
+Derived state is one SQLite file per project at `PROJECT/.tang/tang.db` (mode `0600`, WAL, busy timeout). Search is SQLite FTS5 with the Porter tokenizer over a redacted Discovery Capsule of at most 8 KiB. Readers for Codex, Grok, OpenCode, Cursor, Claude Code, Antigravity, and OpenClaw read native logs and write only that derived database. `tang demo` is in memory and does not touch a user's real Tang DB or native logs.
 
 The commands that matter for recall are `tang index`, `tang search`, `tang context`, and `tang link`. Search is limited to the current project. Handles such as `C1` and `G1` are allocated per project, so the same handle means a different session in a different repo. `tang link` refuses a source or target from another project. Tang does not store user labels, a session category, or a summary it wrote. The v1 spec forbids persisted model-generated annotations and says Tang never writes a generated session summary.
 
@@ -16,7 +16,7 @@ That stack is already light. The gap is not missing infrastructure. A model look
 
 ## Stack choice
 
-The 2.0 CLI is one native Rust binary. Storage stays SQLite with FTS5. The crate is `rust/` so it does not share a source root with the Python package in `src/tang/`. Donnie chose Rust after an earlier note in this plan said to stay on Python 3.11. That Python catalog is not the 2.0 path.
+The 2.0 CLI is one native Rust binary. Storage stays SQLite with FTS5. The crate is `rust/`. Donnie chose Rust after an earlier note in this plan said to stay on Python 3.11. The Python package has been removed.
 
 Crates, and nothing larger:
 
@@ -25,7 +25,7 @@ Crates, and nothing larger:
 - `serde_json`, to read capsule excerpts and emit recall JSON.
 - `sha2`, so a project key is the same SHA-256 digest the existing CLI uses.
 
-No Postgres, Elasticsearch, vector index, embedding pipeline, daemon, web framework, or second UI. This slice does not reimplement harness adapters. `tang catalog sync` reads capsules that are already in `PROJECT/.tang/tang.db`. Recall does not open native logs.
+No Postgres, Elasticsearch, vector index, embedding pipeline, daemon, web framework, or second UI. The harness readers live in `rust/src/index_*.rs`. `tang catalog sync` copies capsules that are already in `PROJECT/.tang/tang.db`. Recall does not open native logs.
 
 The catalog is a redacted copy of those capsules. It is not a silent fallback for the Python `tang search`, and it does not replace the per-project database. Continuation edges stay in the project database that already enforces cycles, tombstones, and same-project membership.
 
@@ -53,11 +53,11 @@ Catalog handles are global and are not reused after a session leaves the catalog
 
 ## Deliberately left out
 
-- Edits to `docs/tangspec.md`, epic closure, and merges to `main`.
 - Model-written summaries and persisted Continuation Briefs.
 - Semantic or vector search.
 - Continuation edges that cross projects.
-- New harness adapters. Sync reads the existing project database.
+- `adapter_checkpoints`, incremental index, and Python `user_version` 8.
+- Changing the OpenCode export-directory hash or the OpenClaw home hash.
 - A second interactive UI. The Codex skill remains the only interactive workflow; these commands are scriptable.
 
 ## Privacy
