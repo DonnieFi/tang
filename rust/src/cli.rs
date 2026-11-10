@@ -824,10 +824,16 @@ fn parse_flags_mode(args: &[String], allow_positional: bool, allow_many: bool) -
         } else if let Some(value) = flag_value(args, &mut index, "--until")? {
             flags.until = Some(value);
         } else if let Some(value) = flag_value(args, &mut index, "--width")? {
-            flags.width =
-                Some(value.parse().map_err(|_| {
-                    TangError::new("invalid-argument", "--width needs an integer.")
-                })?);
+            let parsed: i64 = value
+                .parse()
+                .map_err(|_| TangError::new("invalid-argument", "--width needs an integer."))?;
+            if !(1..=1_000).contains(&parsed) {
+                return Err(TangError::new(
+                    "invalid-argument",
+                    "--width must be between 1 and 1000.",
+                ));
+            }
+            flags.width = Some(parsed);
         } else if let Some(value) = flag_value(args, &mut index, "--current-native-id")? {
             flags.current_native_id = Some(value);
         } else if let Some(value) = flag_value(args, &mut index, "--label")? {

@@ -514,5 +514,20 @@ updated_at 2026-01-04T00:00:00Z
 title line one line two
 "
     );
-    assert_eq!(render_cards(&[first.clone()]), render_cards(&[first]));
+    let expected = render_cards(std::slice::from_ref(&first));
+    assert_eq!(expected, render_cards(&[first]));
+
+    let hostile = DiscoveryRow {
+        source_id: "codex:local:hostile".into(),
+        handle: "C2".into(),
+        harness: "codex".into(),
+        title: "safe\u{1b}[31mred".into(),
+        health: "unknown".into(),
+        updated_at: "2026-01-05T00:00:00Z".into(),
+        native_available: true,
+        snippet: None,
+    };
+    let rendered = render_cards(&[hostile]);
+    assert!(!rendered.contains('\u{1b}'));
+    assert!(rendered.contains("safe [31mred"));
 }

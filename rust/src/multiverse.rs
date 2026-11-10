@@ -877,12 +877,15 @@ fn rail_char(mask: u8, ascii: bool) -> char {
 }
 
 fn safe(value: &str, ascii: bool) -> String {
-    if !ascii {
-        return value.to_string();
-    }
     value
         .chars()
-        .map(|glyph| if glyph.is_ascii() { glyph } else { '?' })
+        .map(|glyph| {
+            if glyph.is_control() || (ascii && !glyph.is_ascii()) {
+                '?'
+            } else {
+                glyph
+            }
+        })
         .collect()
 }
 

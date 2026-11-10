@@ -4,7 +4,9 @@
 
 Tang is a local Rust CLI. It indexes coding-agent sessions, searches them, and records only the continuations you confirm. The Multiverse Map is that confirmed graph.
 
-Supported readers: Codex, Grok, OpenCode, Cursor, Claude Code, Antigravity, and OpenClaw. Native logs stay read-only. Tang stores derived data in `.tang/tang.db` and, when you sync, a global catalog at `~/.tang/catalog.db`.
+Continue one coding agent's work inside another, with the original sources cited.
+
+Supported readers: Codex, Grok, OpenCode, Cursor, Claude Code, Antigravity, and OpenClaw. Native logs stay read-only. Tang stores derived data in `.tang/tang.db` and, when you sync, a global catalog at `~/.tang/catalog.db`. Per-harness capabilities are listed in [`docs/harness-matrix.md`](docs/harness-matrix.md).
 
 ## Build
 

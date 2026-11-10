@@ -606,3 +606,97 @@ fn handles(pack: &ContextPack) -> Vec<&str> {
         .map(|source| source.handle.as_str())
         .collect()
 }
+
+#[test]
+fn context_rereads_only_the_selected_openclaw_session() {
+    let db = open_db("openclaw");
+    let agent_db = std::env::temp_dir().join(format!(
+        "tang-context-openclaw-{}-{}.sqlite",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let connection = Connection::open(&agent_db).unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE session_windows (
+                session_id TEXT, session_key TEXT, started_at INTEGER, ended_at INTEGER
+            );
+            CREATE TABLE transcript_events (
+                session_id TEXT, seq INTEGER, event_json TEXT
+            );",
+        )
+        .unwrap();
+    connection
+        .execute(
+            "INSERT INTO session_windows VALUES ('local-window', 'agent:main:local', 1, 2)",
+            [],
+        )
+        .unwrap();
+    connection
+        .execute(
+            "INSERT INTO session_windows VALUES ('other-window', 'agent:main:other', 1, 2)",
+            [],
+        )
+        .unwrap();
+    for (session_id, seq, role, content) in [
+        (
+            "local-window",
+            1,
+            "user",
+            serde_json::json!("OPENCLAW_FRESH_CANARY"),
+        ),
+        (
+            "local-window",
+            2,
+            "assistant",
+            serde_json::json!([
+                {"type": "text", "text": "OPENCLAW_AGENT_REPLY"},
+                {"type": "tool_use", "text": "OPENCLAW_TOOL_CANARY"}
+            ]),
+        ),
+        (
+            "other-window",
+            1,
+            "user",
+            serde_json::json!("OPENCLAW_OTHER_CANARY"),
+        ),
+    ] {
+        let event = serde_json::json!({
+            "type": "message",
+            "message": {"role": role, "content": content}
+        });
+        connection
+            .execute(
+                "INSERT INTO transcript_events VALUES (?1, ?2, ?3)",
+                params![session_id, seq, event.to_string()],
+            )
+            .unwrap();
+    }
+    drop(connection);
+
+    db.execute(
+        "INSERT INTO sessions(source_id, project_key, adapter, session_handle, title, updated_at, locator)
+         VALUES ('openclaw:ns:YWdlbnQ6bWFpbjpsb2NhbA', ?1, 'openclaw', 'W1', 'Local', '2026-07-01T00:00:00Z', ?2)",
+        params![PROJECT, agent_db.display().to_string()],
+    )
+    .unwrap();
+    db.execute(
+        "INSERT INTO capsules(source_id, project_key, content_json) VALUES ('openclaw:ns:YWdlbnQ6bWFpbjpsb2NhbA', ?1, ?2)",
+        params![PROJECT, r#"{"excerpts":[{"role":"user","text":"OPENCLAW_STALE_CAPSULE"}],"source_title":"Local","schema_version":1}"#],
+    )
+    .unwrap();
+
+    let tokens = vec!["W1".to_string()];
+    let pack = build_pack(&db, PROJECT, ContextRequest::Sessions(&tokens)).unwrap();
+    let markdown = render_markdown(&pack);
+    assert!(markdown.contains("OPENCLAW_FRESH_CANARY"));
+    assert!(markdown.contains("OPENCLAW_AGENT_REPLY"));
+    assert!(!markdown.contains("OPENCLAW_OTHER_CANARY"));
+    assert!(!markdown.contains("OPENCLAW_TOOL_CANARY"));
+    assert!(!markdown.contains("OPENCLAW_STALE_CAPSULE"));
+    assert!(!markdown.contains(&agent_db.display().to_string()));
+    let _ = std::fs::remove_file(agent_db);
+}
