@@ -17,6 +17,16 @@ pub fn purge_project(db: &mut Connection, project_key: &str) -> Result<(i64, i64
     if table_exists(&transaction, "session_overrides")? {
         delete_overrides(&transaction, project_key)?;
     }
+    if table_exists(&transaction, "session_tags")? {
+        transaction
+            .execute(
+                "DELETE FROM session_tags WHERE source_id IN (
+                    SELECT source_id FROM sessions WHERE project_key = ?1
+                 )",
+                [project_key],
+            )
+            .map_err(storage)?;
+    }
     delete_project(&transaction, "capsules", project_key)?;
     delete_project(&transaction, "sessions", project_key)?;
     transaction.commit().map_err(storage)?;

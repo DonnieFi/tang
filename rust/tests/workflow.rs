@@ -109,10 +109,13 @@ fn search_tag_join_counts_and_map_one_project() {
     );
     let project_arg = project.display().to_string();
     let catalog_arg = catalog.display().to_string();
+    let index_arg = root.join("index.db").display().to_string();
     let indexed = run(&[
         "index",
         "--cwd",
         &project_arg,
+        "--database",
+        &index_arg,
         "--codex-home",
         &codex.display().to_string(),
         "--grok-home",
@@ -127,12 +130,14 @@ fn search_tag_join_counts_and_map_one_project() {
         "sync",
         "--cwd",
         &project_arg,
+        "--database",
+        &index_arg,
         "--catalog",
         &catalog_arg,
     ]);
     run(&["label", "add", "C2", "release", "--catalog", &catalog_arg]);
 
-    let search = run(&["recall", "cache", "--catalog", &catalog_arg, "--json"]);
+    let search = run(&["recall", "cache", "--database", &index_arg, "--json"]);
     let search: Value = serde_json::from_str(&search).unwrap();
     assert_eq!(search["result_count"], 1);
     assert_eq!(search["results"][0]["catalog_handle"], "C1");
@@ -169,6 +174,8 @@ fn search_tag_join_counts_and_map_one_project() {
         "stats",
         "--cwd",
         &project_arg,
+        "--database",
+        &index_arg,
         "--catalog",
         &catalog_arg,
         "--json",
@@ -186,12 +193,28 @@ fn search_tag_join_counts_and_map_one_project() {
     assert_eq!(stats["edges"], 2);
     assert_eq!(stats["components"], 1);
 
-    let map = run(&["graph", "--cwd", &project_arg, "--ascii", "--width", "64"]);
+    let map = run(&[
+        "graph",
+        "--cwd",
+        &project_arg,
+        "--database",
+        &index_arg,
+        "--ascii",
+        "--width",
+        "64",
+    ]);
     assert!(map.contains("MULTIVERSE NETWORK"));
     assert!(map.contains("MERGE") || map.contains("C1"));
     assert!(map.contains("C1"));
     assert!(map.contains("C2"));
-    let alias = run(&["map", "--cwd", &project_arg, "--json"]);
+    let alias = run(&[
+        "map",
+        "--cwd",
+        &project_arg,
+        "--database",
+        &index_arg,
+        "--json",
+    ]);
     let alias: Value = serde_json::from_str(&alias).unwrap();
     assert_eq!(alias["schema_version"], 1);
     assert_eq!(alias["edges"].as_array().unwrap().len(), 2);

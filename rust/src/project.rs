@@ -1,9 +1,52 @@
 //! Project identity compatible with the existing per-project database path.
 
 use crate::error::{Result, TangError};
+use crate::redact::{redact, ContentKind};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+
+/// Where a session belongs. The key preserves the join boundary. The tag is the
+/// redacted directory shown on the session.
+pub struct SessionPlace {
+    pub project_key: String,
+    pub directory_tag: String,
+}
+
+pub fn place_session(hint: &str, fallback_key: &str) -> SessionPlace {
+    let trimmed = hint.trim();
+    if trimmed.is_empty() {
+        return SessionPlace {
+            project_key: fallback_key.to_string(),
+            directory_tag: String::new(),
+        };
+    }
+    let path = Path::new(trimmed);
+    if path.is_dir() {
+        if let Ok(identity) = resolve_project(path) {
+            let root = identity
+                .database_path
+                .parent()
+                .and_then(Path::parent)
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| path.to_path_buf());
+            return SessionPlace {
+                project_key: identity.key,
+                directory_tag: redact(&root.to_string_lossy(), ContentKind::DisplayMetadata),
+            };
+        }
+    }
+    if trimmed.contains('/') || trimmed.contains('\\') {
+        return SessionPlace {
+            project_key: format!("directory:sha256:{:x}", Sha256::digest(trimmed.as_bytes())),
+            directory_tag: redact(trimmed, ContentKind::DisplayMetadata),
+        };
+    }
+    SessionPlace {
+        project_key: fallback_key.to_string(),
+        directory_tag: String::new(),
+    }
+}
 
 pub struct ProjectIdentity {
     pub key: String,
@@ -19,6 +62,20 @@ pub fn owns_project(hint: &str, project: &ProjectIdentity) -> bool {
     resolve_project(path)
         .map(|resolved| resolved.key == project.key)
         .unwrap_or(false)
+}
+
+pub fn global_index_path() -> PathBuf {
+    if let Some(value) = std::env::var_os("TANG_INDEX") {
+        if !value.is_empty() {
+            return PathBuf::from(value);
+        }
+    }
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".tang")
+        .join("index.db")
 }
 
 pub fn resolve_project(directory: &Path) -> Result<ProjectIdentity> {

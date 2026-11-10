@@ -62,11 +62,11 @@ Linux is the tested platform. This tree makes no macOS or Windows claim.
 
 | Command | What it does |
 |---|---|
-| `tang index` | Read native sessions for the current project into `.tang/tang.db` |
+| `tang index` | Read each configured harness store into `~/.tang/index.db`. A session from another directory is kept and tagged with that directory |
 | `tang browse` / `tang cards` | List project sessions. `--cards` prints cards. Filters: `--harness`, `--health`, `--since`, `--until`, `--include-unavailable` |
-| `tang search QUERY` | Search this project's capsules. Same filters as browse. Does not open native logs |
+| `tang search QUERY` | Search the global index. `--directory` filters the redacted directory tag. Does not open native logs |
 | `tang catalog sync` | Copy redacted capsules into the global catalog |
-| `tang recall [QUERY]` | Search the global catalog. Filters: `--label`, `--category`, `--harness` |
+| `tang recall [QUERY]` | Search the global index. `--label` and `--category` still read the catalog copy |
 | `tang label add\|remove HANDLE LABEL` | Attach or remove an operator tag |
 | `tang context HANDLE...` | Reread the selected native sources, redact them, and cite the pack. A missing or symlinked source keeps the stored capsule |
 | `tang context all --for HANDLE` | Pack the confirmed predecessors of a session |

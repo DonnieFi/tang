@@ -7,6 +7,7 @@ use rusqlite::{Connection, OptionalExtension};
 pub struct DiscoveryQuery<'a> {
     pub text: Option<&'a str>,
     pub harness: Option<&'a str>,
+    pub directory: Option<&'a str>,
     pub include_unavailable: bool,
     pub limit: i64,
 }
@@ -21,11 +22,12 @@ pub struct DiscoveryRow {
     pub updated_at: String,
     pub native_available: bool,
     pub snippet: Option<String>,
+    pub directory: String,
 }
 
 pub fn browse(
     db: &Connection,
-    project_key: &str,
+    project_key: Option<&str>,
     query: &DiscoveryQuery<'_>,
 ) -> Result<Vec<DiscoveryRow>> {
     validate_limit(query.limit)?;
@@ -33,6 +35,7 @@ pub fn browse(
     let title_sql = title_expr(overrides);
     let join_sql = override_join(overrides);
     let filters = extra_filters(query);
+    let (scope, scope_params) = project_scope(project_key);
     let sql = format!(
         "SELECT s.source_id,
                 COALESCE(s.session_handle, ''),
@@ -45,17 +48,21 @@ pub fn browse(
          FROM sessions AS s
          JOIN capsules AS c ON c.source_id = s.source_id
          {join_sql}
-         WHERE s.project_key = ?{filters}
+         WHERE {scope}{filters}
          ORDER BY s.updated_at DESC, s.source_id
          LIMIT ?"
     );
-    let params = bound_params(project_key, query);
-    query_rows(db, &sql, &params, SnippetSource::Content)
+    let mut params = scope_params;
+    push_filters(&mut params, query);
+    params.push(query.limit.to_string());
+    let mut rows = query_rows(db, &sql, &params, SnippetSource::Content)?;
+    attach_directories(db, &mut rows)?;
+    Ok(rows)
 }
 
 pub fn search_project(
     db: &Connection,
-    project_key: &str,
+    project_key: Option<&str>,
     query: &DiscoveryQuery<'_>,
 ) -> Result<Vec<DiscoveryRow>> {
     validate_limit(query.limit)?;
@@ -77,6 +84,7 @@ pub fn search_project(
     let title_sql = title_expr(overrides);
     let join_sql = override_join(overrides);
     let filters = extra_filters(query);
+    let (scope, scope_params) = project_scope(project_key);
     let sql = format!(
         "SELECT s.source_id,
                 COALESCE(s.session_handle, ''),
@@ -91,15 +99,18 @@ pub fn search_project(
          JOIN capsules AS c ON c.source_id = s.source_id
          {join_sql}
          WHERE capsules_fts MATCH ?
-           AND s.project_key = ?
+           AND {scope}
            AND capsules_fts.project_key = s.project_key{filters}
          ORDER BY rank, s.updated_at DESC, s.source_id
          LIMIT ?"
     );
-    let mut params = vec![text.to_string(), project_key.to_string()];
+    let mut params = vec![text.to_string()];
+    params.extend(scope_params);
     push_filters(&mut params, query);
     params.push(query.limit.to_string());
-    query_rows(db, &sql, &params, SnippetSource::Column).map_err(map_search)
+    let mut rows = query_rows(db, &sql, &params, SnippetSource::Column).map_err(map_search)?;
+    attach_directories(db, &mut rows)?;
+    Ok(rows)
 }
 
 fn validate_limit(limit: i64) -> Result<()> {
@@ -129,6 +140,13 @@ fn override_join(overrides: bool) -> &'static str {
     }
 }
 
+fn project_scope(project_key: Option<&str>) -> (String, Vec<String>) {
+    match project_key.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(key) => ("s.project_key = ?".to_string(), vec![key.to_string()]),
+        None => ("1 = 1".to_string(), Vec::new()),
+    }
+}
+
 fn extra_filters(query: &DiscoveryQuery<'_>) -> String {
     let mut sql = String::new();
     if !query.include_unavailable {
@@ -137,20 +155,31 @@ fn extra_filters(query: &DiscoveryQuery<'_>) -> String {
     if harness_param(query.harness).is_some() {
         sql.push_str(" AND LOWER(s.adapter) = LOWER(?)");
     }
+    if directory_param(query.directory).is_some() {
+        sql.push_str(
+            " AND EXISTS (
+                SELECT 1 FROM session_tags AS t
+                WHERE t.source_id = s.source_id AND instr(t.tag, ?) > 0
+            )",
+        );
+    }
     sql
-}
-
-fn bound_params(project_key: &str, query: &DiscoveryQuery<'_>) -> Vec<String> {
-    let mut params = vec![project_key.to_string()];
-    push_filters(&mut params, query);
-    params.push(query.limit.to_string());
-    params
 }
 
 fn push_filters(params: &mut Vec<String>, query: &DiscoveryQuery<'_>) {
     if let Some(harness) = harness_param(query.harness) {
         params.push(harness);
     }
+    if let Some(directory) = directory_param(query.directory) {
+        params.push(directory);
+    }
+}
+
+fn directory_param(directory: Option<&str>) -> Option<String> {
+    directory
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
 }
 
 fn harness_param(harness: Option<&str>) -> Option<String> {
@@ -196,6 +225,7 @@ fn query_rows(
             updated_at: row.get(5).map_err(storage)?,
             native_available: row.get::<_, i64>(6).map_err(storage)? != 0,
             snippet,
+            directory: String::new(),
         });
     }
     Ok(found)
@@ -217,6 +247,105 @@ fn first_user_snippet(content_json: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn attach_directories(db: &Connection, rows: &mut [DiscoveryRow]) -> Result<()> {
+    if rows.is_empty() || !table_exists(db, "session_tags")? {
+        return Ok(());
+    }
+    for row in rows {
+        let tag: Option<String> = db
+            .query_row(
+                "SELECT tag FROM session_tags WHERE source_id = ?1 ORDER BY tag LIMIT 1",
+                [&row.source_id],
+                |record| record.get(0),
+            )
+            .optional()
+            .map_err(storage)?;
+        if let Some(tag) = tag {
+            row.directory = tag;
+        }
+    }
+    Ok(())
+}
+
+pub struct IndexRecall {
+    pub handle: String,
+    pub harness: String,
+    pub title: String,
+    pub summary: String,
+    pub directory: String,
+    pub source_id: String,
+}
+
+pub fn recall_index(db: &Connection, text: &str, limit: i64) -> Result<Vec<IndexRecall>> {
+    validate_limit(limit)?;
+    let text = text.trim();
+    if text.is_empty() {
+        return Err(TangError::new(
+            "empty-query",
+            "Provide a query or a label, category, or harness filter.",
+        ));
+    }
+    let sql = if table_exists(db, "capsules_fts")? {
+        "SELECT COALESCE(s.session_handle, ''),
+                s.adapter,
+                COALESCE(s.title, ''),
+                c.search_text,
+                s.source_id
+         FROM capsules_fts
+         JOIN sessions AS s ON s.source_id = capsules_fts.source_id
+         JOIN capsules AS c ON c.source_id = s.source_id
+         WHERE capsules_fts MATCH ?
+         ORDER BY rank, s.updated_at DESC, s.source_id
+         LIMIT ?"
+    } else {
+        "SELECT COALESCE(s.session_handle, ''),
+                s.adapter,
+                COALESCE(s.title, ''),
+                c.search_text,
+                s.source_id
+         FROM sessions AS s
+         JOIN capsules AS c ON c.source_id = s.source_id
+         WHERE c.search_text LIKE '%' || ?1 || '%'
+         ORDER BY s.updated_at DESC, s.source_id
+         LIMIT ?2"
+    };
+    let mut statement = db.prepare(sql).map_err(storage)?;
+    let mut rows = statement
+        .query(rusqlite::params![text, limit])
+        .map_err(|error| map_search(storage(error)))?;
+    let mut found = Vec::new();
+    while let Some(row) = rows.next().map_err(|error| map_search(storage(error)))? {
+        let source_id: String = row.get(4).map_err(storage)?;
+        let summary: String = row.get(3).map_err(storage)?;
+        found.push(IndexRecall {
+            handle: row.get(0).map_err(storage)?,
+            harness: row.get(1).map_err(storage)?,
+            title: row.get(2).map_err(storage)?,
+            summary,
+            directory: String::new(),
+            source_id,
+        });
+    }
+    drop(rows);
+    drop(statement);
+    if table_exists(db, "session_tags")? {
+        for hit in &mut found {
+            let tag: Option<String> = db
+                .query_row(
+                    "SELECT tag FROM session_tags WHERE source_id = ?1 ORDER BY tag LIMIT 1",
+                    [&hit.source_id],
+                    |record| record.get(0),
+                )
+                .optional()
+                .map_err(storage)?;
+            if let Some(tag) = tag {
+                hit.directory = tag;
+            }
+        }
+    }
+    Ok(found)
 }
 
 fn table_exists(db: &Connection, name: &str) -> Result<bool> {

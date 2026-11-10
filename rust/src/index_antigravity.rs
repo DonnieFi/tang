@@ -5,7 +5,7 @@ use crate::index_store::{
     file_updated_at, finish_session, load_checkpoint, write_sessions, Checkpoint, IndexScope,
     SessionDraft,
 };
-use crate::project::{owns_project, ProjectIdentity};
+use crate::project::ProjectIdentity;
 use crate::timeutil::rfc3339_secs;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -76,10 +76,6 @@ pub fn index_antigravity(
         let Some(workspace) = row.get("workspace").and_then(Value::as_str) else {
             continue;
         };
-        if !owns_project(workspace, project) {
-            skipped += 1;
-            continue;
-        }
         let started =
             millis(row.get("timestamp")).unwrap_or_else(|| "1970-01-01T00:00:00Z".to_string());
         let title = row

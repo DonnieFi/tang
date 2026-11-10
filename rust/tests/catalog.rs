@@ -286,13 +286,13 @@ fn cli_recall_is_global_and_does_not_create_a_missing_catalog() {
         &[
             "recall".into(),
             "book".into(),
-            "--catalog".into(),
+            "--database".into(),
             missing.display().to_string(),
         ],
         &mut output,
     )
     .unwrap_err();
-    assert_eq!(error.code, "catalog-missing");
+    assert_eq!(error.code, "index-required");
     assert!(!missing.exists());
 
     let (alpha, alpha_db) = project_db(&root.join("alpha"));
@@ -327,6 +327,8 @@ fn cli_recall_is_global_and_does_not_create_a_missing_catalog() {
             "sync".into(),
             "--cwd".into(),
             root.join("alpha").display().to_string(),
+            "--database".into(),
+            alpha.database_path.display().to_string(),
             "--catalog".into(),
             catalog.display().to_string(),
             "--json".into(),
@@ -340,6 +342,8 @@ fn cli_recall_is_global_and_does_not_create_a_missing_catalog() {
             "sync".into(),
             "--cwd".into(),
             root.join("beta").display().to_string(),
+            "--database".into(),
+            beta.database_path.display().to_string(),
             "--catalog".into(),
             catalog.display().to_string(),
             "--json".into(),
@@ -352,8 +356,8 @@ fn cli_recall_is_global_and_does_not_create_a_missing_catalog() {
         &[
             "recall".into(),
             "zebra".into(),
-            "--catalog".into(),
-            catalog.display().to_string(),
+            "--database".into(),
+            beta.database_path.display().to_string(),
             "--json".into(),
         ],
         &mut stdout,
@@ -363,12 +367,12 @@ fn cli_recall_is_global_and_does_not_create_a_missing_catalog() {
     assert_eq!(document["schema_version"], 1);
     assert_eq!(document["result_count"], 1);
     assert_eq!(document["results"][0]["catalog_handle"], "G1");
-    assert_eq!(document["results"][0]["project_display"], "beta");
+    assert_eq!(document["results"][0]["harness"], "grok");
     assert!(document["results"][0].get("database_path").is_none());
     assert!(document["results"][0]["summary"]
         .as_str()
         .unwrap()
-        .starts_with("[other] Beta"));
+        .contains("beta zebra"));
 }
 
 #[test]
@@ -675,6 +679,8 @@ fn join_links_one_project_and_refuses_a_cycle_or_another_project() {
             "sync".into(),
             "--cwd".into(),
             root.join("work").display().to_string(),
+            "--database".into(),
+            project.database_path.display().to_string(),
             "--catalog".into(),
             catalog.display().to_string(),
         ],
@@ -768,6 +774,8 @@ fn join_links_one_project_and_refuses_a_cycle_or_another_project() {
             "sync".into(),
             "--cwd".into(),
             root.join("other").display().to_string(),
+            "--database".into(),
+            other.database_path.display().to_string(),
             "--catalog".into(),
             catalog.display().to_string(),
         ],
@@ -804,6 +812,8 @@ fn join_links_one_project_and_refuses_a_cycle_or_another_project() {
             "--yes".into(),
             "--cwd".into(),
             root.join("work").display().to_string(),
+            "--database".into(),
+            project.database_path.display().to_string(),
             "--catalog".into(),
             catalog.display().to_string(),
         ],
@@ -811,7 +821,7 @@ fn join_links_one_project_and_refuses_a_cycle_or_another_project() {
     )
     .unwrap();
     let text = String::from_utf8(stdout).unwrap();
-    assert!(text.contains("Removed 2 global catalog rows"));
+    assert!(text.contains("Removed 2 catalog rows"));
     let saved = Connection::open(&catalog).unwrap();
     let remaining: i64 = saved
         .query_row(
@@ -860,6 +870,8 @@ fn join_accepts_multiple_sources_in_one_command() {
             "sync".into(),
             "--cwd".into(),
             root.join("work").display().to_string(),
+            "--database".into(),
+            project.database_path.display().to_string(),
             "--catalog".into(),
             catalog.display().to_string(),
         ],

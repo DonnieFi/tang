@@ -71,6 +71,8 @@ fn index_reads_grok_fixture_then_recall_redacts_it() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--grok-home".into(),
             home.display().to_string(),
             "--json".into(),
@@ -79,8 +81,8 @@ fn index_reads_grok_fixture_then_recall_redacts_it() {
     )
     .unwrap();
     let document: Value = serde_json::from_slice(&stdout).unwrap();
-    assert_eq!(document["indexed"], 1);
-    assert_eq!(document["skipped"], 1);
+    assert_eq!(document["indexed"], 2);
+    assert_eq!(document["skipped"], 0);
     assert_eq!(
         fs::read(fixture_dir().join("summary.json")).unwrap(),
         original_summary
@@ -91,9 +93,13 @@ fn index_reads_grok_fixture_then_recall_redacts_it() {
     );
 
     let project = resolve_project(&project_dir).unwrap();
-    let database = Connection::open(&project.database_path).unwrap();
+    let database = Connection::open(root.join("index.db")).unwrap();
     let search: String = database
-        .query_row("SELECT search_text FROM capsules", [], |row| row.get(0))
+        .query_row(
+            "SELECT search_text FROM capsules WHERE search_text LIKE '%deterministic cache boundary%'",
+            [],
+            |row| row.get(0),
+        )
         .unwrap();
     assert!(search.contains("deterministic cache boundary"));
     assert!(search.contains("content fingerprint"));
@@ -104,7 +110,11 @@ fn index_reads_grok_fixture_then_recall_redacts_it() {
     assert!(!search.contains("supersecretvalue"));
     assert!(search.contains("[REDACTED:credential]"));
     let harness: String = database
-        .query_row("SELECT adapter FROM sessions", [], |row| row.get(0))
+        .query_row(
+            "SELECT adapter FROM sessions WHERE project_key = ?1",
+            [project.key.clone()],
+            |row| row.get(0),
+        )
         .unwrap();
     assert_eq!(harness, "grok");
 
@@ -116,6 +126,8 @@ fn index_reads_grok_fixture_then_recall_redacts_it() {
             "sync".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--catalog".into(),
             catalog.display().to_string(),
         ],
@@ -127,6 +139,8 @@ fn index_reads_grok_fixture_then_recall_redacts_it() {
         &[
             "recall".into(),
             "fingerprint".into(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--catalog".into(),
             catalog.display().to_string(),
             "--json".into(),
@@ -149,6 +163,8 @@ fn index_reads_grok_fixture_then_recall_redacts_it() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--grok-home".into(),
             home.display().to_string(),
             "--json".into(),
@@ -175,12 +191,13 @@ fn index_keeps_a_session_when_the_update_stream_is_malformed() {
         project_dir.display().to_string(),
         "--grok-home".to_string(),
         home.display().to_string(),
+        "--database".to_string(),
+        root.join("index.db").display().to_string(),
         "--json".to_string(),
     ];
     let mut stdout = Vec::new();
     run_with(&arguments, &mut stdout).unwrap();
-    let project = resolve_project(&project_dir).unwrap();
-    let database = Connection::open(&project.database_path).unwrap();
+    let database = Connection::open(root.join("index.db")).unwrap();
     let before: i64 = database
         .query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get(0))
         .unwrap();
@@ -194,7 +211,7 @@ fn index_keeps_a_session_when_the_update_stream_is_malformed() {
     assert_eq!(document["indexed"], 0);
     assert_eq!(document["deleted"], 0);
 
-    let database = Connection::open(&project.database_path).unwrap();
+    let database = Connection::open(root.join("index.db")).unwrap();
     let after: i64 = database
         .query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get(0))
         .unwrap();
@@ -226,6 +243,8 @@ fn index_keeps_a_session_when_summary_or_updates_are_missing() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--grok-home".into(),
             home.display().to_string(),
             "--json".into(),
@@ -245,8 +264,7 @@ fn index_keeps_a_session_when_summary_or_updates_are_missing() {
         .as_str()
         .unwrap()
         .contains("missing its update stream")));
-    let project = resolve_project(&project_dir).unwrap();
-    let database = Connection::open(&project.database_path).unwrap();
+    let database = Connection::open(root.join("index.db")).unwrap();
     let count: i64 = database
         .query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get(0))
         .unwrap();

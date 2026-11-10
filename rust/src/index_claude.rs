@@ -5,7 +5,7 @@ use crate::index_store::{
     file_updated_at, finish_session, load_checkpoint, write_sessions, Checkpoint, IndexScope,
     SessionDraft,
 };
-use crate::project::{owns_project, ProjectIdentity};
+use crate::project::ProjectIdentity;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
@@ -31,36 +31,11 @@ pub fn index_claude(
             "The configured Claude home is unavailable.",
         )
     })?;
-    let root = home.join("projects").join(project_slug(project));
-    if !root.is_dir() {
-        return Err(TangError::new(
-            "missing-store",
-            "No Claude transcripts were found for this project.",
-        ));
-    }
     let namespace = format!(
         "store-{:x}",
         Sha256::digest(home.to_string_lossy().as_bytes())
     );
-    let mut logs = Vec::new();
-    for entry in fs::read_dir(&root).map_err(|_| {
-        TangError::new(
-            "missing-store",
-            "The Claude project directory could not be listed.",
-        )
-    })? {
-        let path = entry
-            .map_err(|_| {
-                TangError::new(
-                    "missing-store",
-                    "The Claude project directory could not be listed.",
-                )
-            })?
-            .path();
-        if path.extension().and_then(|ext| ext.to_str()) == Some("jsonl") {
-            logs.push(path);
-        }
-    }
+    let mut logs = collect_claude_logs(&home)?;
     logs.sort();
     let mut saved = Vec::new();
     let mut warnings = Vec::new();
@@ -85,7 +60,7 @@ pub fn index_claude(
                 continue;
             }
         }
-        match read_transcript(&log, &namespace, project, &mut warnings) {
+        match read_transcript(&log, &namespace, &mut warnings) {
             Ok(Some(record)) => {
                 checkpoint.remember(&record.source_id, &record.fingerprint, true);
                 saved.push(record);
@@ -136,7 +111,6 @@ pub fn index_claude(
 fn read_transcript(
     path: &Path,
     namespace: &str,
-    project: &ProjectIdentity,
     warnings: &mut Vec<String>,
 ) -> std::result::Result<Option<crate::index_store::SavedSession>, String> {
     let native_id = path
@@ -149,8 +123,7 @@ fn read_transcript(
     let mut title: Option<String> = None;
     let mut started: Option<String> = None;
     let mut updated: Option<String> = None;
-    let mut saw_project = false;
-    let mut foreign = false;
+    let mut recorded_cwd: Option<String> = None;
     for (number, line) in String::from_utf8_lossy(&bytes).lines().enumerate() {
         if line.trim().is_empty() {
             continue;
@@ -181,11 +154,11 @@ fn read_transcript(
                 updated = Some(timestamp.to_string());
             }
         }
-        if let Some(cwd) = row.get("cwd").and_then(Value::as_str) {
-            if owns_project(cwd, project) {
-                saw_project = true;
-            } else if Path::new(cwd).is_dir() {
-                foreign = true;
+        if recorded_cwd.is_none() {
+            if let Some(cwd) = row.get("cwd").and_then(Value::as_str) {
+                if !cwd.trim().is_empty() {
+                    recorded_cwd = Some(cwd.to_string());
+                }
             }
         }
         let role = match row.get("type").and_then(Value::as_str) {
@@ -198,10 +171,11 @@ fn read_transcript(
             turns.push((role.to_string(), text));
         }
     }
-    if foreign || (!saw_project && !sits_under_project_slug(path, project)) {
-        return Ok(None);
-    }
-    let hint = project_root(project).to_string_lossy().to_string();
+    let hint = recorded_cwd.unwrap_or_else(|| {
+        path.parent()
+            .map(|parent| parent.to_string_lossy().to_string())
+            .unwrap_or_default()
+    });
     let fallback = file_updated_at(path);
     let started = started.unwrap_or_else(|| fallback.clone());
     let updated = updated.unwrap_or(fallback);
@@ -223,10 +197,58 @@ fn read_transcript(
     .map(Some)
 }
 
-fn sits_under_project_slug(path: &Path, project: &ProjectIdentity) -> bool {
-    let slug = project_slug(project);
-    path.components()
-        .any(|component| component.as_os_str() == slug.as_str())
+fn collect_claude_logs(home: &Path) -> Result<Vec<PathBuf>> {
+    let projects = home.join("projects");
+    if !projects.is_dir() {
+        return Err(TangError::new(
+            "missing-store",
+            "No Claude transcripts were found.",
+        ));
+    }
+    let mut logs = Vec::new();
+    for entry in fs::read_dir(&projects).map_err(|_| {
+        TangError::new(
+            "missing-store",
+            "The Claude project directory could not be listed.",
+        )
+    })? {
+        let path = entry
+            .map_err(|_| {
+                TangError::new(
+                    "missing-store",
+                    "The Claude project directory could not be listed.",
+                )
+            })?
+            .path();
+        if !path.is_dir() {
+            continue;
+        }
+        for file in fs::read_dir(&path).map_err(|_| {
+            TangError::new(
+                "missing-store",
+                "The Claude project directory could not be listed.",
+            )
+        })? {
+            let file = file
+                .map_err(|_| {
+                    TangError::new(
+                        "missing-store",
+                        "The Claude project directory could not be listed.",
+                    )
+                })?
+                .path();
+            if file.extension().and_then(|ext| ext.to_str()) == Some("jsonl") {
+                logs.push(file);
+            }
+        }
+    }
+    if logs.is_empty() {
+        return Err(TangError::new(
+            "missing-store",
+            "No Claude transcripts were found.",
+        ));
+    }
+    Ok(logs)
 }
 
 fn source_id_for_transcript(path: &Path, namespace: &str) -> Option<String> {
@@ -253,26 +275,6 @@ fn visible_text(row: &Value) -> String {
             .collect::<Vec<_>>()
             .join("\n"),
         _ => String::new(),
-    }
-}
-
-fn project_root(project: &ProjectIdentity) -> PathBuf {
-    project
-        .database_path
-        .parent()
-        .and_then(Path::parent)
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| project.database_path.clone())
-}
-
-fn project_slug(project: &ProjectIdentity) -> String {
-    let root = project_root(project);
-    let text = root.to_string_lossy();
-    let trimmed = text.trim_start_matches('/');
-    if trimmed.is_empty() {
-        "-root".to_string()
-    } else {
-        format!("-{}", trimmed.replace('/', "-"))
     }
 }
 

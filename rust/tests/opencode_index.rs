@@ -68,6 +68,8 @@ fn index_reads_opencode_export_then_recall_redacts_it() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--opencode-home".into(),
             home.display().to_string(),
             "--json".into(),
@@ -76,14 +78,18 @@ fn index_reads_opencode_export_then_recall_redacts_it() {
     )
     .unwrap();
     let document: Value = serde_json::from_slice(&stdout).unwrap();
-    assert_eq!(document["indexed"], 1);
-    assert_eq!(document["skipped"], 1);
+    assert_eq!(document["indexed"], 2);
+    assert_eq!(document["skipped"], 0);
     assert_eq!(fs::read(fixture()).unwrap(), original);
 
     let project = resolve_project(&project_dir).unwrap();
-    let database = Connection::open(&project.database_path).unwrap();
+    let database = Connection::open(root.join("index.db")).unwrap();
     let search: String = database
-        .query_row("SELECT search_text FROM capsules", [], |row| row.get(0))
+        .query_row(
+            "SELECT search_text FROM capsules WHERE project_key = ?1",
+            [project.key.clone()],
+            |row| row.get(0),
+        )
         .unwrap();
     assert!(search.contains("source-cited OpenCode continuation"));
     assert!(search.contains("supported source and destination seams"));
@@ -101,6 +107,8 @@ fn index_reads_opencode_export_then_recall_redacts_it() {
             "sync".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--catalog".into(),
             catalog.display().to_string(),
         ],
@@ -112,6 +120,8 @@ fn index_reads_opencode_export_then_recall_redacts_it() {
         &[
             "recall".into(),
             "continuation".into(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--catalog".into(),
             catalog.display().to_string(),
             "--json".into(),
@@ -120,8 +130,18 @@ fn index_reads_opencode_export_then_recall_redacts_it() {
     )
     .unwrap();
     let recall: Value = serde_json::from_slice(&stdout).unwrap();
-    assert_eq!(recall["result_count"], 1);
-    assert_eq!(recall["results"][0]["harness"], "opencode");
+    assert!(recall["result_count"].as_i64().unwrap() >= 1);
+    assert!(recall["results"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|result| result["harness"] == "opencode"));
+    assert!(recall["results"].as_array().unwrap().iter().all(|result| {
+        !result["summary"]
+            .as_str()
+            .unwrap_or("")
+            .contains("supersecretvalue")
+    }));
 
     fs::remove_file(&export).unwrap();
     stdout.clear();
@@ -130,6 +150,8 @@ fn index_reads_opencode_export_then_recall_redacts_it() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--opencode-home".into(),
             home.display().to_string(),
             "--json".into(),
@@ -159,6 +181,8 @@ fn incidental_json_is_ignored_and_a_malformed_export_keeps_its_row() {
         project_dir.display().to_string(),
         "--opencode-home".to_string(),
         home.display().to_string(),
+        "--database".to_string(),
+        root.join("index.db").display().to_string(),
         "--json".to_string(),
     ];
     let mut stdout = Vec::new();
@@ -178,8 +202,7 @@ fn incidental_json_is_ignored_and_a_malformed_export_keeps_its_row() {
     assert_eq!(again["indexed"], 0);
     assert_eq!(again["deleted"], 0);
     assert!(!again["warnings"].as_array().unwrap().is_empty());
-    let project = resolve_project(&project_dir).unwrap();
-    let database = Connection::open(&project.database_path).unwrap();
+    let database = Connection::open(root.join("index.db")).unwrap();
     let count: i64 = database
         .query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get(0))
         .unwrap();

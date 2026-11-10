@@ -91,6 +91,7 @@ fn ask<'a>(
     DiscoveryQuery {
         text,
         harness,
+        directory: None,
         include_unavailable,
         limit,
     }
@@ -155,7 +156,7 @@ fn project_fixture(name: &str) -> (PathBuf, Connection) {
 #[test]
 fn browse_orders_filters_and_hides_unavailable() {
     let (_path, db) = project_fixture("browse");
-    let rows = browse(&db, PROJECT, &ask(Some("ignored"), None, false, 20)).unwrap();
+    let rows = browse(&db, Some(PROJECT), &ask(Some("ignored"), None, false, 20)).unwrap();
     assert_eq!(
         ids(&rows),
         ["Codex:local:z", "grok:local:a", "grok:local:b",]
@@ -171,10 +172,10 @@ fn browse_orders_filters_and_hides_unavailable() {
     assert_eq!(rows[1].snippet.as_deref(), Some("lighthouse plan"));
     assert!(!rows[1].snippet.as_deref().unwrap().contains(SECRET));
 
-    let grok = browse(&db, PROJECT, &ask(None, Some("GROK"), false, 20)).unwrap();
+    let grok = browse(&db, Some(PROJECT), &ask(None, Some("GROK"), false, 20)).unwrap();
     assert_eq!(ids(&grok), ["grok:local:a", "grok:local:b"]);
 
-    let hidden = browse(&db, PROJECT, &ask(None, None, true, 20)).unwrap();
+    let hidden = browse(&db, Some(PROJECT), &ask(None, None, true, 20)).unwrap();
     assert_eq!(
         ids(&hidden),
         [
@@ -188,7 +189,7 @@ fn browse_orders_filters_and_hides_unavailable() {
         .iter()
         .any(|row| row.source_id.ends_with(":c") && row.native_available));
 
-    let newest = browse(&db, PROJECT, &ask(None, None, false, 1)).unwrap();
+    let newest = browse(&db, Some(PROJECT), &ask(None, None, false, 1)).unwrap();
     assert_eq!(ids(&newest), ["Codex:local:z"]);
 }
 
@@ -218,25 +219,30 @@ fn search_finds_visible_words_and_skips_redacted_secrets() {
     assert!(indexed.contains("[REDACTED:credential]"));
     assert!(!indexed.contains(SECRET));
 
-    let found = search_project(&db, PROJECT, &ask(Some("lighthouse"), None, false, 20)).unwrap();
+    let found = search_project(
+        &db,
+        Some(PROJECT),
+        &ask(Some("lighthouse"), None, false, 20),
+    )
+    .unwrap();
     assert_eq!(ids(&found), ["grok:local:a"]);
     let snippet = found[0].snippet.as_deref().unwrap();
     assert!(snippet.to_ascii_lowercase().contains("lighthouse"));
     assert!(!snippet.contains(SECRET));
 
-    let secret = search_project(&db, PROJECT, &ask(Some(SECRET), None, false, 20)).unwrap();
+    let secret = search_project(&db, Some(PROJECT), &ask(Some(SECRET), None, false, 20)).unwrap();
     assert!(secret.is_empty());
 
     let wrong_harness = search_project(
         &db,
-        PROJECT,
+        Some(PROJECT),
         &ask(Some("marigold"), Some("grok"), false, 20),
     )
     .unwrap();
     assert!(wrong_harness.is_empty());
     let codex = search_project(
         &db,
-        PROJECT,
+        Some(PROJECT),
         &ask(Some("marigold"), Some("CODEX"), false, 20),
     )
     .unwrap();
@@ -247,9 +253,10 @@ fn search_finds_visible_words_and_skips_redacted_secrets() {
         [],
     )
     .unwrap();
-    let hidden = search_project(&db, PROJECT, &ask(Some("marigold"), None, false, 20)).unwrap();
+    let hidden =
+        search_project(&db, Some(PROJECT), &ask(Some("marigold"), None, false, 20)).unwrap();
     assert!(hidden.is_empty());
-    let shown = search_project(&db, PROJECT, &ask(Some("marigold"), None, true, 20)).unwrap();
+    let shown = search_project(&db, Some(PROJECT), &ask(Some("marigold"), None, true, 20)).unwrap();
     assert_eq!(ids(&shown), ["Codex:local:z"]);
 
     drop(db);
@@ -270,7 +277,8 @@ fn search_finds_visible_words_and_skips_redacted_secrets() {
     .unwrap();
     assert_eq!(removed.deleted, 3);
     let db = Connection::open(&path).unwrap();
-    let gone = search_project(&db, PROJECT, &ask(Some("lighthouse"), None, true, 20)).unwrap();
+    let gone =
+        search_project(&db, Some(PROJECT), &ask(Some("lighthouse"), None, true, 20)).unwrap();
     assert!(gone.is_empty());
     let leftover: i64 = db
         .query_row(
@@ -280,7 +288,7 @@ fn search_finds_visible_words_and_skips_redacted_secrets() {
         )
         .unwrap();
     assert_eq!(leftover, 0);
-    let still = search_project(&db, PROJECT, &ask(Some("marigold"), None, true, 20)).unwrap();
+    let still = search_project(&db, Some(PROJECT), &ask(Some("marigold"), None, true, 20)).unwrap();
     assert_eq!(ids(&still), ["Codex:local:z"]);
 }
 
@@ -313,15 +321,15 @@ fn ensure_project_search_rebuilds_inserted_capsules() {
         rusqlite::params![PROJECT, content, search_text, content.len() as i64],
     )
     .unwrap();
-    let before = search_project(&db, PROJECT, &ask(Some("orchid"), None, false, 20)).unwrap();
+    let before = search_project(&db, Some(PROJECT), &ask(Some("orchid"), None, false, 20)).unwrap();
     assert!(before.is_empty());
     ensure_project_search(&db).unwrap();
     ensure_project_search(&db).unwrap();
-    let found = search_project(&db, PROJECT, &ask(Some("orchid"), None, false, 20)).unwrap();
+    let found = search_project(&db, Some(PROJECT), &ask(Some("orchid"), None, false, 20)).unwrap();
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].title, "Orchid note");
     assert_eq!(found[0].handle, "G1");
-    let secret = search_project(&db, PROJECT, &ask(Some(SECRET), None, false, 20)).unwrap();
+    let secret = search_project(&db, Some(PROJECT), &ask(Some(SECRET), None, false, 20)).unwrap();
     assert!(secret.is_empty());
     let indexed: i64 = db
         .query_row("SELECT COUNT(*) FROM capsules_fts", [], |row| row.get(0))
@@ -353,7 +361,7 @@ fn custom_title_survives_reindex_and_clear_restores_it() {
         set_title(&mut db, PROJECT, source_id, "Custom beacon").unwrap(),
         "G1"
     );
-    let browsed = browse(&db, PROJECT, &ask(None, None, false, 20)).unwrap();
+    let browsed = browse(&db, Some(PROJECT), &ask(None, None, false, 20)).unwrap();
     assert_eq!(browsed[0].title, "Custom beacon");
     let stored: String = db
         .query_row(
@@ -411,7 +419,12 @@ fn custom_title_survives_reindex_and_clear_restores_it() {
         )
         .unwrap();
     assert_eq!(override_title, "Custom beacon");
-    let hits = search_project(&db, PROJECT, &ask(Some("lighthouse"), None, false, 20)).unwrap();
+    let hits = search_project(
+        &db,
+        Some(PROJECT),
+        &ask(Some("lighthouse"), None, false, 20),
+    )
+    .unwrap();
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].title, "Custom beacon");
 
@@ -430,7 +443,7 @@ fn custom_title_survives_reindex_and_clear_restores_it() {
         )
         .unwrap();
     assert_eq!(restored, "Derived lighthouse");
-    let browsed = browse(&db, PROJECT, &ask(None, None, false, 20)).unwrap();
+    let browsed = browse(&db, Some(PROJECT), &ask(None, None, false, 20)).unwrap();
     assert_eq!(browsed[0].title, "Derived lighthouse");
     assert!(!browsed[0].title.contains("Custom"));
     assert_eq!(clear_title(&mut db, PROJECT, "g1").unwrap(), "G1");
@@ -461,7 +474,7 @@ fn custom_title_survives_reindex_and_clear_restores_it() {
         .unwrap();
     assert_eq!(custom, "PASSWORD=[REDACTED:credential]");
     assert!(!custom.contains(SECRET));
-    let shown = browse(&db, PROJECT, &ask(None, None, false, 20)).unwrap();
+    let shown = browse(&db, Some(PROJECT), &ask(None, None, false, 20)).unwrap();
     assert_eq!(shown[0].title, "PASSWORD=[REDACTED:credential]");
     clear_title(&mut db, PROJECT, "g1").unwrap();
     let back: String = db
@@ -479,17 +492,21 @@ fn invalid_limit_and_empty_query_are_rejected() {
     let path = scratch("limits");
     let db = Connection::open(&path).unwrap();
     for limit in [0, -1, 101] {
-        let browse_error = browse(&db, PROJECT, &ask(None, None, false, limit)).unwrap_err();
+        let browse_error = browse(&db, Some(PROJECT), &ask(None, None, false, limit)).unwrap_err();
         assert_eq!(browse_error.code, "invalid-limit");
-        let search_error =
-            search_project(&db, PROJECT, &ask(Some("lighthouse"), None, false, limit)).unwrap_err();
+        let search_error = search_project(
+            &db,
+            Some(PROJECT),
+            &ask(Some("lighthouse"), None, false, limit),
+        )
+        .unwrap_err();
         assert_eq!(search_error.code, "invalid-limit");
     }
     for text in [None, Some(""), Some("   "), Some("\n\t")] {
-        let error = search_project(&db, PROJECT, &ask(text, None, false, 20)).unwrap_err();
+        let error = search_project(&db, Some(PROJECT), &ask(text, None, false, 20)).unwrap_err();
         assert_eq!(error.code, "empty-query");
     }
-    let accepted = browse(&db, PROJECT, &ask(None, None, false, 100));
+    let accepted = browse(&db, Some(PROJECT), &ask(None, None, false, 100));
     assert!(accepted.is_err());
     assert_ne!(accepted.unwrap_err().code, "invalid-limit");
 }
@@ -505,6 +522,7 @@ fn cards_are_plain_deterministic_text() {
         updated_at: "2026-01-03T00:00:00Z".into(),
         native_available: true,
         snippet: None,
+        directory: String::new(),
     };
     let second = DiscoveryRow {
         source_id: "Codex:local:z".into(),
@@ -515,6 +533,7 @@ fn cards_are_plain_deterministic_text() {
         updated_at: "2026-01-04T00:00:00Z".into(),
         native_available: true,
         snippet: Some("hidden".into()),
+        directory: String::new(),
     };
     assert_eq!(render_brief(&[]), "No indexed sessions.\n");
     assert_eq!(render_cards(&[]), "No indexed sessions.\n");
@@ -550,6 +569,7 @@ title line one line two
         updated_at: "2026-01-05T00:00:00Z".into(),
         native_available: true,
         snippet: None,
+        directory: String::new(),
     };
     let rendered = render_cards(&[hostile]);
     assert!(!rendered.contains('\u{1b}'));

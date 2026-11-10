@@ -41,7 +41,7 @@ format is too risky to promise without repeatable recovery from real data.
 ### Release Blocking
 
 - Reliable Codex and Grok read-only session adapters, with support claims distinguishing live verification from fixtures.
-- Current-project indexing, browsing, and FTS5 search.
+- One user-global index at `~/.tang/index.db`, with each session tagged by its directory. Browse, search, and recall read that index.
 - Selection of one or more prior sessions into the current open Codex session.
 - One deterministic, source-cited compact Context Pack.
 - One GPT-5.6 Continuation Brief whose headline identifies the resume point and evidence-backed next action.
@@ -78,7 +78,7 @@ format is too risky to promise without repeatable recovery from real data.
 
 ### Stretch
 
-- Explicit opt-in to global cross-project discovery.
+- Cross-project continuation. Indexing already keeps sessions from other directories and tags them; join stays inside one project.
 - Expanded or custom-budget Context Packs.
 - A richer interactive standalone browser.
 - Additional purge scopes and broader diagnostics.
@@ -110,7 +110,7 @@ format is too risky to promise without repeatable recovery from real data.
 7. Tang records explicit edges `A -> C`, `B -> C`, and so on after confirming the current target when necessary.
 8. The Multiverse Map shows how the work continued across harnesses.
 
-The hackathon release only discovers and selects sources belonging to the current project. Cross-project discovery is deferred to prevent nonsensical or accidental mixing and to protect the primary demo path.
+`tang index` reads each configured harness store, including a home store such as `~/.codex`, and writes one user-global index at `~/.tang/index.db`. A session whose directory is outside the working directory is still indexed. That directory is stored as a redacted tag. Running the command from another directory updates the same index and does not create a second copy. Browse, search, and recall read that index and do not hide a session because its project key differs from the current directory. Continuation links stay inside one project. `tang purge --all` deletes only the current project's rows from that index.
 
 Tang rejects self-links and links that introduce a cycle. A Multiverse is a weakly connected component of this directed acyclic graph; a Timeline is any directed path through it.
 
@@ -126,7 +126,7 @@ remain mandatory before any continuation is recorded.
 | Interface | Behavior |
 |---|---|
 | `tang` | Print concise help and the primary recovery commands. |
-| `tang index` | Incrementally index the current project. |
+| `tang index` | Incrementally read each configured harness store into `~/.tang/index.db`. Keep every session and tag it with its directory. |
 | `tang browse` | List indexed sessions with harness, time, title, health, and capability status. |
 | `tang search QUERY` | Search Discovery Capsules with project, harness, time, and health filters. |
 | `tang context [SESSION...]` | Emit a deterministic Markdown or JSON Context Pack using the compact budget. Bare `context` and `context all` recall every confirmed predecessor of one unambiguous latest target; `context N` limits ancestry to N link hops. |
@@ -230,7 +230,7 @@ retained only when separately bounded and redacted.
 
 Apply the same best-effort redactor when creating capsules, showing snippets, reading context, producing annotations, and rendering graph labels. Redaction protects against accidental disclosure; it is not encryption and does not guarantee protection against forensic recovery.
 
-Index and browse only the current project in the hackathon release. Provide `tang purge --all` for a clear deletion path for that project's derived database. `tang demo` always uses a temporary data directory.
+`tang index` writes one SQLite index at `~/.tang/index.db`. The catalog schema does not hold locators, fingerprints, or checkpoints, so this file is separate from `~/.tang/catalog.db`. Each session keeps its own project key, and its directory is a redacted tag. Browse, search, and recall read this index without a current-project filter. Graph, context, resume, and join still use the current project key. `tang purge --all` removes only that project's rows from the index and the catalog. `tang demo` always uses a temporary data directory.
 
 ### Context Packs
 

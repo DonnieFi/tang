@@ -6,7 +6,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rusqlite::Connection;
 use serde_json::{json, Value};
 use tang::cli::run_with;
-use tang::project::resolve_project;
 
 fn scratch() -> PathBuf {
     let nanos = SystemTime::now()
@@ -129,6 +128,8 @@ fn index_reads_openclaw_sqlite_then_recall_redacts_it() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--openclaw-home".into(),
             linked_home.display().to_string(),
         ],
@@ -143,6 +144,8 @@ fn index_reads_openclaw_sqlite_then_recall_redacts_it() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--openclaw-home".into(),
             home.display().to_string(),
             "--json".into(),
@@ -151,13 +154,16 @@ fn index_reads_openclaw_sqlite_then_recall_redacts_it() {
     )
     .unwrap();
     let document: Value = serde_json::from_slice(&stdout).unwrap();
-    assert_eq!(document["indexed"], 1);
-    assert_eq!(document["skipped"], 1);
+    assert_eq!(document["indexed"], 2);
+    assert_eq!(document["skipped"], 0);
 
-    let project = resolve_project(&project_dir).unwrap();
-    let database = Connection::open(&project.database_path).unwrap();
+    let database = Connection::open(root.join("index.db")).unwrap();
     let search: String = database
-        .query_row("SELECT search_text FROM capsules", [], |row| row.get(0))
+        .query_row(
+            "SELECT search_text FROM capsules WHERE search_text LIKE '%session naming%'",
+            [],
+            |row| row.get(0),
+        )
         .unwrap();
     assert!(search.contains("session naming"));
     assert!(search.contains("short handles"));
@@ -174,6 +180,8 @@ fn index_reads_openclaw_sqlite_then_recall_redacts_it() {
             "sync".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--catalog".into(),
             catalog.display().to_string(),
         ],
@@ -185,6 +193,8 @@ fn index_reads_openclaw_sqlite_then_recall_redacts_it() {
         &[
             "recall".into(),
             "naming".into(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--catalog".into(),
             catalog.display().to_string(),
             "--json".into(),
@@ -216,6 +226,8 @@ fn index_reads_openclaw_sqlite_then_recall_redacts_it() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--openclaw-home".into(),
             home.display().to_string(),
             "--json".into(),
@@ -257,6 +269,8 @@ fn index_reads_openclaw_agents_other_than_main() {
             "index".into(),
             "--cwd".into(),
             project_dir.display().to_string(),
+            "--database".into(),
+            root.join("index.db").display().to_string(),
             "--openclaw-home".into(),
             home.display().to_string(),
             "--json".into(),
@@ -265,11 +279,10 @@ fn index_reads_openclaw_agents_other_than_main() {
     )
     .unwrap();
     let document: Value = serde_json::from_slice(&stdout).unwrap();
-    assert_eq!(document["indexed"], 2);
-    let project = resolve_project(&project_dir).unwrap();
-    let database = Connection::open(&project.database_path).unwrap();
+    assert_eq!(document["indexed"], 4);
+    let database = Connection::open(root.join("index.db")).unwrap();
     let count: i64 = database
         .query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(count, 2);
+    assert_eq!(count, 4);
 }
