@@ -32,7 +32,7 @@ pub fn render_demo(width: usize, ascii_only: bool) -> String {
         )
         .expect("demo schema");
     seed(&connection);
-    render_project_map(
+    let mut rendered = render_project_map(
         &connection,
         "demo",
         &MapOptions {
@@ -42,8 +42,9 @@ pub fn render_demo(width: usize, ascii_only: bool) -> String {
             current_handle: Some("G".to_string()),
         },
     )
-    .expect("demo map")
-        + "Demo complete; temporary data will now be removed.\n"
+    .expect("demo map");
+    rendered.push_str("Demo complete; temporary data will now be removed.\n");
+    rendered
 }
 
 fn seed(connection: &Connection) {

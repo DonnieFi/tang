@@ -893,7 +893,7 @@ fn round_half_even(value: f64) -> i64 {
     let floor = value.floor();
     let fraction = value - floor;
     let rounded = if (fraction - 0.5).abs() < 1e-9 {
-        if floor as i64 % 2 == 0 {
+        if (floor as i64) % 2 == 0 {
             floor
         } else {
             floor + 1.0
