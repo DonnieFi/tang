@@ -7,6 +7,7 @@ pub mod cli;
 pub mod error;
 pub mod index_codex;
 pub mod index_grok;
+pub mod index_opencode;
 pub mod index_store;
 pub mod join;
 pub mod project;
