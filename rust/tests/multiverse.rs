@@ -364,7 +364,8 @@ fn missing_anchor_is_not_in_project() {
     let json = render_project_map_json(&connection, "proj", &options).unwrap_err();
     assert_eq!(json.code, "not-in-project");
 
-    let empty = open_db(&Scratch::new());
+    let empty_scratch = Scratch::new();
+    let empty = open_db(&empty_scratch);
     let missing =
         render_project_map(&empty, "proj", &map_options(80, false, Some("C1"), None)).unwrap_err();
     assert_eq!(missing.code, "not-in-project");
@@ -476,8 +477,7 @@ fn demo_marks_the_active_hardening_handle() {
     assert!(rendered.contains("Grok research"), "{rendered}");
     assert!(rendered.contains("MERGE"), "{rendered}");
     assert!(rendered.contains("BRANCH"), "{rendered}");
-    let bad: String = rendered.chars().filter(|glyph| !glyph.is_ascii()).collect();
-    assert!(bad.is_empty(), "{bad:?} in {rendered}");
+    assert!(rendered.is_ascii(), "{rendered}");
 }
 
 #[test]
