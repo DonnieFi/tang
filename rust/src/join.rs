@@ -204,6 +204,24 @@ pub fn open_project_readwrite(path: &Path) -> Result<Connection> {
     Ok(connection)
 }
 
+fn catalog_handle(token: &str) -> Result<String> {
+    let normalized = token.to_ascii_uppercase();
+    let mut chars = normalized.chars();
+    let first = chars.next().unwrap_or('\0');
+    let rest: String = chars.collect();
+    if !first.is_ascii_alphabetic()
+        || rest.is_empty()
+        || !rest.bytes().all(|byte| byte.is_ascii_digit())
+        || rest.starts_with('0')
+    {
+        return Err(TangError::new(
+            "invalid-session",
+            "A catalog handle is a letter followed by a number, such as C1.",
+        ));
+    }
+    Ok(normalized)
+}
+
 fn assert_project_database(path: &Path) -> Result<()> {
     if !path.is_file() {
         return Err(TangError::new(
@@ -257,7 +275,7 @@ fn lookup(catalog: &Connection, token: &str) -> Result<CatalogSession> {
     let key = if token.contains(':') {
         token.to_string()
     } else {
-        token.to_ascii_uppercase()
+        catalog_handle(token)?
     };
     catalog
         .query_row(sql, [key], |row| {

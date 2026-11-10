@@ -165,6 +165,10 @@ struct Flags {
 }
 
 fn parse_flags(args: &[String]) -> Result<Flags> {
+    parse_flags_with(args, true)
+}
+
+fn parse_flags_with(args: &[String], allow_positional: bool) -> Result<Flags> {
     let mut flags = Flags {
         catalog: None,
         database: None,
@@ -218,9 +222,9 @@ fn parse_flags(args: &[String]) -> Result<Flags> {
                 "unknown-flag",
                 format!("Unknown flag {arg}."),
             ));
-        } else if flags.query.is_some() {
+        } else if !allow_positional || flags.query.is_some() {
             return Err(TangError::new(
-                "unknown-argument",
+                "unexpected-argument",
                 format!("Unexpected argument {arg}."),
             ));
         } else {
@@ -254,7 +258,7 @@ fn sync_json(result: &SyncResult) -> String {
 }
 
 fn join_command(args: &[String], stdout: &mut dyn Write) -> Result<()> {
-    let flags = parse_flags(args)?;
+    let flags = parse_flags_with(args, false)?;
     let Some(target) = flags.into else {
         return Err(TangError::new(
             "invalid-session",

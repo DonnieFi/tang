@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tang::catalog::{add_label, open_catalog, recall, sync_project, RecallQuery};
 use tang::cli::run_with;
+use tang::join::resolve_join;
 use tang::project::resolve_project;
 
 fn scratch() -> PathBuf {
@@ -892,4 +893,48 @@ fn join_accepts_multiple_sources_in_one_command() {
         })
         .unwrap();
     assert_eq!(count, 2);
+}
+
+#[test]
+fn join_rejects_a_malformed_handle_and_a_positional_argument() {
+    let root = scratch();
+    let (project, database) = project_db(&root.join("work"));
+    insert(
+        &database,
+        &project.key,
+        "codex:fixture:keep",
+        "codex",
+        "C1",
+        "Keep me",
+        "keep this capsule",
+        1,
+    );
+    let mut catalog = open_catalog(&root.join("catalog.db")).unwrap();
+    sync_project(
+        &mut catalog,
+        &database,
+        &project.key,
+        &project.display_name,
+        &project.database_path,
+        "2026-11-09T21:00:00Z",
+    )
+    .unwrap();
+    let malformed = resolve_join(&catalog, &["not-a-handle".into()], "C1").unwrap_err();
+    assert_eq!(malformed.code, "invalid-session");
+    let missing = resolve_join(&catalog, &["C9".into()], "C1").unwrap_err();
+    assert_eq!(missing.code, "not-in-catalog");
+    let mut stdout = Vec::new();
+    let positional = run_with(
+        &[
+            "join".into(),
+            "C1".into(),
+            "--into".into(),
+            "C1".into(),
+            "--catalog".into(),
+            root.join("catalog.db").display().to_string(),
+        ],
+        &mut stdout,
+    )
+    .unwrap_err();
+    assert_eq!(positional.code, "unexpected-argument");
 }
