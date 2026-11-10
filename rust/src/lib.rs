@@ -5,6 +5,7 @@
 pub mod catalog;
 pub mod cli;
 pub mod error;
+pub mod index_antigravity;
 pub mod index_claude;
 pub mod index_codex;
 pub mod index_cursor;
