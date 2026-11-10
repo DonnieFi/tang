@@ -21,25 +21,16 @@ ranks, executes, or persists one source's instruction as the winner.
 4. **No persisted synthesis.** Tang does not store conflict resolutions,
    merged briefs, or model-authored reconciliations in `.tang` or native logs.
 
-## Deterministic signals (trusted core)
+## What the pack does
 
-When two or more sources expose a first visible user turn with different
-normalized text, the Context Pack JSON includes a non-model
-`constraint_signals` entry:
+The Rust Context Pack rereads each selected regular file, drops host envelope
+wrappers and Antigravity tool prose, and redacts the remaining text. It does
+not emit `constraint_signals` and does not decide which source wins. Host
+agents still read the cited excerpts and qualify a conflict in the
+Continuation Brief.
 
-- `kind`: `first_user_goal_mismatch`
-- `sources`: per-source `source_id`, `harness`, and `turn_locator` only
-
-Normalization strips only known host envelope tags (for example Cursor
-`<timestamp>` / `<user_query>` wrappers). It is **host-envelope hygiene**,
-not semantic equivalence; other harness prefixes or literal tag-like user text
-can still produce false matches or misses.
-
-This is a **hint**, not semantic inference. Host agents must still read excerpts
-and qualify uncertainty in the Continuation Brief.
-
-Multi-source packs remain **`status: complete`** when every source read is
-complete and the only pack-level warning is the deterministic conflict hint.
+A missing or symlinked source keeps that session's stored capsule. The pack
+does not print the locator.
 
 ## Continuation Brief contract
 
@@ -49,7 +40,7 @@ The Codex skill requires:
 - No single-source collapse when `constraint_signals` or conflicting excerpts exist
 - A focused clarification question when the next action is not jointly supported
 
-See `skills/tang/SKILL.md` and `tests/test_continuation_brief.py`.
+See `skills/tang/SKILL.md` and `rust/tests/context_pack.rs`.
 
 ## Out of scope
 

@@ -1,19 +1,14 @@
-# Epic 8 compatibility baseline
+# CLI compatibility checks
 
-Frozen public contracts before internal hardening (`tang-2mr`). Branch:
-`epic/10-beta-release` (includes beta parity work); re-verify on
-`epic/08-architecture-hardening` before promotion.
+These Rust tests guard the command surface. Run them with `cargo test --manifest-path rust/Cargo.toml`.
 
-| Seam | Guard tests |
+| Seam | Tests |
 | --- | --- |
-| CLI subcommands | `tests/test_release_cli.py` |
-| Link destinations | `tests/test_continuation.py`, `tests/test_harness_capabilities.py` |
-| Target resolution | `tests/test_target_resolution.py` (if present), link/graph CLI tests |
-| Context pack JSON | `tests/test_context_service.py`, skill workflow |
-| Index partial/complete | `tests/test_indexing.py` |
-| Graph map | `tests/test_graph.py`, `tests/test_graph_cli.py` |
-| Adapter read-only | `tests/test_codex_adapter.py`, `test_grok_adapter.py`, `test_opencode_adapter.py`, `test_cursor_adapter.py` |
-| Privacy/redaction | `tests/test_redaction.py`, capsule tests |
-
-Internal modules targeted by Epic 8 children: `target.py`, `continuation.py`,
-`indexing.py`, `repository.py`, `adapters/{codex,grok,opencode,cursor}.py`.
+| CLI commands | `rust/tests/surface.rs`, `rust/tests/workflow.rs` |
+| Link and join | `rust/tests/workflow.rs` |
+| Context pack | `rust/tests/context_pack.rs` |
+| Index | `rust/tests/index.rs`, `rust/tests/grok_index.rs`, `rust/tests/opencode_index.rs`, `rust/tests/cursor_index.rs`, `rust/tests/claude_index.rs`, `rust/tests/antigravity_index.rs`, `rust/tests/openclaw_index.rs` |
+| Map | `rust/tests/multiverse.rs` |
+| Resume, doctor, skill, purge | `rust/tests/operator.rs` |
+| Search and titles | `rust/tests/discovery.rs` |
+| Catalog and recall | `rust/tests/catalog.rs` |
