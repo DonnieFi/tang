@@ -279,6 +279,8 @@ pub fn open_project_database(path: &Path) -> Result<Connection> {
             );",
         )
         .map_err(storage)?;
+    ensure_capsules_fts(&connection)?;
+    ensure_session_overrides(&connection)?;
     Ok(connection)
 }
 
@@ -302,6 +304,10 @@ fn upsert(
         Some(handle) => handle,
         None => next_handle(connection, project_key, handle_prefix)?,
     };
+    // A custom title is user-owned. Reindexing may derive a new label, but an
+    // existing session_overrides row keeps that label on the session.
+    let title = session_override_title(connection, &record.source_id, project_key)?
+        .or_else(|| record.title.clone());
     connection
         .execute(
             "INSERT INTO sessions(
@@ -334,7 +340,7 @@ fn upsert(
                 record.health,
                 indexed_at,
                 handle,
-                record.title,
+                title,
             ],
         )
         .map_err(storage)?;
@@ -360,6 +366,12 @@ fn upsert(
             ],
         )
         .map_err(storage)?;
+    sync_search(
+        connection,
+        project_key,
+        &record.source_id,
+        &record.search_text,
+    )?;
     Ok(())
 }
 
@@ -416,6 +428,7 @@ fn delete_missing(
         connection
             .execute("DELETE FROM capsules WHERE source_id = ?1", [&source_id])
             .map_err(storage)?;
+        remove_search(connection, &source_id)?;
         // Match the Python repository: a session referenced by the graph is a
         // tombstone, not a row that may silently take its continuation edges.
         let referenced: Option<i64> = connection
@@ -441,6 +454,108 @@ fn delete_missing(
         deleted += 1;
     }
     Ok(deleted)
+}
+
+pub(crate) fn ensure_capsules_fts(connection: &Connection) -> Result<()> {
+    connection
+        .execute_batch(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS capsules_fts USING fts5(
+                source_id UNINDEXED,
+                project_key UNINDEXED,
+                search_text,
+                tokenize = 'porter unicode61'
+            );",
+        )
+        .map_err(storage)
+}
+
+/// Create the project FTS index if needed and rebuild it from capsule rows.
+pub fn ensure_project_search(db: &Connection) -> Result<()> {
+    ensure_capsules_fts(db)?;
+    db.execute("DELETE FROM capsules_fts", [])
+        .map_err(storage)?;
+    db.execute(
+        "INSERT INTO capsules_fts(source_id, project_key, search_text)
+         SELECT source_id, project_key, search_text FROM capsules",
+        [],
+    )
+    .map_err(storage)?;
+    Ok(())
+}
+
+pub(crate) fn ensure_session_overrides(connection: &Connection) -> Result<()> {
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS session_overrides (
+                source_id TEXT PRIMARY KEY,
+                project_key TEXT NOT NULL,
+                custom_title TEXT,
+                previous_title TEXT,
+                updated_at TEXT NOT NULL
+            );",
+        )
+        .map_err(storage)?;
+    let mut statement = connection
+        .prepare("PRAGMA table_info(session_overrides)")
+        .map_err(storage)?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(storage)?
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(storage)?;
+    drop(statement);
+    if !columns.iter().any(|column| column == "previous_title") {
+        connection
+            .execute(
+                "ALTER TABLE session_overrides ADD COLUMN previous_title TEXT",
+                [],
+            )
+            .map_err(storage)?;
+    }
+    Ok(())
+}
+
+fn sync_search(
+    connection: &Connection,
+    project_key: &str,
+    source_id: &str,
+    search_text: &str,
+) -> Result<()> {
+    ensure_capsules_fts(connection)?;
+    connection
+        .execute("DELETE FROM capsules_fts WHERE source_id = ?1", [source_id])
+        .map_err(storage)?;
+    connection
+        .execute(
+            "INSERT INTO capsules_fts(source_id, project_key, search_text) VALUES (?1, ?2, ?3)",
+            rusqlite::params![source_id, project_key, search_text],
+        )
+        .map_err(storage)?;
+    Ok(())
+}
+
+fn session_override_title(
+    connection: &Connection,
+    source_id: &str,
+    project_key: &str,
+) -> Result<Option<String>> {
+    ensure_session_overrides(connection)?;
+    connection
+        .query_row(
+            "SELECT custom_title FROM session_overrides
+             WHERE source_id = ?1 AND project_key = ?2",
+            rusqlite::params![source_id, project_key],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(storage)
+}
+
+fn remove_search(connection: &Connection, source_id: &str) -> Result<()> {
+    connection
+        .execute("DELETE FROM capsules_fts WHERE source_id = ?1", [source_id])
+        .map_err(storage)?;
+    Ok(())
 }
 
 #[cfg(test)]
